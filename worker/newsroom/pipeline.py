@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from typing import Dict, List
 
 from .config import load_config
 from .db import connect
@@ -38,8 +39,8 @@ def _finish_run(
     meetings_normalized: int,
     stories_published: int,
     events_created: int,
-    warnings: list[str],
-    errors: list[str],
+    warnings: List[str],
+    errors: List[str],
 ) -> None:
     with connection.cursor() as cursor:
         cursor.execute(
@@ -73,10 +74,10 @@ def _finish_run(
         )
 
 
-def run_daily() -> dict[str, object]:
+def run_daily() -> Dict[str, object]:
     config = load_config()
-    warnings: list[str] = []
-    errors: list[str] = []
+    warnings = []  # type: List[str]
+    errors = []  # type: List[str]
 
     with connect(config.database) as connection:
         run_id = _begin_run(connection)

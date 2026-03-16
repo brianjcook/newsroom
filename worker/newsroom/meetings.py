@@ -4,6 +4,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from typing import List, Optional
 
 from pymysql.connections import Connection
 
@@ -27,25 +28,25 @@ TIME_PATTERNS = [
 @dataclass(frozen=True)
 class MeetingRecord:
     source_item_id: int
-    governing_body: str | None
-    meeting_type: str | None
-    meeting_date: str | None
-    meeting_time: str | None
-    location_name: str | None
+    governing_body: Optional[str]
+    meeting_type: Optional[str]
+    meeting_date: Optional[str]
+    meeting_time: Optional[str]
+    location_name: Optional[str]
     status: str
-    agenda_posted_at: str | None
-    minutes_posted_at: str | None
-    meeting_key: str | None
+    agenda_posted_at: Optional[str]
+    minutes_posted_at: Optional[str]
+    meeting_key: Optional[str]
 
 
-def _first_match(pattern: str, text: str) -> str | None:
+def _first_match(pattern: str, text: str) -> Optional[str]:
     match = re.search(pattern, text, flags=re.IGNORECASE)
     if not match:
         return None
     return match.group(1).strip()
 
 
-def _parse_date(text: str) -> str | None:
+def _parse_date(text: str) -> Optional[str]:
     for token in re.findall(r"(?:[A-Za-z]{3,9},\s+)?[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4}|\d{1,2}/\d{1,2}/\d{4}", text):
         for fmt in DATE_PATTERNS:
             try:
@@ -55,7 +56,7 @@ def _parse_date(text: str) -> str | None:
     return None
 
 
-def _parse_time(text: str) -> str | None:
+def _parse_time(text: str) -> Optional[str]:
     normalized_text = text.replace("a.m.", "AM").replace("p.m.", "PM").replace("a.m", "AM").replace("p.m", "PM")
     match = re.search(r"(\d{1,2}(?::\d{2})?\s*[APap][Mm])", normalized_text)
     if not match:
@@ -70,7 +71,7 @@ def _parse_time(text: str) -> str | None:
     return None
 
 
-def _normalize_body_name(text: str) -> str | None:
+def _normalize_body_name(text: str) -> Optional[str]:
     patterns = [
         r"(Select Board)",
         r"(Board of Selectmen)",
@@ -97,7 +98,7 @@ def _normalize_body_name(text: str) -> str | None:
     return None
 
 
-def _parse_location(text: str) -> str | None:
+def _parse_location(text: str) -> Optional[str]:
     patterns = [
         r"(Town Hall(?: Auditorium)?)",
         r"(Memorial Town Hall)",
@@ -113,7 +114,7 @@ def _parse_location(text: str) -> str | None:
     return None
 
 
-def normalize_meetings(connection: Connection, extractions: list[ExtractionRecord]) -> int:
+def normalize_meetings(connection: Connection, extractions: List[ExtractionRecord]) -> int:
     normalized_count = 0
 
     for extraction in extractions:

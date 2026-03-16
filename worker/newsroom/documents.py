@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import List, Optional
 from urllib.parse import urlparse
 
 import requests
@@ -25,11 +26,11 @@ class DocumentRecord:
     source_item_id: int
     document_url: str
     document_type: str
-    mime_type: str | None
+    mime_type: Optional[str]
     storage_path: str
 
 
-def pending_source_items(connection: Connection) -> list[SourceItemRecord]:
+def pending_source_items(connection: Connection) -> List[SourceItemRecord]:
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -52,7 +53,7 @@ def pending_source_items(connection: Connection) -> list[SourceItemRecord]:
     ]
 
 
-def _extension_from_url(url: str, mime_type: str | None) -> str:
+def _extension_from_url(url: str, mime_type: Optional[str]) -> str:
     path = urlparse(url).path.lower()
     if path.endswith(".pdf"):
         return ".pdf"
@@ -66,9 +67,9 @@ def _extension_from_url(url: str, mime_type: str | None) -> str:
     return ".bin"
 
 
-def fetch_documents(config: WorkerConfig, connection: Connection, items: list[SourceItemRecord]) -> list[DocumentRecord]:
+def fetch_documents(config: WorkerConfig, connection: Connection, items: List[SourceItemRecord]) -> List[DocumentRecord]:
     Path(config.documents_dir).mkdir(parents=True, exist_ok=True)
-    documents: list[DocumentRecord] = []
+    documents = []  # type: List[DocumentRecord]
 
     for item in items:
         response = requests.get(

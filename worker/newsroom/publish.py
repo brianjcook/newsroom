@@ -5,6 +5,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Dict, List, Optional, Set, Tuple
 
 from pymysql.connections import Connection
 
@@ -20,19 +21,19 @@ def _slugify(value: str) -> str:
     return slug[:180] or "story"
 
 
-def _format_date(date_value: str | None) -> str:
+def _format_date(date_value: Optional[str]) -> str:
     if not date_value:
         return "an upcoming date"
     return datetime.strptime(date_value, "%Y-%m-%d").strftime("%B %d, %Y")
 
 
-def _format_time(time_value: str | None) -> str:
+def _format_time(time_value: Optional[str]) -> str:
     if not time_value:
         return "at a time not listed in the source"
     return datetime.strptime(time_value, "%H:%M:%S").strftime("%I:%M %p").lstrip("0")
 
 
-def _clean_lines(text: str) -> list[str]:
+def _clean_lines(text: str) -> List[str]:
     lines = []
     for line in text.splitlines():
         normalized = " ".join(line.split())
@@ -42,7 +43,7 @@ def _clean_lines(text: str) -> list[str]:
     return lines
 
 
-def _choose_summary_lines(text: str, limit: int = 3) -> list[str]:
+def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
     lines = _clean_lines(text)
     filtered = []
     for line in lines:
@@ -56,7 +57,7 @@ def _choose_summary_lines(text: str, limit: int = 3) -> list[str]:
     return filtered
 
 
-def _build_story_copy(meeting: dict, source_item: dict, extraction: dict) -> tuple[str, str, str, str, str]:
+def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object], extraction: Dict[str, object]) -> Tuple[str, str, str, str, str]:
     body_name = meeting["governing_body"] or "Wareham officials"
     meeting_date = _format_date(meeting["meeting_date"])
     meeting_time = _format_time(meeting["meeting_time"])
@@ -138,7 +139,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         )
         rows = cursor.fetchall()
 
-    seen_meetings: set[int] = set()
+    seen_meetings = set()  # type: Set[int]
     for row in rows:
         meeting_id = int(row["meeting_id"])
         if meeting_id in seen_meetings:

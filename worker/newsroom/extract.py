@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict, List, Tuple
 
 from bs4 import BeautifulSoup
 from pypdf import PdfReader
@@ -19,12 +20,12 @@ class ExtractionRecord:
     document_id: int
     title: str
     body_text: str
-    structured_json: dict[str, object]
+    structured_json: Dict[str, object]
     confidence_score: float
-    warnings: list[str]
+    warnings: List[str]
 
 
-def _extract_html(path: Path) -> tuple[str, str, float, list[str]]:
+def _extract_html(path: Path) -> Tuple[str, str, float, List[str]]:
     soup = BeautifulSoup(path.read_text(encoding="utf-8", errors="ignore"), "html.parser")
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
@@ -45,10 +46,10 @@ def _extract_html(path: Path) -> tuple[str, str, float, list[str]]:
     return title[:512], body_text, confidence, warnings
 
 
-def _extract_pdf(path: Path) -> tuple[str, str, float, list[str]]:
+def _extract_pdf(path: Path) -> Tuple[str, str, float, List[str]]:
     reader = PdfReader(str(path))
-    pages: list[str] = []
-    warnings: list[str] = []
+    pages = []  # type: List[str]
+    warnings = []  # type: List[str]
 
     for index, page in enumerate(reader.pages, start=1):
         try:
@@ -67,16 +68,16 @@ def _extract_pdf(path: Path) -> tuple[str, str, float, list[str]]:
     return title[:512], body_text, confidence, warnings
 
 
-def extract_documents(config: WorkerConfig, connection: Connection, documents: list[DocumentRecord]) -> list[ExtractionRecord]:
+def extract_documents(config: WorkerConfig, connection: Connection, documents: List[DocumentRecord]) -> List[ExtractionRecord]:
     Path(config.extractions_dir).mkdir(parents=True, exist_ok=True)
-    extractions: list[ExtractionRecord] = []
+    extractions = []  # type: List[ExtractionRecord]
 
     for document in documents:
         storage_path = Path(config.storage_root) / document.storage_path
         title = ""
         body_text = ""
         confidence_score = 0.0
-        warnings: list[str] = []
+        warnings = []  # type: List[str]
 
         if document.storage_path.lower().endswith(".pdf"):
             title, body_text, confidence_score, warnings = _extract_pdf(storage_path)

@@ -4,7 +4,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Iterable
+from typing import Iterable, List
 from urllib.parse import urljoin
 
 import requests
@@ -23,7 +23,7 @@ class DiscoveredItem:
     raw_meta_json: str
 
 
-def discover_wareham_agenda_center(config: WorkerConfig) -> list[DiscoveredItem]:
+def discover_wareham_agenda_center(config: WorkerConfig) -> List[DiscoveredItem]:
     response = requests.get(
         config.agenda_center_url,
         headers={"User-Agent": config.fetch_user_agent},
@@ -32,7 +32,7 @@ def discover_wareham_agenda_center(config: WorkerConfig) -> list[DiscoveredItem]
     response.raise_for_status()
 
     soup = BeautifulSoup(response.text, "html.parser")
-    discovered: list[DiscoveredItem] = []
+    discovered = []  # type: List[DiscoveredItem]
 
     for link in soup.select("a[href]"):
         href = (link.get("href") or "").strip()
