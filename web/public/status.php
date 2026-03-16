@@ -46,6 +46,8 @@ $runs = newsroom_recent_runs();
                     <p>Fetched: <?= htmlspecialchars((string) $run['documents_fetched']) ?></p>
                     <p>Extracted: <?= htmlspecialchars((string) $run['extractions_created']) ?></p>
                     <p>Meetings: <?= htmlspecialchars((string) $run['meetings_normalized']) ?></p>
+                    <p>Stories: <?= htmlspecialchars((string) $run['stories_published']) ?></p>
+                    <p>Events: <?= htmlspecialchars((string) $run['events_created']) ?></p>
                 </article>
             <?php endforeach; ?>
         <?php else: ?>

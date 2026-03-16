@@ -8,6 +8,7 @@ from .db import connect
 from .documents import fetch_documents, pending_source_items
 from .extract import extract_documents
 from .meetings import normalize_meetings
+from .publish import publish_stories_and_events
 from .sources import discover_wareham_agenda_center, upsert_source_items
 
 
@@ -35,6 +36,8 @@ def _finish_run(
     documents_fetched: int,
     extractions_created: int,
     meetings_normalized: int,
+    stories_published: int,
+    events_created: int,
     warnings: list[str],
     errors: list[str],
 ) -> None:
@@ -48,6 +51,8 @@ def _finish_run(
                 documents_fetched = %s,
                 extractions_created = %s,
                 meetings_normalized = %s,
+                stories_published = %s,
+                events_created = %s,
                 warnings_json = %s,
                 errors_json = %s
             WHERE id = %s
@@ -59,6 +64,8 @@ def _finish_run(
                 documents_fetched,
                 extractions_created,
                 meetings_normalized,
+                stories_published,
+                events_created,
                 json.dumps(warnings),
                 json.dumps(errors),
                 run_id,
@@ -77,6 +84,8 @@ def run_daily() -> dict[str, object]:
         documents_fetched = 0
         extractions_created = 0
         meetings_normalized = 0
+        stories_published = 0
+        events_created = 0
 
         try:
             with connection.cursor() as cursor:
@@ -105,6 +114,10 @@ def run_daily() -> dict[str, object]:
             else:
                 warnings.append("No pending source items were available for fetch/extract.")
 
+            published = publish_stories_and_events(connection)
+            stories_published = published.stories_published
+            events_created = published.events_created
+
             _finish_run(
                 connection,
                 run_id,
@@ -113,6 +126,8 @@ def run_daily() -> dict[str, object]:
                 documents_fetched,
                 extractions_created,
                 meetings_normalized,
+                stories_published,
+                events_created,
                 warnings,
                 errors,
             )
@@ -123,6 +138,8 @@ def run_daily() -> dict[str, object]:
                 "documents_fetched": documents_fetched,
                 "extractions_created": extractions_created,
                 "meetings_normalized": meetings_normalized,
+                "stories_published": stories_published,
+                "events_created": events_created,
                 "warnings": warnings,
                 "errors": errors,
             }
@@ -136,6 +153,8 @@ def run_daily() -> dict[str, object]:
                 documents_fetched,
                 extractions_created,
                 meetings_normalized,
+                stories_published,
+                events_created,
                 warnings,
                 errors,
             )
