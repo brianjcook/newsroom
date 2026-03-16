@@ -65,10 +65,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Production database target named by user: MySQL database `bricoo10_newsroom` on host `localhost`.
 
 ## Recent commits
-- No commits created locally yet, but the first scaffold commit is the next immediate action.
+- `655a78b` - `Initial newsroom scaffold`
 
 ## Next priority tasks
-- Commit and push the initial scaffold.
+- Push the initial scaffold to GitHub.
 - Add configuration guidance for deployment credentials and local development.
 - Extend the worker from source discovery to document fetch, storage, and extraction.
 - Add a minimal admin/status page for generation runs and failed items.
