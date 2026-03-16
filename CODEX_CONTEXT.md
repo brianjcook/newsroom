@@ -47,6 +47,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Added deterministic story publication from normalized meetings into `stories` and `story_citations`.
 - Added calendar-event generation from normalized meetings into `calendar_events`.
 - Updated pipeline run reporting so `generation_runs` now surfaces published story and created event counts in the status page.
+- Improved meeting parsing with broader date/time/body/location heuristics aimed at Wareham-style agendas and minutes.
+- Added diagnostics to the status page for low-confidence or review-needed source items.
+- Added a publish-time quality gate so records missing a governing body or meeting date are withheld from public story output.
 
 ## Key files/entry points
 - `C:\codex\newsroom\CODEX_CONTEXT.md`
@@ -73,6 +76,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Initial application scaffold exists.
 - Initial ingestion pipeline now supports source discovery, document download/storage, HTML/PDF extraction, first-pass meeting normalization, deterministic story publication, citation creation, and calendar-event generation.
 - Story output is currently template-based and source-grounded rather than model-generated.
+- Records with weak parsing now remain visible in diagnostics instead of being published automatically.
 - Tentative hosting target is Freehostia Wildhoney.
 - Shared-hosting constraints likely require simple scheduled jobs and a deployment shape that does not depend on persistent background workers.
 - Preferred architectural direction is a PHP/MySQL publishing app plus a Python ingestion/generation worker.
@@ -84,13 +88,14 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `a0fae08` - `Update project context after scaffold`
 - `3b96a0f` - `Record GitHub push status`
 - `0fce793` - `Add document processing pipeline`
+- `6ae52d9` - `Publish stories and calendar events`
 
 ## Next priority tasks
 - Add configuration guidance for deployment credentials and local development.
-- Improve meeting parsing quality for Wareham-specific committee names, dates, and locations.
-- Add a minimal failed-item or diagnostics view beyond aggregate run counts.
+- Improve meeting parsing quality further using live Wareham examples once the pipeline is run against the real database.
+- Add a more detailed diagnostics view with per-item parsing failures and extraction warnings rendered cleanly instead of raw JSON.
 - Replace or augment deterministic story generation with a constrained model-backed drafting step when credentials and runtime are available.
 - Continue refining the site typography and layout against the editorial references.
 
 ## Resume prompt for a brand-new Codex session
-Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. The project is a Wareham, Massachusetts local-news platform with a PHP public site, Python worker, MySQL schema, Wareham `AgendaCenter` source seeding/discovery, document download/storage, HTML/PDF extraction, first-pass meeting normalization, deterministic story publication with citations, calendar-event generation, and a basic status page. Hosting target is Freehostia Wildhoney with MySQL database `bricoo10_newsroom` on `localhost`. Next priority is improving parsing quality, diagnostics, and eventually adding constrained model-backed drafting. Note: syntax checks passed, but the expanded worker still has not been run end-to-end against a live database from this environment.
+Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. The project is a Wareham, Massachusetts local-news platform with a PHP public site, Python worker, MySQL schema, Wareham `AgendaCenter` source seeding/discovery, document download/storage, HTML/PDF extraction, first-pass meeting normalization, deterministic story publication with citations, calendar-event generation, and a status page with diagnostics. Hosting target is Freehostia Wildhoney with MySQL database `bricoo10_newsroom` on `localhost`. The current system withholds weakly parsed records from publication and surfaces them in diagnostics. Next priority is to run against the live database, tune parsing with real Wareham examples, and eventually add constrained model-backed drafting. Note: syntax checks passed, but the worker still has not been run end-to-end against a live database from this environment.

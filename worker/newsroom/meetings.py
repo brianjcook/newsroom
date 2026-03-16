@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,7 +11,9 @@ from .extract import ExtractionRecord
 
 
 DATE_PATTERNS = [
+    "%A, %B %d, %Y",
     "%B %d, %Y",
+    "%A, %b %d, %Y",
     "%b %d, %Y",
     "%m/%d/%Y",
 ]
@@ -43,7 +46,7 @@ def _first_match(pattern: str, text: str) -> str | None:
 
 
 def _parse_date(text: str) -> str | None:
-    for token in re.findall(r"[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4}|\d{1,2}/\d{1,2}/\d{4}", text):
+    for token in re.findall(r"(?:[A-Za-z]{3,9},\s+)?[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4}|\d{1,2}/\d{1,2}/\d{4}", text):
         for fmt in DATE_PATTERNS:
             try:
                 return datetime.strptime(token, fmt).strftime("%Y-%m-%d")
@@ -53,7 +56,8 @@ def _parse_date(text: str) -> str | None:
 
 
 def _parse_time(text: str) -> str | None:
-    match = re.search(r"(\d{1,2}(?::\d{2})?\s*[APap][Mm])", text)
+    normalized_text = text.replace("a.m.", "AM").replace("p.m.", "PM").replace("a.m", "AM").replace("p.m", "PM")
+    match = re.search(r"(\d{1,2}(?::\d{2})?\s*[APap][Mm])", normalized_text)
     if not match:
         return None
 
@@ -69,12 +73,38 @@ def _parse_time(text: str) -> str | None:
 def _normalize_body_name(text: str) -> str | None:
     patterns = [
         r"(Select Board)",
+        r"(Board of Selectmen)",
         r"(Planning Board)",
         r"(Conservation Commission)",
         r"(School Committee)",
         r"(Board of Health)",
         r"(Finance Committee)",
         r"(Zoning Board of Appeals)",
+        r"(Historical Commission)",
+        r"(Community Preservation Committee)",
+        r"(Capital Planning Committee)",
+        r"(Sewer Commissioners)",
+        r"(Water Pollution Control Facility Board)",
+        r"(Redevelopment Authority)",
+        r"(Municipal Maintenance Department)",
+    ]
+    for pattern in patterns:
+        value = _first_match(pattern, text)
+        if value:
+            if value.lower() == "board of selectmen":
+                return "Select Board"
+            return value
+    return None
+
+
+def _parse_location(text: str) -> str | None:
+    patterns = [
+        r"(Town Hall(?: Auditorium)?)",
+        r"(Memorial Town Hall)",
+        r"(Room \d+)",
+        r"(\d+\s+[A-Za-z]+\s+(?:Road|Rd\.|Street|St\.|Avenue|Ave\.))",
+        r"(Online)",
+        r"(Zoom)",
     ]
     for pattern in patterns:
         value = _first_match(pattern, text)
@@ -87,22 +117,15 @@ def normalize_meetings(connection: Connection, extractions: list[ExtractionRecor
     normalized_count = 0
 
     for extraction in extractions:
-        combined_text = "\n".join([extraction.title, extraction.body_text[:4000]])
-        governing_body = _normalize_body_name(combined_text)
-        meeting_date = _parse_date(combined_text)
-        meeting_time = _parse_time(combined_text)
-        location_name = _first_match(r"(Town Hall|Memorial Town Hall|Room \d+|Online|Zoom)", combined_text)
-        meeting_type = "minutes_recap" if "minute" in combined_text.lower() else "meeting_preview"
-        status = "scheduled"
-        agenda_posted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") if meeting_type == "meeting_preview" else None
-        minutes_posted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") if meeting_type == "minutes_recap" else None
-        meeting_key = None
-        if governing_body and meeting_date:
-            meeting_key = f"{governing_body.lower().replace(' ', '-')}-{meeting_date}"
-
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT source_item_id FROM documents WHERE id = %s LIMIT 1",
+                """
+                SELECT d.source_item_id, COALESCE(si.title, '') AS source_title
+                FROM documents d
+                INNER JOIN source_items si ON si.id = d.source_item_id
+                WHERE d.id = %s
+                LIMIT 1
+                """,
                 (extraction.document_id,),
             )
             document_row = cursor.fetchone()
@@ -110,6 +133,20 @@ def normalize_meetings(connection: Connection, extractions: list[ExtractionRecor
                 continue
 
             source_item_id = int(document_row["source_item_id"])
+            source_title = document_row["source_title"]
+            combined_text = "\n".join([source_title, extraction.title, extraction.body_text[:6000]])
+            governing_body = _normalize_body_name(combined_text)
+            meeting_date = _parse_date(combined_text)
+            meeting_time = _parse_time(combined_text)
+            location_name = _parse_location(combined_text)
+            meeting_type = "minutes_recap" if "minute" in combined_text.lower() else "meeting_preview"
+            status = "completed" if meeting_type == "minutes_recap" else "scheduled"
+            agenda_posted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") if meeting_type == "meeting_preview" else None
+            minutes_posted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") if meeting_type == "minutes_recap" else None
+            meeting_key = None
+            if governing_body and meeting_date:
+                meeting_key = f"{governing_body.lower().replace(' ', '-')}-{meeting_date}"
+
             cursor.execute(
                 """
                 INSERT INTO meetings (
@@ -148,9 +185,28 @@ def normalize_meetings(connection: Connection, extractions: list[ExtractionRecor
                 ),
             )
             cursor.execute(
-                "UPDATE source_items SET status = 'normalized', updated_at = NOW() WHERE id = %s",
-                (source_item_id,),
+                "UPDATE source_items SET status = %s, updated_at = NOW() WHERE id = %s",
+                ("normalized" if governing_body and meeting_date else "needs_review", source_item_id),
             )
-            normalized_count += 1
+            if governing_body and meeting_date:
+                normalized_count += 1
+            else:
+                cursor.execute(
+                    """
+                    UPDATE source_items
+                    SET raw_meta_json = JSON_SET(COALESCE(raw_meta_json, JSON_OBJECT()), '$.diagnostic', %s)
+                    WHERE id = %s
+                    """,
+                    (
+                        json.dumps(
+                            {
+                                "missing_governing_body": governing_body is None,
+                                "missing_meeting_date": meeting_date is None,
+                                "missing_meeting_time": meeting_time is None,
+                            }
+                        ),
+                        source_item_id,
+                    ),
+                )
 
     return normalized_count

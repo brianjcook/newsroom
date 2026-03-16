@@ -7,6 +7,7 @@ require_once __DIR__ . '/../lib/content.php';
 
 $config = newsroom_config();
 $runs = newsroom_recent_runs();
+$diagnostics = newsroom_diagnostic_items();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -54,6 +55,28 @@ $runs = newsroom_recent_runs();
             <article class="story-card">
                 <h3>No runs yet</h3>
                 <p class="empty-state">Run history will appear here once the worker has executed against the configured database.</p>
+            </article>
+        <?php endif; ?>
+    </section>
+
+    <h2 class="section-heading">Diagnostics</h2>
+    <section class="story-list">
+        <?php if ($diagnostics): ?>
+            <?php foreach ($diagnostics as $item): ?>
+                <article class="story-card">
+                    <div class="story-card__meta"><?= htmlspecialchars((string) $item['status']) ?></div>
+                    <h3><?= htmlspecialchars((string) ($item['title'] ?: 'Untitled source item')) ?></h3>
+                    <p>Confidence: <?= htmlspecialchars((string) ($item['confidence_score'] ?? 'n/a')) ?></p>
+                    <?php if (!empty($item['warnings_json'])): ?>
+                        <p>Warnings: <?= htmlspecialchars((string) $item['warnings_json']) ?></p>
+                    <?php endif; ?>
+                    <p><a href="<?= htmlspecialchars((string) $item['canonical_url']) ?>">Source</a></p>
+                </article>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <article class="story-card">
+                <h3>No diagnostic items</h3>
+                <p class="empty-state">Items that need review or have weak extraction confidence will appear here.</p>
             </article>
         <?php endif; ?>
     </section>

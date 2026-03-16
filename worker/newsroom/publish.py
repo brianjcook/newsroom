@@ -164,6 +164,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             "body_text": row["body_text"] or "",
         }
 
+        if not meeting["governing_body"] or not meeting["meeting_date"]:
+            continue
+
         headline, dek, summary, body_html, body_text = _build_story_copy(meeting, source_item, extraction)
         slug = _slugify(
             f"{meeting['governing_body'] or 'wareham'}-{meeting['meeting_type'] or 'story'}-{meeting['meeting_date'] or 'undated'}"

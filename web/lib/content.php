@@ -100,3 +100,31 @@ function newsroom_recent_runs(int $limit = 20): array
 
     return $statement->fetchAll();
 }
+
+function newsroom_diagnostic_items(int $limit = 20): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            si.id,
+            si.title,
+            si.canonical_url,
+            si.status,
+            de.confidence_score,
+            de.warnings_json
+         FROM source_items si
+         LEFT JOIN documents d ON d.source_item_id = si.id
+         LEFT JOIN document_extractions de ON de.document_id = d.id
+         WHERE si.status IN ("needs_review", "extracted", "normalized")
+            OR (de.confidence_score IS NOT NULL AND de.confidence_score < 0.60)
+         ORDER BY si.updated_at DESC, si.id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return $statement->fetchAll();
+}
