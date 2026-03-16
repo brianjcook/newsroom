@@ -5,6 +5,9 @@ from datetime import datetime, timezone
 
 from .config import load_config
 from .db import connect
+from .documents import fetch_documents, pending_source_items
+from .extract import extract_documents
+from .meetings import normalize_meetings
 from .sources import discover_wareham_agenda_center, upsert_source_items
 
 
@@ -24,7 +27,17 @@ def _begin_run(connection) -> int:
         return int(cursor.lastrowid)
 
 
-def _finish_run(connection, run_id: int, status: str, items_discovered: int, warnings: list[str], errors: list[str]) -> None:
+def _finish_run(
+    connection,
+    run_id: int,
+    status: str,
+    items_discovered: int,
+    documents_fetched: int,
+    extractions_created: int,
+    meetings_normalized: int,
+    warnings: list[str],
+    errors: list[str],
+) -> None:
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -32,6 +45,9 @@ def _finish_run(connection, run_id: int, status: str, items_discovered: int, war
             SET finished_at = %s,
                 run_status = %s,
                 items_discovered = %s,
+                documents_fetched = %s,
+                extractions_created = %s,
+                meetings_normalized = %s,
                 warnings_json = %s,
                 errors_json = %s
             WHERE id = %s
@@ -40,6 +56,9 @@ def _finish_run(connection, run_id: int, status: str, items_discovered: int, war
                 _timestamp(),
                 status,
                 items_discovered,
+                documents_fetched,
+                extractions_created,
+                meetings_normalized,
                 json.dumps(warnings),
                 json.dumps(errors),
                 run_id,
@@ -55,6 +74,9 @@ def run_daily() -> dict[str, object]:
     with connect(config.database) as connection:
         run_id = _begin_run(connection)
         discovered_count = 0
+        documents_fetched = 0
+        extractions_created = 0
+        meetings_normalized = 0
 
         try:
             with connection.cursor() as cursor:
@@ -73,15 +95,48 @@ def run_daily() -> dict[str, object]:
             else:
                 warnings.append("Source discovery disabled by configuration.")
 
-            _finish_run(connection, run_id, "completed", discovered_count, warnings, errors)
+            source_items = pending_source_items(connection)
+            if source_items:
+                documents = fetch_documents(config, connection, source_items)
+                documents_fetched = len(documents)
+                extractions = extract_documents(config, connection, documents)
+                extractions_created = len(extractions)
+                meetings_normalized = normalize_meetings(connection, extractions)
+            else:
+                warnings.append("No pending source items were available for fetch/extract.")
+
+            _finish_run(
+                connection,
+                run_id,
+                "completed",
+                discovered_count,
+                documents_fetched,
+                extractions_created,
+                meetings_normalized,
+                warnings,
+                errors,
+            )
             return {
                 "run_id": run_id,
                 "status": "completed",
                 "items_discovered": discovered_count,
+                "documents_fetched": documents_fetched,
+                "extractions_created": extractions_created,
+                "meetings_normalized": meetings_normalized,
                 "warnings": warnings,
                 "errors": errors,
             }
         except Exception as exc:
             errors.append(str(exc))
-            _finish_run(connection, run_id, "failed", discovered_count, warnings, errors)
+            _finish_run(
+                connection,
+                run_id,
+                "failed",
+                discovered_count,
+                documents_fetched,
+                extractions_created,
+                meetings_normalized,
+                warnings,
+                errors,
+            )
             raise

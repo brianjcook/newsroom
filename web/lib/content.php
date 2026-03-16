@@ -82,3 +82,21 @@ function newsroom_upcoming_events(int $limit = 10): array
 
     return $statement->fetchAll();
 }
+
+function newsroom_recent_runs(int $limit = 20): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT id, started_at, finished_at, run_status, items_discovered, documents_fetched, extractions_created, meetings_normalized
+         FROM generation_runs
+         ORDER BY started_at DESC, id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return $statement->fetchAll();
+}

@@ -28,7 +28,7 @@ http_response_code($story ? 200 : 404);
             <h1 class="masthead__title"><a href="/" style="text-decoration: none;"><?= htmlspecialchars($config['site_name']) ?></a></h1>
             <div class="masthead__tagline">Civic reporting, meeting coverage, and the public record.</div>
         </div>
-        <div class="masthead__meta"><a href="/calendar.php">Calendar</a></div>
+        <div class="masthead__meta"><a href="/status.php">Status</a></div>
     </header>
 
     <div class="story-layout">

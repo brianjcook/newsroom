@@ -33,6 +33,7 @@ $secondaryStories = array_slice($stories, 1);
     <nav class="nav">
         <a href="/">Home</a>
         <a href="/calendar.php">Calendar</a>
+        <a href="/status.php">Status</a>
     </nav>
 
     <section class="lead-grid">

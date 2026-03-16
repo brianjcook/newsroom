@@ -27,6 +27,12 @@ $events = newsroom_upcoming_events(50);
         <div class="masthead__meta"><?= date('F j, Y') ?></div>
     </header>
 
+    <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/calendar.php">Calendar</a>
+        <a href="/status.php">Status</a>
+    </nav>
+
     <h2 class="section-heading">Upcoming Meetings</h2>
     <section class="story-list">
         <?php if ($events): ?>

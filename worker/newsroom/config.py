@@ -26,11 +26,14 @@ class WorkerConfig:
     fetch_user_agent: str
     source_discovery_enabled: bool
     agenda_center_url: str
+    storage_root: str
     documents_dir: str
+    extractions_dir: str
     logs_dir: str
 
 
 def load_config() -> WorkerConfig:
+    storage_root = _env("NEWSROOM_SITE_STORAGE_ROOT", "storage")
     return WorkerConfig(
         database=DatabaseConfig(
             host=_env("NEWSROOM_DB_HOST", "localhost"),
@@ -48,6 +51,8 @@ def load_config() -> WorkerConfig:
             "NEWSROOM_AGENDA_CENTER_URL",
             "https://www.wareham.gov/AgendaCenter",
         ),
-        documents_dir=_env("NEWSROOM_DOCUMENTS_DIR", "storage/documents"),
-        logs_dir=_env("NEWSROOM_LOGS_DIR", "storage/logs"),
+        storage_root=storage_root,
+        documents_dir=_env("NEWSROOM_DOCUMENTS_DIR", f"{storage_root}/documents"),
+        extractions_dir=_env("NEWSROOM_EXTRACTIONS_DIR", f"{storage_root}/extractions"),
+        logs_dir=_env("NEWSROOM_LOGS_DIR", f"{storage_root}/logs"),
     )

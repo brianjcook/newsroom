@@ -21,6 +21,7 @@ Create a MySQL database and apply:
 
 ```sql
 source db/migrations/001_initial_schema.sql;
+source db/migrations/002_generation_run_metrics.sql;
 source db/seeds/001_sources.sql;
 ```
 
@@ -46,6 +47,7 @@ Then set the same database environment variables plus:
 
 - `NEWSROOM_SOURCE_DISCOVERY_ENABLED=1`
 - `NEWSROOM_FETCH_USER_AGENT`
+- `NEWSROOM_SITE_STORAGE_ROOT`
 
 ### 4. Run the worker
 
