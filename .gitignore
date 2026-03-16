@@ -1,0 +1,12 @@
+.env
+.env.local
+venv/
+.venv/
+__pycache__/
+*.pyc
+storage/documents/*
+storage/extractions/*
+storage/logs/*
+!storage/documents/.gitkeep
+!storage/extractions/.gitkeep
+!storage/logs/.gitkeep
