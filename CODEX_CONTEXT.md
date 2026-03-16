@@ -63,12 +63,13 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Shared-hosting constraints likely require simple scheduled jobs and a deployment shape that does not depend on persistent background workers.
 - Preferred architectural direction is a PHP/MySQL publishing app plus a Python ingestion/generation worker.
 - Production database target named by user: MySQL database `bricoo10_newsroom` on host `localhost`.
+- Initial scaffold has been pushed to GitHub `main`.
 
 ## Recent commits
 - `655a78b` - `Initial newsroom scaffold`
+- `a0fae08` - `Update project context after scaffold`
 
 ## Next priority tasks
-- Push the initial scaffold to GitHub.
 - Add configuration guidance for deployment credentials and local development.
 - Extend the worker from source discovery to document fetch, storage, and extraction.
 - Add a minimal admin/status page for generation runs and failed items.
