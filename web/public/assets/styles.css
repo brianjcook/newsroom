@@ -63,7 +63,7 @@ a {
     line-height: 0.92;
     margin: 0;
     font-weight: 400;
-    letter-spacing: 0.04em;
+    letter-spacing: initial;
 }
 
 .masthead__tagline {

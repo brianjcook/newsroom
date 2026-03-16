@@ -67,6 +67,16 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Verified the expected tables exist in `bricoo10_newsroom` and that the `wareham-agenda-center` source seed is present.
 - Added `.htaccess` rules to force HTTPS and the `www` host for `warehamtimes.com`.
 - Updated the site templates and CSS to use the requested font stack.
+- Uploaded the Python worker and protected `storage/`/`worker/` directories to the host.
+- Installed the worker dependencies into a site-local Python user base under the Freehostia account.
+- Ran the first successful live pipeline on production:
+- `items_discovered`: `370`
+- `documents_fetched`: `370`
+- `extractions_created`: `370`
+- `meetings_normalized`: `158`
+- `stories_published`: `91`
+- `events_created`: `176`
+- Removed the temporary host probe script after the successful run.
 
 ## Key files/entry points
 - `C:\codex\newsroom\CODEX_CONTEXT.md`
@@ -104,8 +114,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - The PHP web app has been deployed to the `warehamtimes.com` FTPS root, including a host-local `config.local.php`.
 - The MySQL schema and initial source seed have been applied successfully on the production database.
 - `.htaccess` has been deployed to force `https://www.warehamtimes.com`.
-- Public verification is still incomplete because `https://warehamtimes.com` was not reachable from this machine during the latest check.
-- Worker deployment and execution on-host are still pending; SSH sessions remain intermittent.
+- Public verification is now confirmed: homepage and status page render live data.
+- Worker deployment succeeded and at least one live production run completed successfully.
+- SSH remains intermittent, but FTPS plus the now-installed on-host Python environment are sufficient for follow-up worker iterations.
 
 ## Recent commits
 - `655a78b` - `Initial newsroom scaffold`
@@ -116,15 +127,16 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `12f7ac1` - `Add diagnostics and parsing safeguards`
 - `bbd4318` - `Make worker compatible with Freehostia Python`
 - `c693bf8` - `Add shared-host config support`
+- `bcb2333` - `Deploy canonical redirects and typography`
 
 ## Next priority tasks
 - Add configuration guidance for deployment credentials and local development.
 - Improve meeting parsing quality further using live Wareham examples once the pipeline is run against the real database.
 - Add a more detailed diagnostics view with per-item parsing failures and extraction warnings rendered cleanly instead of raw JSON.
 - Replace or augment deterministic story generation with a constrained model-backed drafting step when credentials and runtime are available.
-- Verify public resolution and runtime of `warehamtimes.com`.
-- Establish a stable path to run the Python worker on-host.
+- Improve the quality of generated headlines, summaries, event titles, and board-name normalization now that live data is flowing.
+- Decide how recurring worker runs will be triggered on-host, likely via cron or a protected trigger endpoint.
 - Continue refining the site typography and layout against the editorial references.
 
 ## Resume prompt for a brand-new Codex session
-Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. The project is a Wareham, Massachusetts local-news platform with a PHP public site, Python worker, MySQL schema, Wareham `AgendaCenter` source seeding/discovery, document download/storage, HTML/PDF extraction, first-pass meeting normalization, deterministic story publication with citations, calendar-event generation, and a status page with diagnostics. Hosting target is Freehostia Wildhoney with MySQL database `bricoo10_newsroom` on `localhost`. The worker is Python 3.6-compatible for Freehostia. The PHP site, `.htaccess`, and non-tracked production `config.local.php` have been uploaded to the `warehamtimes.com` FTPS root. The MySQL schema and initial source seed have been applied and verified on the production DB. Typography now uses Manufacturing Consent, Merriweather, Fira Code, Datatype, and Roboto Condensed. Next priority is to verify the live domain publicly and establish a stable way to run the Python worker on-host.
+Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. The project is a Wareham, Massachusetts local-news platform with a live PHP public site, a deployed Python worker, a production MySQL schema, Wareham `AgendaCenter` source seeding/discovery, document download/storage, HTML/PDF extraction, first-pass meeting normalization, deterministic story publication with citations, calendar-event generation, and a status page with diagnostics. Hosting target is Freehostia Wildhoney. The PHP site, `.htaccess`, and a non-tracked production `config.local.php` are deployed to the `warehamtimes.com` FTPS root. The worker is Python 3.6-compatible, its dependencies are installed into a site-local Python user base, and the first live run completed successfully with 370 discovered items, 158 normalized meetings, 91 published stories, and 176 created events. Next priority is improving content quality and setting up a repeatable on-host trigger for future runs.

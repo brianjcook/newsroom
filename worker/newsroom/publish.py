@@ -1,10 +1,8 @@
-from __future__ import annotations
-
 import html
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set, Tuple
 
 from pymysql.connections import Connection
@@ -31,6 +29,19 @@ def _format_time(time_value: Optional[str]) -> str:
     if not time_value:
         return "at a time not listed in the source"
     return datetime.strptime(time_value, "%H:%M:%S").strftime("%I:%M %p").lstrip("0")
+
+
+def _db_time_string(value) -> Optional[str]:
+    if value is None:
+        return None
+    if hasattr(value, "strftime"):
+        return value.strftime("%H:%M:%S")
+    if isinstance(value, timedelta):
+        total_seconds = int(value.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return "{:02d}:{:02d}:{:02d}".format(hours, minutes, seconds)
+    return str(value)
 
 
 def _clean_lines(text: str) -> List[str]:
@@ -151,7 +162,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             "governing_body": row["governing_body"],
             "meeting_type": row["meeting_type"],
             "meeting_date": row["meeting_date"].strftime("%Y-%m-%d") if row["meeting_date"] else None,
-            "meeting_time": row["meeting_time"].strftime("%H:%M:%S") if row["meeting_time"] else None,
+            "meeting_time": _db_time_string(row["meeting_time"]),
             "location_name": row["location_name"],
         }
         source_item = {
@@ -259,7 +270,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
     for row in meeting_rows:
         body_name = row["governing_body"] or "Official Meeting"
         meeting_date = row["meeting_date"].strftime("%Y-%m-%d")
-        meeting_time = row["meeting_time"].strftime("%H:%M:%S") if row["meeting_time"] else "00:00:00"
+        meeting_time = _db_time_string(row["meeting_time"]) if row["meeting_time"] else "00:00:00"
         starts_at = f"{meeting_date} {meeting_time}"
         title = f"{body_name} Meeting"
 

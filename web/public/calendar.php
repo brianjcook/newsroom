@@ -2,8 +2,15 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../bootstrap.php';
-require_once __DIR__ . '/../lib/content.php';
+$bootstrapPath = file_exists(__DIR__ . '/../bootstrap.php')
+    ? __DIR__ . '/../bootstrap.php'
+    : __DIR__ . '/bootstrap.php';
+$contentPath = file_exists(__DIR__ . '/../lib/content.php')
+    ? __DIR__ . '/../lib/content.php'
+    : __DIR__ . '/lib/content.php';
+
+require_once $bootstrapPath;
+require_once $contentPath;
 
 $config = newsroom_config();
 $events = newsroom_upcoming_events(50);
@@ -24,7 +31,7 @@ $events = newsroom_upcoming_events(50);
     <header class="masthead">
         <div>
             <div class="masthead__meta">Wareham, Massachusetts</div>
-            <h1 class="masthead__title"><a href="/" style="text-decoration: none;"><?= htmlspecialchars($config['site_name']) ?></a></h1>
+            <h1 class="masthead__title"><a href="/" style="text-decoration: none;">The Wareham Times</a></h1>
             <div class="masthead__tagline">Official meetings and public dates.</div>
         </div>
         <div class="masthead__meta"><?= date('F j, Y') ?></div>

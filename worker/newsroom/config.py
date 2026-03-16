@@ -1,7 +1,6 @@
-from __future__ import annotations
-
 import os
 from dataclasses import dataclass
+from typing import Optional
 
 
 def _env(name: str, default: str = "") -> str:
@@ -18,6 +17,7 @@ class DatabaseConfig:
     name: str
     user: str
     password: str
+    unix_socket: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -41,6 +41,7 @@ def load_config() -> WorkerConfig:
             name=_env("NEWSROOM_DB_NAME", "bricoo10_newsroom"),
             user=_env("NEWSROOM_DB_USER"),
             password=_env("NEWSROOM_DB_PASSWORD"),
+            unix_socket=_env("NEWSROOM_DB_UNIX_SOCKET") or None,
         ),
         fetch_user_agent=_env(
             "NEWSROOM_FETCH_USER_AGENT",
