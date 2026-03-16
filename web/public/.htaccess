@@ -1,0 +1,11 @@
+RewriteEngine On
+
+# Force the canonical host first.
+RewriteCond %{HTTP_HOST} !^www\.warehamtimes\.com$ [NC]
+RewriteRule ^ https://www.warehamtimes.com%{REQUEST_URI} [L,R=301]
+
+# Then force HTTPS on the canonical host.
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://www.warehamtimes.com%{REQUEST_URI} [L,R=301]
+
+DirectoryIndex index.php

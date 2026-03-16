@@ -5,8 +5,11 @@
     --muted: #5b534b;
     --rule: #c9b9a5;
     --accent: #8f2817;
-    --sans: "Arial", sans-serif;
-    --serif: Georgia, "Times New Roman", serif;
+    --masthead: "Manufacturing Consent", serif;
+    --serif: "Merriweather", Georgia, serif;
+    --sans: "Roboto Condensed", Arial, sans-serif;
+    --meta: "Fira Code", monospace;
+    --data: "Datatype", "Roboto Condensed", sans-serif;
 }
 
 * {
@@ -48,23 +51,26 @@ a {
 .story-card__meta,
 .event-card__meta,
 .footnotes__item {
-    font-family: var(--sans);
+    font-family: var(--meta);
     letter-spacing: 0.06em;
     text-transform: uppercase;
     font-size: 0.72rem;
 }
 
 .masthead__title {
+    font-family: var(--masthead);
     font-size: clamp(2.5rem, 6vw, 4.8rem);
     line-height: 0.92;
     margin: 0;
-    font-weight: 700;
+    font-weight: 400;
+    letter-spacing: 0.04em;
 }
 
 .masthead__tagline {
     color: var(--muted);
     margin-top: 4px;
     font-size: 0.95rem;
+    font-family: var(--serif);
 }
 
 .nav {
@@ -114,10 +120,16 @@ a {
 }
 
 .lead-story h2 {
+    font-family: var(--sans);
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
     font-size: clamp(2rem, 4vw, 3.6rem);
 }
 
 .story-card h3 {
+    font-family: var(--sans);
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
     font-size: 1.6rem;
 }
 
@@ -142,7 +154,7 @@ a {
     font-size: 0.82rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    font-family: var(--sans);
+    font-family: var(--meta);
 }
 
 .section-grid {
@@ -156,6 +168,7 @@ a {
 }
 
 .story-headline {
+    font-family: var(--serif);
     font-size: clamp(2.1rem, 5vw, 4.1rem);
 }
 
@@ -163,6 +176,7 @@ a {
     font-size: 1.2rem;
     color: var(--muted);
     margin-bottom: 18px;
+    font-family: var(--serif);
 }
 
 .empty-state {
@@ -183,6 +197,12 @@ a {
 .story-list {
     display: grid;
     gap: 16px;
+}
+
+.run-metric strong {
+    font-family: var(--data);
+    font-size: 1.05rem;
+    letter-spacing: 0.02em;
 }
 
 @media (max-width: 860px) {

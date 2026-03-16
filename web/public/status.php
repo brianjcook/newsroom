@@ -15,6 +15,9 @@ $diagnostics = newsroom_diagnostic_items();
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Status | <?= htmlspecialchars($config['site_name']) ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Datatype:wght@400;500;700&family=Fira+Code:wght@400;500;700&family=Manufacturing+Consent&family=Merriweather:wght@300;400;700&family=Roboto+Condensed:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
@@ -43,12 +46,12 @@ $diagnostics = newsroom_diagnostic_items();
                     <h3>Run #<?= htmlspecialchars((string) $run['id']) ?></h3>
                     <p>Started: <?= htmlspecialchars((string) $run['started_at']) ?></p>
                     <p>Finished: <?= htmlspecialchars((string) ($run['finished_at'] ?? 'In progress')) ?></p>
-                    <p>Discovered: <?= htmlspecialchars((string) $run['items_discovered']) ?></p>
-                    <p>Fetched: <?= htmlspecialchars((string) $run['documents_fetched']) ?></p>
-                    <p>Extracted: <?= htmlspecialchars((string) $run['extractions_created']) ?></p>
-                    <p>Meetings: <?= htmlspecialchars((string) $run['meetings_normalized']) ?></p>
-                    <p>Stories: <?= htmlspecialchars((string) $run['stories_published']) ?></p>
-                    <p>Events: <?= htmlspecialchars((string) $run['events_created']) ?></p>
+                    <p class="run-metric">Discovered: <strong><?= htmlspecialchars((string) $run['items_discovered']) ?></strong></p>
+                    <p class="run-metric">Fetched: <strong><?= htmlspecialchars((string) $run['documents_fetched']) ?></strong></p>
+                    <p class="run-metric">Extracted: <strong><?= htmlspecialchars((string) $run['extractions_created']) ?></strong></p>
+                    <p class="run-metric">Meetings: <strong><?= htmlspecialchars((string) $run['meetings_normalized']) ?></strong></p>
+                    <p class="run-metric">Stories: <strong><?= htmlspecialchars((string) $run['stories_published']) ?></strong></p>
+                    <p class="run-metric">Events: <strong><?= htmlspecialchars((string) $run['events_created']) ?></strong></p>
                 </article>
             <?php endforeach; ?>
         <?php else: ?>
