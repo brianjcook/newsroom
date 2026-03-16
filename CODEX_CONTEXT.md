@@ -18,7 +18,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Deployment database target provided by user: host `localhost`, database `bricoo10_newsroom`.
 - GitHub repository created by user: `https://github.com/brianjcook/newsroom`.
 - Freehostia SSH access works intermittently; one successful session confirmed `python3` is `3.6.8`, `python` is unavailable, and the account is effectively rooted at `/home` with a `www` directory present.
-- FTPS host provided by user is reachable, but the supplied FTPS credentials have not authenticated successfully yet.
+- Domain-scoped FTPS access for `warehamtimes.com` works and appears rooted at the site directory itself.
 - Visual direction appears to be print/editorial rather than generic modern blog styling, based on reference images in `examples/`.
 - Initial implementation direction is a PHP 8 publishing app plus a Python worker, with MySQL as the shared system of record.
 
@@ -53,6 +53,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Added diagnostics to the status page for low-confidence or review-needed source items.
 - Added a publish-time quality gate so records missing a governing body or meeting date are withheld from public story output.
 - Adjusted the worker codebase for Python 3.6 compatibility after confirming the Freehostia host runtime.
+- Added PHP support for a local config-file fallback via `web/config.local.php` for shared-hosting deployments.
+- Uploaded the PHP site files to the `warehamtimes.com` FTPS root and replaced the default `index.xhtml` with the newsroom site entrypoint.
+- Uploaded a non-tracked production `config.local.php` to the host with the live MySQL connection values.
 
 ## Key files/entry points
 - `C:\codex\newsroom\CODEX_CONTEXT.md`
@@ -66,6 +69,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `C:\codex\newsroom\web\public\story.php`
 - `C:\codex\newsroom\web\public\calendar.php`
 - `C:\codex\newsroom\web\public\status.php`
+- `C:\codex\newsroom\web\config.local.example.php`
 - `C:\codex\newsroom\worker\scripts\run_daily.py`
 - `C:\codex\newsroom\worker\newsroom\pipeline.py`
 - `C:\codex\newsroom\worker\newsroom\sources.py`
@@ -85,7 +89,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Preferred architectural direction is a PHP/MySQL publishing app plus a Python ingestion/generation worker.
 - Production database target named by user: MySQL database `bricoo10_newsroom` on host `localhost`.
 - Initial scaffold has been pushed to GitHub `main`.
-- Deployment has not started yet because FTPS authentication is still failing and SSH sessions are intermittently reset by the host.
+- The PHP web app has been deployed to the `warehamtimes.com` FTPS root, including a host-local `config.local.php`.
+- Public verification is still incomplete because `https://warehamtimes.com` was not reachable from this machine during the latest check.
+- Worker deployment and execution on-host are still pending; SSH sessions remain intermittent.
 
 ## Recent commits
 - `655a78b` - `Initial newsroom scaffold`
@@ -94,14 +100,16 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `0fce793` - `Add document processing pipeline`
 - `6ae52d9` - `Publish stories and calendar events`
 - `12f7ac1` - `Add diagnostics and parsing safeguards`
+- `bbd4318` - `Make worker compatible with Freehostia Python`
 
 ## Next priority tasks
 - Add configuration guidance for deployment credentials and local development.
 - Improve meeting parsing quality further using live Wareham examples once the pipeline is run against the real database.
 - Add a more detailed diagnostics view with per-item parsing failures and extraction warnings rendered cleanly instead of raw JSON.
 - Replace or augment deterministic story generation with a constrained model-backed drafting step when credentials and runtime are available.
-- Resolve FTPS authentication or establish a stable SSH/SFTP deployment path to Freehostia.
+- Verify public resolution and runtime of `warehamtimes.com`.
+- Establish a stable path to run DB migrations and the Python worker on-host.
 - Continue refining the site typography and layout against the editorial references.
 
 ## Resume prompt for a brand-new Codex session
-Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. The project is a Wareham, Massachusetts local-news platform with a PHP public site, Python worker, MySQL schema, Wareham `AgendaCenter` source seeding/discovery, document download/storage, HTML/PDF extraction, first-pass meeting normalization, deterministic story publication with citations, calendar-event generation, and a status page with diagnostics. Hosting target is Freehostia Wildhoney with MySQL database `bricoo10_newsroom` on `localhost`. One successful SSH session confirmed the host uses `python3` 3.6.8 and exposes a `www` directory under an effective `/home` root, so the worker was adjusted for Python 3.6 compatibility. FTPS is reachable but the provided credentials still fail authentication. Next priority is to establish a stable deployment path, then run the pipeline against the live database and tune parsing with real Wareham examples.
+Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. The project is a Wareham, Massachusetts local-news platform with a PHP public site, Python worker, MySQL schema, Wareham `AgendaCenter` source seeding/discovery, document download/storage, HTML/PDF extraction, first-pass meeting normalization, deterministic story publication with citations, calendar-event generation, and a status page with diagnostics. Hosting target is Freehostia Wildhoney with MySQL database `bricoo10_newsroom` on `localhost`. The worker has been adjusted for Python 3.6 compatibility after a successful SSH probe showed the host runs `python3` 3.6.8. The PHP site has been uploaded to the `warehamtimes.com` FTPS root with a non-tracked production `config.local.php`, but public verification and on-host worker execution are still pending. Next priority is to verify the live domain, apply DB migrations if needed, and establish a stable way to run the worker on-host.

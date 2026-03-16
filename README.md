@@ -36,6 +36,9 @@ Set these environment variables for PHP:
 - `NEWSROOM_SITE_NAME`
 - `NEWSROOM_SITE_URL`
 
+On shared hosting, you can instead copy `web/config.local.example.php` to
+`web/config.local.php` and fill in the real values. Do not commit that file.
+
 ### 3. Worker config
 Create a Python virtual environment and install:
 

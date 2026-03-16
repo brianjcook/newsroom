@@ -2,8 +2,33 @@
 
 declare(strict_types=1);
 
+function newsroom_local_config(): array
+{
+    static $config = null;
+
+    if (is_array($config)) {
+        return $config;
+    }
+
+    $configPath = __DIR__ . '/config.local.php';
+    if (!file_exists($configPath)) {
+        $config = [];
+        return $config;
+    }
+
+    $loaded = require $configPath;
+    $config = is_array($loaded) ? $loaded : [];
+
+    return $config;
+}
+
 function newsroom_env(string $key, ?string $default = null): ?string
 {
+    $localConfig = newsroom_local_config();
+    if (array_key_exists($key, $localConfig) && $localConfig[$key] !== '') {
+        return (string) $localConfig[$key];
+    }
+
     $value = getenv($key);
 
     if ($value === false || $value === '') {
