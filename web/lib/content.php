@@ -131,7 +131,8 @@ function newsroom_diagnostic_items(int $limit = 20): array
             si.canonical_url,
             si.status,
             MAX(de.confidence_score) AS confidence_score,
-            MAX(de.warnings_json) AS warnings_json
+            MAX(de.warnings_json) AS warnings_json,
+            MAX(de.structured_json) AS structured_json
          FROM source_items si
          LEFT JOIN documents d ON d.source_item_id = si.id
          LEFT JOIN document_extractions de ON de.document_id = d.id

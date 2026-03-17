@@ -79,6 +79,18 @@ $diagnostics = newsroom_diagnostic_items();
                     <div class="story-card__meta"><?= htmlspecialchars((string) $item['status']) ?></div>
                     <h3><?= htmlspecialchars((string) ($item['title'] ?: 'Untitled source item')) ?></h3>
                     <p>Confidence: <?= htmlspecialchars((string) ($item['confidence_score'] ?? 'n/a')) ?></p>
+                    <?php
+                    $reviewFlags = [];
+                    if (!empty($item['structured_json'])) {
+                        $structured = json_decode((string) $item['structured_json'], true);
+                        if (is_array($structured) && !empty($structured['review_flags']) && is_array($structured['review_flags'])) {
+                            $reviewFlags = $structured['review_flags'];
+                        }
+                    }
+                    ?>
+                    <?php if ($reviewFlags): ?>
+                        <p>Review flags: <?= htmlspecialchars(implode(', ', array_map('strval', $reviewFlags))) ?></p>
+                    <?php endif; ?>
                     <?php if (!empty($item['warnings_json'])): ?>
                         <p>Warnings: <?= htmlspecialchars((string) $item['warnings_json']) ?></p>
                     <?php endif; ?>

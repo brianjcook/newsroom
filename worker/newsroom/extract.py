@@ -113,6 +113,30 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
     return structured
 
 
+def _pdf_review_flags(body_text: str, confidence_score: float, warnings: List[str], structured: Dict[str, object]) -> List[str]:
+    flags = []  # type: List[str]
+    body_length = len((body_text or "").strip())
+    sections = structured.get("agenda_sections") or []
+    highlights = structured.get("agenda_highlights") or []
+
+    if confidence_score < 0.55:
+        flags.append("low_confidence_pdf")
+    if body_length < 250:
+        flags.append("thin_pdf_text")
+    if any("little or no extractable text" in warning.lower() for warning in warnings):
+        flags.append("sparse_pdf_pages")
+    if any("empty text" in warning.lower() for warning in warnings):
+        flags.append("empty_pdf_text")
+    if not sections and not highlights and body_length < 1200:
+        flags.append("unstructured_pdf")
+
+    deduped = []
+    for flag in flags:
+        if flag not in deduped:
+            deduped.append(flag)
+    return deduped
+
+
 def _source_meta(connection: Connection, source_item_id: int) -> Dict[str, object]:
     with connection.cursor() as cursor:
         cursor.execute(
@@ -183,6 +207,9 @@ def extract_documents(config: WorkerConfig, connection: Connection, documents: L
 
         if document.storage_path.lower().endswith(".pdf"):
             title, body_text, confidence_score, warnings, extra_structured = _extract_pdf(storage_path)
+            review_flags = _pdf_review_flags(body_text, confidence_score, warnings, extra_structured)
+            if review_flags:
+                extra_structured["review_flags"] = review_flags
         else:
             title, body_text, confidence_score, warnings = _extract_html(storage_path)
 
@@ -244,12 +271,12 @@ def extract_documents(config: WorkerConfig, connection: Connection, documents: L
             cursor.execute(
                 """
                 UPDATE source_items
-                SET status = 'extracted', updated_at = NOW()
+                SET status = %s, updated_at = NOW()
                 WHERE id = (
                     SELECT source_item_id FROM documents WHERE id = %s
                 )
                 """,
-                (document.id,),
+                ("needs_review" if extra_structured.get("review_flags") else "extracted", document.id),
             )
 
         extractions.append(extraction)
