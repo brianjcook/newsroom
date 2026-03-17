@@ -37,7 +37,9 @@ def _finish_run(
     extractions_created: int,
     meetings_normalized: int,
     stories_published: int,
+    stories_updated: int,
     events_created: int,
+    events_updated: int,
     warnings: List[str],
     errors: List[str],
 ) -> None:
@@ -52,7 +54,9 @@ def _finish_run(
                 extractions_created = %s,
                 meetings_normalized = %s,
                 stories_published = %s,
+                stories_updated = %s,
                 events_created = %s,
+                events_updated = %s,
                 warnings_json = %s,
                 errors_json = %s
             WHERE id = %s
@@ -65,7 +69,9 @@ def _finish_run(
                 extractions_created,
                 meetings_normalized,
                 stories_published,
+                stories_updated,
                 events_created,
+                events_updated,
                 json.dumps(warnings),
                 json.dumps(errors),
                 run_id,
@@ -85,7 +91,9 @@ def run_daily() -> Dict[str, object]:
         extractions_created = 0
         meetings_normalized = 0
         stories_published = 0
+        stories_updated = 0
         events_created = 0
+        events_updated = 0
         artifacts_synced = 0
 
         try:
@@ -118,7 +126,9 @@ def run_daily() -> Dict[str, object]:
 
             published = publish_stories_and_events(connection)
             stories_published = published.stories_published
+            stories_updated = published.stories_updated
             events_created = published.events_created
+            events_updated = published.events_updated
 
             _finish_run(
                 connection,
@@ -129,7 +139,9 @@ def run_daily() -> Dict[str, object]:
                 extractions_created,
                 meetings_normalized,
                 stories_published,
+                stories_updated,
                 events_created,
+                events_updated,
                 warnings,
                 errors,
             )
@@ -141,7 +153,9 @@ def run_daily() -> Dict[str, object]:
                 "extractions_created": extractions_created,
                 "meetings_normalized": meetings_normalized,
                 "stories_published": stories_published,
+                "stories_updated": stories_updated,
                 "events_created": events_created,
+                "events_updated": events_updated,
                 "warnings": warnings,
                 "errors": errors,
                 "artifacts_synced": artifacts_synced,
@@ -157,7 +171,9 @@ def run_daily() -> Dict[str, object]:
                 extractions_created,
                 meetings_normalized,
                 stories_published,
+                stories_updated,
                 events_created,
+                events_updated,
                 warnings,
                 errors,
             )

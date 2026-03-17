@@ -60,6 +60,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Added story content-signature tracking in `source_basis_json`, so unchanged records can be skipped on later sync runs and amended stories can carry an explicit update note when the rendered public copy materially changes.
 - Added shared public styling for `story-update` banners and inline `story-note` explainer text on story pages.
 - Extended amended-story handling so update banners can now include a lightweight change summary derived from prior vs. current agenda highlights, such as newly added or removed agenda items.
+- Local-only, not yet deployed: added `004_sync_metrics.sql` plus worker/status-page changes that split `stories_published` vs `stories_updated` and `events_created` vs `events_updated` so sync runs can report created records separately from refreshed ones.
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -109,6 +110,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Current live quality is materially better than the first run. The Select Board March 17, 2026 preview now resolves to the actual agenda document, uses the correct `7:00 PM` meeting time and `Multi-Service Center, 48 Marion Road, Room 520` location, includes remote-access details, and renders agenda highlights with a source-grounded CWMP explainer. The latest quality pass also suppresses more weak previews and removes postponed/continued meetings from the public calendar. Remaining quality work is still concentrated around amended/cancelled meeting edge cases and low-confidence PDFs.
 - Story sync is now diff-aware: later runs compare a content signature for each story, skip unchanged records, and add an explicit update banner when a revised source document materially changes already-published copy.
 - Story amendment notes are now slightly richer: if the previous and current agenda highlights differ, the update banner can summarize what appears to have been added, removed, or re-emphasized.
+- The next deployment step is currently blocked by Freehostia intermittently resetting SSH/SFTP handshakes before file upload completes. The sync-metrics change is implemented locally but not yet applied on-host.
 - Latest successful production run:
 - `run_id`: `23`
 - `items_discovered`: `368`
@@ -137,10 +139,12 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `809e569` - `Tighten publication quality rules`
 - `544e5c9` - `Sync amended stories and events in place`
 - `6e9a51e` - `Add amendment diff awareness to stories`
+- `d5a5c2e` - `Summarize agenda changes in update notes`
 
 ## Next priority tasks
 - Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.
 - Improve handling of amended, revised, cancelled, and postponed agenda items, especially more precise amendment/change summaries and better event sync metrics so routine updates are distinguishable from newly created events.
+- Deploy the local sync-metrics change (`004_sync_metrics.sql`, `pipeline.py`, `publish.py`, `content.php`, `status.php`) once Freehostia SSH/SFTP is stable again.
 - Improve low-confidence PDF extraction handling and related publish rules.
 - Decide whether low-confidence published items like the January 13, 2025 Special Town Meeting agenda should be suppressed or manually curated.
 - Improve agenda-item summarization so lines truncated by PDF extraction are rewritten into clearer plain-language bullets.
@@ -152,4 +156,4 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 
 ## Resume prompt for a brand-new Codex session
-Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. Production run `#23` completed successfully after the publisher was extended again: existing stories already stored content signatures, and amendment banners can now summarize highlight-level changes such as added or removed agenda items when a revised source document materially changes the public story. The main remaining work is quality tuning: improve change-summary precision, improve low-confidence PDF handling, clean up diagnostics, strengthen agenda-item summarization, and then move on to cleaner path-based URL routing.
+Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. Production run `#23` completed successfully after the publisher was extended again: existing stories already stored content signatures, and amendment banners can now summarize highlight-level changes such as added or removed agenda items when a revised source document materially changes the public story. There is also a newer local-only change not yet deployed: `004_sync_metrics.sql` and related worker/status-page updates that split created vs updated story/event counts, currently blocked only by Freehostia SSH/SFTP resets during deployment. The main remaining work is to deploy that metrics change, then continue with quality tuning on low-confidence PDFs, diagnostics, and path-based URL routing.

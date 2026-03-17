@@ -107,7 +107,7 @@ function newsroom_recent_runs(int $limit = 20): array
     }
 
     $statement = newsroom_db()->prepare(
-        'SELECT id, started_at, finished_at, run_status, items_discovered, documents_fetched, extractions_created, meetings_normalized, stories_published, events_created
+        'SELECT id, started_at, finished_at, run_status, items_discovered, documents_fetched, extractions_created, meetings_normalized, stories_published, stories_updated, events_created, events_updated
          FROM generation_runs
          ORDER BY started_at DESC, id DESC
          LIMIT :limit'

@@ -57,8 +57,10 @@ $diagnostics = newsroom_diagnostic_items();
                     <p class="run-metric">Fetched: <strong><?= htmlspecialchars((string) $run['documents_fetched']) ?></strong></p>
                     <p class="run-metric">Extracted: <strong><?= htmlspecialchars((string) $run['extractions_created']) ?></strong></p>
                     <p class="run-metric">Meetings: <strong><?= htmlspecialchars((string) $run['meetings_normalized']) ?></strong></p>
-                    <p class="run-metric">Stories: <strong><?= htmlspecialchars((string) $run['stories_published']) ?></strong></p>
-                    <p class="run-metric">Events: <strong><?= htmlspecialchars((string) $run['events_created']) ?></strong></p>
+                    <p class="run-metric">Stories Created: <strong><?= htmlspecialchars((string) $run['stories_published']) ?></strong></p>
+                    <p class="run-metric">Stories Updated: <strong><?= htmlspecialchars((string) ($run['stories_updated'] ?? 0)) ?></strong></p>
+                    <p class="run-metric">Events Created: <strong><?= htmlspecialchars((string) $run['events_created']) ?></strong></p>
+                    <p class="run-metric">Events Updated: <strong><?= htmlspecialchars((string) ($run['events_updated'] ?? 0)) ?></strong></p>
                 </article>
             <?php endforeach; ?>
         <?php else: ?>

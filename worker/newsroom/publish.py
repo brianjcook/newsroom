@@ -23,7 +23,9 @@ AGENDA_EXPLAINERS = {
 @dataclass(frozen=True)
 class PublishedCounts:
     stories_published: int
+    stories_updated: int
     events_created: int
+    events_updated: int
 
 
 GENERIC_EXTRACTION_TITLES = {
@@ -503,7 +505,9 @@ def _select_best_meeting_artifacts(rows: List[Dict[str, object]]) -> List[Dict[s
 
 def publish_stories_and_events(connection: Connection) -> PublishedCounts:
     stories_published = 0
+    stories_updated = 0
     events_created = 0
+    events_updated = 0
 
     with connection.cursor() as cursor:
         cursor.execute(
@@ -736,7 +740,10 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 "UPDATE source_items SET status = 'published', updated_at = NOW() WHERE id = %s",
                 (source_item["source_item_id"],),
             )
-        stories_published += 1
+        if existing_story:
+            stories_updated += 1
+        else:
+            stories_published += 1
 
     with connection.cursor() as cursor:
         cursor.execute(
@@ -817,6 +824,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         int(existing_event["id"]),
                     ),
                 )
+                events_updated += 1
             else:
                 cursor.execute(
                     """
@@ -843,6 +851,11 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         f"Official Wareham meeting listing for the {body_name}.",
                     ),
                 )
-        events_created += 1
+                events_created += 1
 
-    return PublishedCounts(stories_published=stories_published, events_created=events_created)
+    return PublishedCounts(
+        stories_published=stories_published,
+        stories_updated=stories_updated,
+        events_created=events_created,
+        events_updated=events_updated,
+    )
