@@ -82,6 +82,23 @@ CATEGORY_EXPLANATIONS = {
     "permit": "it could affect a local license or permit decision",
 }
 
+TRUNCATED_ENDINGS = (
+    " the",
+    " a",
+    " an",
+    " of",
+    " and",
+    " to",
+    " for",
+    " from",
+    " with",
+    " on",
+    " at",
+    " in",
+    " by",
+    " regarding",
+)
+
 
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
@@ -319,6 +336,126 @@ def _clean_lines(text: str) -> List[str]:
     return lines
 
 
+def _normalize_item_text(text: str) -> str:
+    return " ".join(str(text or "").replace("\xa0", " ").split())
+
+
+def _looks_truncated(text: str) -> bool:
+    normalized = _normalize_item_text(text)
+    if len(normalized) < 18:
+        return True
+    lowered = normalized.lower().rstrip(" .;,:-")
+    if lowered.endswith(TRUNCATED_ENDINGS):
+        return True
+    if normalized.count("(") > normalized.count(")"):
+        return True
+    if normalized.count('"') % 2 == 1:
+        return True
+    return False
+
+
+def _strip_agenda_lead_in(text: str) -> str:
+    normalized = _normalize_item_text(text)
+    patterns = [
+        r"^\d{1,2}:\d{2}\s*(a\.m\.|p\.m\.)\s*",
+        r"^discussion and possible vote regarding\s+",
+        r"^discussion and possible vote on\s+",
+        r"^discussion and possible vote to\s+",
+        r"^discussion regarding\s+",
+        r"^discussion on\s+",
+        r"^possible vote regarding\s+",
+        r"^possible vote on\s+",
+        r"^possible vote to\s+",
+        r"^public hearing(?:\s*\([^)]*\))?\s*[:\-]?\s*",
+        r"^continued public hearing(?:\s*\([^)]*\))?\s*[:\-]?\s*",
+    ]
+    for pattern in patterns:
+        normalized = re.sub(pattern, "", normalized, flags=re.IGNORECASE)
+    return normalized.strip(" .;:-")
+
+
+def _headline_phrase(text: str) -> str:
+    cleaned = _strip_agenda_lead_in(text)
+    if not cleaned:
+        return ""
+    cleaned = re.sub(r"^wareham\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bthe finalization of\b", "finalizing", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bto recommend action on\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"\barticles for the spring annual town\b",
+        "Spring Annual Town Meeting articles",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\brecommend action on articles for the ([a-z ]+?) town\b",
+        lambda match: "{} Town Meeting articles".format(match.group(1).strip().title()),
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\bregarding\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
+    return cleaned[:120].rstrip(" ,;:-")
+
+
+def _focus_summary_phrase(text: str) -> str:
+    return _headline_phrase(text)
+
+
+def _preview_headline(body_name: str, meeting_date: str, focus_items: List[Dict[str, object]]) -> str:
+    if not focus_items:
+        return f"Wareham {body_name} meeting scheduled for {meeting_date}"
+
+    first = _headline_phrase(str(focus_items[0]["text"]))
+    second = _headline_phrase(str(focus_items[1]["text"])) if len(focus_items) > 1 else ""
+
+    if first and second:
+        return f"Wareham {body_name} to weigh {first} and {second}"
+    if first:
+        return f"Wareham {body_name} to weigh {first}"
+    return f"Wareham {body_name} meeting scheduled for {meeting_date}"
+
+
+def _preview_dek(body_name: str, meeting_date: str, meeting_time: str, location: str, focus_items: List[Dict[str, object]]) -> str:
+    if not focus_items:
+        return f"The {body_name} is scheduled to meet {meeting_date} {meeting_time} at {location}."
+
+    first = _focus_summary_phrase(str(focus_items[0]["text"]))
+    second = _focus_summary_phrase(str(focus_items[1]["text"])) if len(focus_items) > 1 else ""
+    if first and second:
+        return f"At {meeting_time} on {meeting_date}, the {body_name} is set to take up {first} and {second}."
+    if first:
+        return f"At {meeting_time} on {meeting_date}, the {body_name} is set to take up {first}."
+    return f"The {body_name} is scheduled to meet {meeting_date} {meeting_time} at {location}."
+
+
+def _preview_intro(body_name: str, meeting_date: str, meeting_time: str, location: str, focus_items: List[Dict[str, object]]) -> str:
+    if not focus_items:
+        return (
+            f"<p>The Wareham {html.escape(body_name)} is scheduled to meet on {html.escape(meeting_date)} "
+            f"{html.escape(meeting_time)} at {html.escape(location)}, according to the posted agenda.</p>"
+        )
+
+    first = _focus_summary_phrase(str(focus_items[0]["text"]))
+    second = _focus_summary_phrase(str(focus_items[1]["text"])) if len(focus_items) > 1 else ""
+    if first and second:
+        return (
+            f"<p>The Wareham {html.escape(body_name)} will meet on {html.escape(meeting_date)} at "
+            f"{html.escape(meeting_time)} at {html.escape(location)}. The posted agenda centers on "
+            f"{html.escape(first)} and {html.escape(second)}.</p>"
+        )
+    if first:
+        return (
+            f"<p>The Wareham {html.escape(body_name)} will meet on {html.escape(meeting_date)} at "
+            f"{html.escape(meeting_time)} at {html.escape(location)}. The posted agenda puts "
+            f"{html.escape(first)} near the top of the meeting.</p>"
+        )
+    return (
+        f"<p>The Wareham {html.escape(body_name)} is scheduled to meet on {html.escape(meeting_date)} "
+        f"{html.escape(meeting_time)} at {html.escape(location)}, according to the posted agenda.</p>"
+    )
+
+
 def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
     lines = _clean_lines(text)
     filtered = []
@@ -329,6 +466,8 @@ def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
         if "agenda" in lower or "minutes" in lower or "wareham" in lower or "page " in lower:
             if len(line) < 40:
                 continue
+        if _looks_truncated(line):
+            continue
         filtered.append(line)
         if len(filtered) >= limit:
             break
@@ -385,6 +524,8 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
                 item = " ".join(str(raw_item).split())
                 if not item:
                     continue
+                if _looks_truncated(item):
+                    continue
                 score, reasons = _score_editorial_line(item, section_title)
                 if score <= 0:
                     continue
@@ -399,6 +540,8 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
 
     if not focus:
         for item in _agenda_highlights(extraction):
+            if _looks_truncated(item):
+                continue
             score, reasons = _score_editorial_line(item)
             if score <= 0:
                 continue
@@ -420,6 +563,8 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
 def _minutes_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[Dict[str, object]]:
     focus = []  # type: List[Dict[str, object]]
     for line in _clean_lines(str(extraction.get("body_text") or "")):
+        if _looks_truncated(line):
+            continue
         score, reasons = _score_editorial_line(line)
         lowered = line.lower()
         if "approved" in lowered or "denied" in lowered or "adopted" in lowered or "voted" in lowered:
@@ -450,7 +595,7 @@ def _focus_list_block(items: List[Dict[str, object]], heading: str) -> str:
         text = html.escape(str(item["text"]))
         reason = _focus_reason(list(item.get("reasons") or []))
         if reason:
-            bullets.append("<li>{} <span class=\"story-note\">This matters because {}.</span></li>".format(text, html.escape(reason)))
+            bullets.append("<li>{} <span class=\"story-note\">Why it matters: {}.</span></li>".format(text, html.escape(reason)))
         else:
             bullets.append("<li>{}</li>".format(text))
     return "<h3>{}</h3><ul>{}</ul>".format(html.escape(heading), "".join(bullets))
@@ -485,6 +630,8 @@ def _agenda_highlight_blocks(extraction: Dict[str, object]) -> Tuple[str, List[D
     for raw_item in highlights[:6]:
         item = " ".join(str(raw_item).split())
         if not item:
+            continue
+        if _looks_truncated(item):
             continue
         bullet = "<li>{}</li>".format(html.escape(item))
         lowered = item.lower()
@@ -617,16 +764,13 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
         )
     else:
         focus_items = _agenda_focus_items(extraction)
-        headline = f"Wareham {body_name} meeting scheduled for {meeting_date}"
+        headline = _preview_headline(body_name, meeting_date, focus_items)
         if focus_items:
-            dek = f"The agenda elevates {_focus_summary(focus_items)}."
+            dek = _preview_dek(body_name, meeting_date, meeting_time, location, focus_items)
             focus_block = _focus_list_block(focus_items, "What matters most on the agenda")
         else:
             dek = f"The {body_name} is scheduled to meet {meeting_date} {meeting_time} at {location}."
-        intro = (
-            f"<p>The Wareham {html.escape(body_name)} is scheduled to meet on {html.escape(meeting_date)} "
-            f"{html.escape(meeting_time)} at {html.escape(location)}, according to the posted agenda.</p>"
-        )
+        intro = _preview_intro(body_name, meeting_date, meeting_time, location, focus_items)
         agenda_block, explainers = _agenda_highlight_blocks(extraction)
         remote_block = _remote_access_block(extraction)
         kicker = (
