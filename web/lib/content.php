@@ -113,6 +113,11 @@ function newsroom_remote_details(array $structured): array
     $sourceMeta = isset($structured['source_meta']) && is_array($structured['source_meta'])
         ? $structured['source_meta']
         : [];
+    foreach (['remote_join_url', 'remote_webinar_id', 'remote_passcode', 'remote_phone_numbers'] as $key) {
+        if ((!isset($sourceMeta[$key]) || $sourceMeta[$key] === '') && isset($structured[$key])) {
+            $sourceMeta[$key] = $structured[$key];
+        }
+    }
 
     $phones = isset($sourceMeta['remote_phone_numbers']) && is_array($sourceMeta['remote_phone_numbers'])
         ? array_values(array_filter(array_map('strval', $sourceMeta['remote_phone_numbers'])))

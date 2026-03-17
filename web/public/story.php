@@ -100,19 +100,22 @@ http_response_code($story ? 200 : 404);
                                 <?php if (!empty($story['meta']['remote']['passcode'])): ?>
                                     <span>Passcode <?= htmlspecialchars((string) $story['meta']['remote']['passcode']) ?></span>
                                 <?php endif; ?>
+                                <?php foreach ($story['meta']['remote']['phones'] ?? [] as $phone): ?>
+                                    <a href="tel:<?= htmlspecialchars((string) $phone) ?>"><?= htmlspecialchars((string) $phone) ?></a>
+                                <?php endforeach; ?>
                             </span>
                         </div>
                     <?php endif; ?>
                     <?php if ($story['story_type'] === 'meeting_preview' && !empty($story['meta']['agenda_url'])): ?>
                         <div class="story-information__row">
                             <span class="story-information__label">Agenda</span>
-                            <span><a href="<?= htmlspecialchars((string) $story['meta']['agenda_url']) ?>">View official agenda</a></span>
+                            <span><a href="<?= htmlspecialchars((string) $story['meta']['agenda_url']) ?>" target="_blank" rel="noopener noreferrer">View official agenda</a></span>
                         </div>
                     <?php endif; ?>
                     <?php if ($story['story_type'] === 'minutes_recap' && !empty($story['meta']['minutes_url'])): ?>
                         <div class="story-information__row">
                             <span class="story-information__label">Minutes</span>
-                            <span><a href="<?= htmlspecialchars((string) $story['meta']['minutes_url']) ?>">View posted minutes</a></span>
+                            <span><a href="<?= htmlspecialchars((string) $story['meta']['minutes_url']) ?>" target="_blank" rel="noopener noreferrer">View posted minutes</a></span>
                         </div>
                     <?php endif; ?>
                     <?php if (!empty($story['meta']['summary_text'])): ?>

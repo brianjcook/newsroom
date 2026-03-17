@@ -77,59 +77,128 @@ def _append_nested_text(section: Dict[str, object], text: str) -> None:
         items[-1] = "{}: {}".format(current, normalized)
 
 
+def _looks_like_agenda_item(line: str) -> bool:
+    return bool(
+        re.match(r"^\d+[\.\)]\s+.+$", line)
+        or re.match(r"^[a-z][\.\)]\s+.+$", line, flags=re.IGNORECASE)
+        or re.match(r"^\([0-9]+\)\s+.+$", line)
+        or re.match(r"^[ivxlcdm]+[\.\)]\s+.+$", line, flags=re.IGNORECASE)
+    )
+
+
+def _extract_pdf_source_meta(body_text: str) -> Dict[str, object]:
+    metadata = {}  # type: Dict[str, object]
+
+    join_match = re.search(r"(https://[^\s]*zoom\.us/j/[^\s]+)", body_text, flags=re.IGNORECASE)
+    if join_match:
+        metadata["remote_join_url"] = join_match.group(1).strip()
+
+    meeting_id_match = re.search(r"Meeting ID:\s*([0-9 ]{9,})", body_text, flags=re.IGNORECASE)
+    if meeting_id_match:
+        metadata["remote_webinar_id"] = " ".join(meeting_id_match.group(1).split())
+
+    passcode_match = re.search(r"Passcode:\s*([A-Za-z0-9]+)", body_text, flags=re.IGNORECASE)
+    if passcode_match:
+        metadata["remote_passcode"] = passcode_match.group(1).strip()
+
+    phone_numbers = []
+    for value in re.findall(r"(\+\d{10,}(?:,,[0-9#,*]+)?)", body_text):
+        normalized = value.strip()
+        if normalized not in phone_numbers:
+            phone_numbers.append(normalized)
+    if phone_numbers:
+        metadata["remote_phone_numbers"] = phone_numbers
+
+    return metadata
+
+
 def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
     structured = {}  # type: Dict[str, object]
     lines = _clean_pdf_lines(body_text)
+    structured["source_meta"] = _extract_pdf_source_meta(body_text)
 
-    meeting_line = None
-    for line in lines[:20]:
-        if "marion road" in line.lower() or "room " in line.lower():
-            meeting_line = line
+    agenda_start_index = next((index for index, line in enumerate(lines) if _looks_like_agenda_item(line)), len(lines))
+    header_lines = lines[:agenda_start_index]
+
+    date_time_index = None
+    for index, line in enumerate(header_lines[:20]):
+        if re.search(r"[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4}\s*[-\u2013\u2014]\s*\d{1,2}:\d{2}\s*[ap]\.?m\.?", line, flags=re.IGNORECASE):
+            date_time_index = index
+            structured["meeting_line"] = line
+            date_match = re.search(r"([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})", line)
+            time_match = re.search(r"(\d{1,2}:\d{2}\s*[ap]\.?m\.?)", line, flags=re.IGNORECASE)
+            if date_match:
+                structured["meeting_date_line"] = date_match.group(1).strip()
+            if time_match:
+                structured["meeting_time_line"] = time_match.group(1).strip()
             break
 
-    if meeting_line:
-        structured["meeting_line"] = meeting_line
-        location_match = re.search(r"([0-9:]+\s*[ap]\.?m\.?)\s*[\u2013\u2014•\-\?]+\s*(.+)$", meeting_line, flags=re.IGNORECASE)
-        if location_match:
-            structured["meeting_time_line"] = location_match.group(1).strip()
-            structured["meeting_location_line"] = location_match.group(2).strip()
+    if date_time_index is not None:
+        location_lines = []
+        for line in header_lines[date_time_index + 1:]:
+            lowered = line.lower()
+            if (
+                lowered.startswith("join zoom meeting")
+                or lowered.startswith("topic:")
+                or lowered.startswith("time:")
+                or lowered.startswith("meeting id:")
+                or lowered.startswith("passcode:")
+                or lowered.startswith("one tap mobile")
+                or lowered.startswith("join instructions")
+                or lowered == "---"
+                or line.startswith("http://")
+                or line.startswith("https://")
+                or re.match(r"^\+\d{10,}", line)
+                or re.fullmatch(r"[A-Za-z0-9_-]{12,}", line)
+            ):
+                continue
+            location_lines.append(line)
+
+        if location_lines:
+            venue = location_lines[0]
+            remainder = location_lines[1:]
+            room_lines = [item for item in remainder if re.search(r"\broom\b|\brm\b", item, flags=re.IGNORECASE)]
+            address_lines = [item for item in remainder if item not in room_lines]
+            location_parts = [venue] + address_lines + room_lines
+            structured["meeting_location_name"] = venue
+            structured["meeting_location_line"] = ", ".join(location_parts)
+            if address_lines:
+                structured["meeting_address_line"] = ", ".join(address_lines)
 
     sections = []
-    current_section = None
-    for line in lines:
-        section_match = re.match(r"^(\d+)\)\s+(.+)$", line)
-        subitem_match = re.match(r"^([a-z]+)\)\s+(.+)$", line, flags=re.IGNORECASE)
+    current_section = {"number": 1, "title": "Agenda", "items": []}  # type: Dict[str, object]
+    for line in lines[agenda_start_index:]:
+        section_match = re.match(r"^(\d+)[\.\)]\s+(.+)$", line)
+        subitem_match = re.match(r"^([a-z]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
         nested_match = re.match(r"^\((\d+)\)\s+(.+)$", line)
-        roman_match = re.match(r"^([ivxlcdm]+)\)\s+(.+)$", line, flags=re.IGNORECASE)
+        roman_match = re.match(r"^([ivxlcdm]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
 
         if section_match:
-            current_section = {
-                "number": int(section_match.group(1)),
-                "title": section_match.group(2).strip(),
-                "items": [],
-            }
-            sections.append(current_section)
+            current_section["items"].append(section_match.group(2).strip())
             continue
 
-        if subitem_match and current_section is not None:
-            current_section["items"].append(subitem_match.group(2).strip())
+        if subitem_match:
+            _append_nested_text(current_section, subitem_match.group(2).strip())
             continue
 
-        if roman_match and current_section is not None:
+        if roman_match:
             _append_nested_text(current_section, roman_match.group(2).strip())
             continue
 
-        if nested_match and current_section is not None:
+        if nested_match:
             _append_nested_text(current_section, nested_match.group(2).strip())
             continue
 
         time_hearing_match = re.match(r"^([0-9:]+\s*[ap]\.?m\.?)\s+(.+)$", line, flags=re.IGNORECASE)
-        if time_hearing_match and current_section is not None:
+        if time_hearing_match:
             current_section["items"].append("{} {}".format(time_hearing_match.group(1).strip(), time_hearing_match.group(2).strip()))
             continue
 
-        if current_section is not None and current_section["items"]:
+        if current_section["items"]:
             _append_item_text(current_section, line)
+
+    if current_section.get("items"):
+        sections.append(current_section)
 
     if sections:
         for section in sections:
@@ -147,8 +216,14 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
         for item in section["items"]:
             lowered = item.lower()
             score = 0
+            if "tobacco violation" in lowered:
+                score += 95
             if "comprehensive wastewater management plan" in lowered:
                 score += 100
+            if "title 5" in lowered:
+                score += 50
+            if "variance request" in lowered:
+                score += 40
             if "possible vote" in lowered:
                 score += 40
             if "discussion" in lowered:
@@ -275,6 +350,11 @@ def extract_documents(config: WorkerConfig, connection: Connection, documents: L
                 extra_structured["review_flags"] = review_flags
         else:
             title, body_text, confidence_score, warnings = _extract_html(storage_path)
+
+        extracted_source_meta = extra_structured.pop("source_meta", {})
+        if isinstance(extracted_source_meta, dict):
+            source_meta = dict(source_meta)
+            source_meta.update(extracted_source_meta)
 
         if source_meta.get("wrapper_title"):
             title = str(source_meta["wrapper_title"])

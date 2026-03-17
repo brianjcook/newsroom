@@ -60,6 +60,10 @@ EDITORIAL_SIGNAL_RULES = [
     ("bylaw", 30, "policy"),
     ("policy", 28, "policy"),
     ("appoint", 20, "appointment"),
+    ("tobacco violation", 72, "permit"),
+    ("violation", 28, "permit"),
+    ("title 5", 40, "policy"),
+    ("variance request", 34, "permit"),
     ("license", 22, "permit"),
     ("permit", 20, "permit"),
     ("accept", 14, "formal_action"),
@@ -408,14 +412,16 @@ def _headline_action(text: str) -> str:
     lowered = _normalize_item_text(text).lower()
     if "public hearing" in lowered or "hearing" in lowered:
         return "to Hear"
+    if "violation" in lowered:
+        return "to Discuss"
+    if "discussion" in lowered:
+        return "to Discuss"
     if "presentation" in lowered:
         return "to Review"
     if "appoint" in lowered or "appointment" in lowered:
         return "to Consider"
     if "vote" in lowered or "consider" in lowered:
         return "to Consider"
-    if "discussion" in lowered:
-        return "to Meet and Discuss"
     return "to Meet and Consider"
 
 
@@ -456,9 +462,21 @@ def _looks_garbled(text: str) -> bool:
 
 
 def _summary_phrase_list(items: List[str], limit: int = 2) -> List[str]:
+    normalized_items = [_normalize_item_text(item) for item in items]
+    if sum(1 for item in normalized_items if "tobacco violation" in item.lower()) >= 2:
+        phrases = ["Tobacco Violations"]
+        for item in normalized_items:
+            phrase = _focus_summary_phrase(item)
+            if not phrase or _looks_garbled(phrase) or "tobacco violation" in phrase.lower():
+                continue
+            phrases.append(phrase)
+            if len(phrases) >= limit:
+                break
+        return phrases[:limit]
+
     phrases = []  # type: List[str]
     seen = set()
-    for item in items:
+    for item in normalized_items:
         phrase = _focus_summary_phrase(item)
         if not phrase or _looks_garbled(phrase):
             continue
@@ -479,11 +497,23 @@ def _sentence_from_phrases(prefix: str, phrases: List[str]) -> str:
     return "{} {} and {}.".format(prefix, phrases[0], phrases[1])
 
 
+def _headline_focus_phrase(focus_items: List[Dict[str, object]]) -> str:
+    texts = [_normalize_item_text(str(item.get("text") or "")) for item in focus_items[:3]]
+    violation_count = sum(1 for text in texts if "tobacco violation" in text.lower())
+    if violation_count >= 2:
+        return "Tobacco Violations"
+    if sum(1 for text in texts if "variance request" in text.lower()) >= 2:
+        return "Variance Requests"
+    if texts:
+        return _headline_phrase(texts[0])
+    return ""
+
+
 def _preview_headline(body_name: str, meeting_date: str, focus_items: List[Dict[str, object]]) -> str:
     if not focus_items:
         return f"{body_name} to Meet {meeting_date}"
 
-    first = _headline_phrase(str(focus_items[0]["text"]))
+    first = _headline_focus_phrase(focus_items)
     if first:
         return f"{body_name} {_headline_action(str(focus_items[0]['text']))} {first}"
     return f"{body_name} to Meet {meeting_date}"
