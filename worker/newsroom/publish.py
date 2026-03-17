@@ -39,34 +39,48 @@ GENERIC_EXTRACTION_TITLES = {
 
 
 EDITORIAL_SIGNAL_RULES = [
-    ("possible vote", 50, "could lead to a board vote"),
-    ("vote", 35, "could result in formal board action"),
-    ("public hearing", 45, "opens the issue to formal public comment"),
-    ("hearing", 20, "is scheduled for a public hearing"),
-    ("budget", 35, "affects town budgeting or spending"),
-    ("appropriation", 35, "could affect town spending"),
-    ("contract", 28, "could lead to a contract or procurement decision"),
-    ("bid", 24, "could affect procurement or project costs"),
-    ("zoning", 38, "could affect land use or development rules"),
-    ("special permit", 38, "could affect land use or development decisions"),
-    ("site plan", 32, "could affect development review"),
-    ("wastewater", 42, "could affect wastewater planning or infrastructure"),
-    ("sewer", 34, "could affect sewer or utility planning"),
-    ("water", 22, "could affect utility or infrastructure planning"),
-    ("road", 18, "could affect local infrastructure or public works"),
-    ("capital", 24, "could affect capital planning or long-term spending"),
-    ("town meeting", 28, "could shape what reaches Town Meeting"),
-    ("article", 18, "could influence a Town Meeting article or formal proposal"),
-    ("bylaw", 30, "could affect local rules or governance"),
-    ("policy", 28, "could change town policy or procedure"),
-    ("appoint", 20, "could change town appointments or representation"),
-    ("license", 22, "could affect a local license or permit"),
-    ("permit", 20, "could affect a local permit decision"),
-    ("accept", 14, "could formalize a town action or filing"),
-    ("approve", 14, "could formalize a town decision"),
-    ("adopt", 22, "could formalize a policy or planning decision"),
-    ("deny", 18, "could reject a proposal or request"),
+    ("possible vote", 50, "formal_action"),
+    ("vote", 35, "formal_action"),
+    ("public hearing", 45, "public_hearing"),
+    ("hearing", 20, "public_hearing"),
+    ("budget", 35, "budget"),
+    ("appropriation", 35, "budget"),
+    ("contract", 28, "contract"),
+    ("bid", 24, "contract"),
+    ("zoning", 38, "land_use"),
+    ("special permit", 38, "land_use"),
+    ("site plan", 32, "land_use"),
+    ("wastewater", 42, "infrastructure"),
+    ("sewer", 34, "infrastructure"),
+    ("water", 22, "infrastructure"),
+    ("road", 18, "infrastructure"),
+    ("capital", 24, "budget"),
+    ("town meeting", 28, "town_meeting"),
+    ("article", 18, "town_meeting"),
+    ("bylaw", 30, "policy"),
+    ("policy", 28, "policy"),
+    ("appoint", 20, "appointment"),
+    ("license", 22, "permit"),
+    ("permit", 20, "permit"),
+    ("accept", 14, "formal_action"),
+    ("approve", 14, "formal_action"),
+    ("adopt", 22, "policy"),
+    ("deny", 18, "formal_action"),
 ]
+
+
+CATEGORY_EXPLANATIONS = {
+    "formal_action": "it could lead to a formal decision or vote",
+    "public_hearing": "it opens the issue to formal public comment",
+    "budget": "it could affect town spending or budget priorities",
+    "contract": "it could shape a contract, bid, or procurement decision",
+    "land_use": "it could affect land use, zoning, or development review",
+    "infrastructure": "it could affect local infrastructure or utility planning",
+    "town_meeting": "it could shape what reaches Town Meeting",
+    "policy": "it could change local rules, policy, or procedure",
+    "appointment": "it could change town appointments or representation",
+    "permit": "it could affect a local license or permit decision",
+}
 
 
 def _slugify(value: str) -> str:
@@ -324,12 +338,12 @@ def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
 def _score_editorial_line(text: str, context: str = "") -> Tuple[int, List[str]]:
     lowered = " ".join([context, text]).lower()
     score = 0
-    reasons = []  # type: List[str]
+    categories = []  # type: List[str]
 
-    for needle, weight, explanation in EDITORIAL_SIGNAL_RULES:
+    for needle, weight, category in EDITORIAL_SIGNAL_RULES:
         if needle in lowered:
             score += weight
-            reasons.append(explanation)
+            categories.append(category)
 
     if len(text) > 80:
         score += 4
@@ -337,20 +351,24 @@ def _score_editorial_line(text: str, context: str = "") -> Tuple[int, List[str]]
         score += 10
     if "presentation" in lowered:
         score += 8
+    if "approved" in lowered or "adopted" in lowered or "denied" in lowered:
+        score += 12
+        categories.append("formal_action")
 
     deduped = []
-    for reason in reasons:
-        if reason not in deduped:
-            deduped.append(reason)
+    for category in categories:
+        if category not in deduped:
+            deduped.append(category)
     return score, deduped
 
 
-def _focus_reason(reasons: List[str]) -> str:
-    if not reasons:
+def _focus_reason(categories: List[str]) -> str:
+    phrases = [CATEGORY_EXPLANATIONS[category] for category in categories if category in CATEGORY_EXPLANATIONS]
+    if not phrases:
         return ""
-    if len(reasons) == 1:
-        return reasons[0]
-    return "{} and {}".format(", ".join(reasons[:-1]), reasons[-1])
+    if len(phrases) == 1:
+        return phrases[0]
+    return "{} and {}".format(", ".join(phrases[:-1]), phrases[-1])
 
 
 def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[Dict[str, object]]:
@@ -432,7 +450,7 @@ def _focus_list_block(items: List[Dict[str, object]], heading: str) -> str:
         text = html.escape(str(item["text"]))
         reason = _focus_reason(list(item.get("reasons") or []))
         if reason:
-            bullets.append("<li>{} <span class=\"story-note\">This matters because it {}.</span></li>".format(text, html.escape(reason)))
+            bullets.append("<li>{} <span class=\"story-note\">This matters because {}.</span></li>".format(text, html.escape(reason)))
         else:
             bullets.append("<li>{}</li>".format(text))
     return "<h3>{}</h3><ul>{}</ul>".format(html.escape(heading), "".join(bullets))
