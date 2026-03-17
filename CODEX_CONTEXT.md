@@ -67,6 +67,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Refined that editorial-ranking layer so high-impact items are grouped into civic categories like `formal_action`, `public_hearing`, `budget`, `infrastructure`, `town_meeting`, `policy`, `appointment`, and `permit`, producing cleaner category-specific “why it matters” notes instead of repetitive generic phrasing.
 - Reworked the public-site visual system away from boxed cards and toward a newspaper-style layout: stronger masthead rules, centered paper-style header, column-driven homepage, vertical dividers, masonry-style secondary story columns, ledger-style calendar/status layouts, serif-dominant headlines, and the existing off-white paper background.
 - Tightened the deterministic editorial-writing layer again so preview stories now use more issue-led headlines and dek lines, suppress obviously truncated agenda bullets more aggressively, and normalize common agenda phrasing into cleaner civic-news language before publication.
+- Improved PDF agenda extraction in `extract.py` so wrapped agenda lines are stitched back together, repeated page/date boilerplate is stripped, nested sub-items are preserved more cleanly, and real Wareham agenda items like the Municipal Maintenance abatements line and Open Space and Recreation Plan line survive extraction intact.
+- Added a reusable maintenance script at `worker/scripts/reextract_documents.py` so existing documents can be re-extracted and republished after parser improvements.
+- Fixed `publish.py` to select the latest extraction per document instead of joining against stale historical extraction rows.
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -122,8 +125,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Editorial tone is now somewhat sharper: by `run #28`, the Select Board preview still uses deterministic ranking, but the explanatory notes read more like civic framing and less like a raw rules dump.
 - The public front end now visually hews closer to a newspaper/reference-journal aesthetic, with fewer boxes and more column/rule structure across the homepage, story pages, calendar, and status views.
 - Production run `#29` applied the first issue-led headline/dek pass across existing stories, and run `#30` refined that wording further so proper nouns are no longer decapitalized in sentence position and lead previews read less like raw agenda fragments.
+- Production run `#31` refreshed published stories after the latest-extraction selection fix in `publish.py`, and run `#32` applied the final Town Meeting headline cleanup after the full re-extraction pass.
+- The Select Board March 17, 2026 preview now includes the full Municipal Maintenance abatements line and the full Open Space and Recreation Plan line, instead of the earlier truncated fragments.
 - Latest successful production run:
-- `run_id`: `30`
+- `run_id`: `32`
 - `items_discovered`: `368`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -158,6 +163,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `3a89488` - `Prioritize high-impact meeting items`
 - `782c1a7` - `Refine civic framing for ranked meeting stories`
 - `0be2446` - `Shift public site toward newspaper layout`
+- `978382a` - `Sharpen issue-led story phrasing`
 - `d5a5c2e` - `Summarize agenda changes in update notes`
 
 ## Next priority tasks
@@ -166,8 +172,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Improve low-confidence PDF extraction handling and related publish rules.
 - Evaluate the next live extraction run to confirm the new PDF quarantine flags catch the right Wareham edge cases without over-quarantining useful documents.
 - Continue refining the new editorial-ranking language so the “why it matters” notes and issue-led headlines feel more like a local newsroom voice and less like a deterministic labeler, especially for edge cases and truncated agenda items.
+- Normalize location casing and other presentation details that still leak through from raw extraction, such as `TOWN HALL` and similar all-caps venue strings.
+- Improve long/hearing agenda item condensation so very long public-hearing bullets read more like edited summaries and less like raw legal text.
 - Decide whether low-confidence published items like the January 13, 2025 Special Town Meeting agenda should be suppressed or manually curated.
-- Improve agenda-item summarization so lines truncated by PDF extraction are rewritten into clearer plain-language bullets.
+- Improve agenda-item summarization so even fully extracted lines are rewritten into clearer plain-language bullets when they are still too procedural or verbose.
 - Expand diagnostics into a more useful editorial/ops view instead of raw warnings.
 - Decide on and implement a repeatable on-host trigger, preferably cron-based rather than ad hoc admin endpoints.
 - Move public URLs from query-parameter patterns toward descriptive path-based routing.
@@ -176,4 +184,4 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 
 ## Resume prompt for a brand-new Codex session
-Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. The public site now uses a more newspaper-like layout, and production run `#30` completed successfully after another editorial pass in `publish.py`. Preview stories now use more issue-led headlines and dek lines, proper nouns are no longer being awkwardly decapitalized in sentence position, and obviously truncated agenda bullets are filtered more aggressively before publication. Weak PDFs already get `review_flags` on future extraction runs, and run metrics distinguish created vs updated records. The main remaining work is to keep refining editorial voice and edge-case handling, observe the next real extraction run to tune PDF quarantine thresholds, improve diagnostics further, and continue later work on path-based URL routing.
+Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. The public site now uses a more newspaper-like layout, and the latest parser/publisher pass is live through production run `#32`. `extract.py` now stitches wrapped PDF agenda lines back together and strips repeated page/date boilerplate, `worker/scripts/reextract_documents.py` exists for full re-extraction passes, and `publish.py` now selects the latest extraction per document instead of sometimes rendering stale text. The Select Board March 17, 2026 preview now carries full agenda lines for the CWMP item, Open Space and Recreation Plan item, Town Meeting recommendation item, and Municipal Maintenance abatements item. Weak PDFs already get `review_flags` on future extraction runs, and run metrics distinguish created vs updated records. The main remaining work is to keep refining editorial voice and edge-case handling, improve location casing and long hearing-item condensation, observe the next real extraction run to tune PDF quarantine thresholds, improve diagnostics further, and continue later work on path-based URL routing.

@@ -382,6 +382,12 @@ def _headline_phrase(text: str) -> str:
     cleaned = re.sub(r"\bthe finalization of\b", "finalizing", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bto recommend action on\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(
+        r"\barticles for the spring annual town meeting\b",
+        "Spring Annual Town Meeting articles",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
         r"\barticles for the spring annual town\b",
         "Spring Annual Town Meeting articles",
         cleaned,
@@ -874,7 +880,15 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             INNER JOIN meeting_artifacts ma ON ma.meeting_id = m.id
             INNER JOIN source_items si ON si.id = ma.source_item_id
             LEFT JOIN documents d ON d.id = ma.document_id
-            LEFT JOIN document_extractions de ON de.document_id = ma.document_id
+            LEFT JOIN (
+                SELECT de1.*
+                FROM document_extractions de1
+                INNER JOIN (
+                    SELECT document_id, MAX(id) AS max_id
+                    FROM document_extractions
+                    GROUP BY document_id
+                ) latest_extraction ON latest_extraction.max_id = de1.id
+            ) de ON de.document_id = ma.document_id
             WHERE ma.is_primary = 1
             ORDER BY m.id ASC, ma.id ASC
             """

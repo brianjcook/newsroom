@@ -12,7 +12,7 @@ from .config import WorkerConfig
 from .documents import DocumentRecord
 from .modeling import parse_source_meta
 
-EXTRACTOR_VERSION = "0.2"
+EXTRACTOR_VERSION = "0.3"
 
 
 @dataclass(frozen=True)
@@ -30,9 +30,56 @@ def _normalize_line(value: str) -> str:
     return re.sub(r"(?<=\w)\s+-\s+(?=\w)", "-", normalized)
 
 
+def _is_pdf_noise_line(line: str) -> bool:
+    lowered = line.lower().strip()
+    if not lowered:
+        return True
+    if re.fullmatch(r"\d+", lowered):
+        return True
+    if lowered in ("town of wareham", "select board", "meeting agenda"):
+        return True
+    if re.fullmatch(r"(january|february|march|april|may|june|july|august|september|october|november|december) \d{1,2}, \d{4}", lowered):
+        return True
+    return False
+
+
+def _clean_pdf_lines(body_text: str) -> List[str]:
+    return [
+        line
+        for line in (_normalize_line(line) for line in body_text.splitlines())
+        if line and not _is_pdf_noise_line(line)
+    ]
+
+
+def _append_item_text(section: Dict[str, object], text: str) -> None:
+    items = section.setdefault("items", [])
+    normalized = _normalize_line(text)
+    if not normalized:
+        return
+    if items:
+        items[-1] = "{} {}".format(str(items[-1]).rstrip(), normalized).strip()
+    else:
+        items.append(normalized)
+
+
+def _append_nested_text(section: Dict[str, object], text: str) -> None:
+    normalized = _normalize_line(text)
+    if not normalized:
+        return
+    items = section.setdefault("items", [])
+    if not items:
+        items.append(normalized)
+        return
+    current = str(items[-1]).rstrip()
+    if ":" in current:
+        items[-1] = "{}; {}".format(current, normalized)
+    else:
+        items[-1] = "{}: {}".format(current, normalized)
+
+
 def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
     structured = {}  # type: Dict[str, object]
-    lines = [_normalize_line(line) for line in body_text.splitlines() if _normalize_line(line)]
+    lines = _clean_pdf_lines(body_text)
 
     meeting_line = None
     for line in lines[:20]:
@@ -53,6 +100,7 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
         section_match = re.match(r"^(\d+)\)\s+(.+)$", line)
         subitem_match = re.match(r"^([a-z]+)\)\s+(.+)$", line, flags=re.IGNORECASE)
         nested_match = re.match(r"^\((\d+)\)\s+(.+)$", line)
+        roman_match = re.match(r"^([ivxlcdm]+)\)\s+(.+)$", line, flags=re.IGNORECASE)
 
         if section_match:
             current_section = {
@@ -67,15 +115,30 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
             current_section["items"].append(subitem_match.group(2).strip())
             continue
 
-        if nested_match and current_section is not None and current_section["items"]:
-            current_section["items"][-1] = "{}: {}".format(current_section["items"][-1], nested_match.group(2).strip())
+        if roman_match and current_section is not None:
+            _append_nested_text(current_section, roman_match.group(2).strip())
+            continue
+
+        if nested_match and current_section is not None:
+            _append_nested_text(current_section, nested_match.group(2).strip())
             continue
 
         time_hearing_match = re.match(r"^([0-9:]+\s*[ap]\.?m\.?)\s+(.+)$", line, flags=re.IGNORECASE)
         if time_hearing_match and current_section is not None:
             current_section["items"].append("{} {}".format(time_hearing_match.group(1).strip(), time_hearing_match.group(2).strip()))
+            continue
+
+        if current_section is not None and current_section["items"]:
+            _append_item_text(current_section, line)
 
     if sections:
+        for section in sections:
+            cleaned_items = []
+            for item in section.get("items") or []:
+                normalized = _normalize_line(str(item))
+                if normalized:
+                    cleaned_items.append(normalized)
+            section["items"] = cleaned_items
         structured["agenda_sections"] = sections
 
     scored_highlights = []
