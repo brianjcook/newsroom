@@ -87,6 +87,14 @@ def _story_content_signature(headline: str, dek: str, summary: str, body_text: s
     return digest.hexdigest()
 
 
+def _agenda_highlights(extraction: Dict[str, object]) -> List[str]:
+    structured = _agenda_details(extraction)
+    highlights = structured.get("agenda_highlights") or []
+    if not isinstance(highlights, list):
+        return []
+    return [" ".join(str(item).split()) for item in highlights if " ".join(str(item).split())]
+
+
 def _story_basis_json(
     source_item: Dict[str, object],
     extraction: Dict[str, object],
@@ -95,6 +103,7 @@ def _story_basis_json(
     is_amended: bool,
     content_signature: str,
 ) -> str:
+    highlights = _agenda_highlights(extraction)
     return json.dumps(
         {
             "source_item_id": source_item["source_item_id"],
@@ -104,8 +113,35 @@ def _story_basis_json(
             "artifact_posted_at": artifact_posted_at,
             "is_amended": bool(is_amended),
             "content_signature": content_signature,
+            "agenda_highlights": highlights[:8],
         }
     )
+
+
+def _change_summary(previous_basis: Dict[str, object], extraction: Dict[str, object]) -> str:
+    previous_highlights = previous_basis.get("agenda_highlights") or []
+    if not isinstance(previous_highlights, list):
+        previous_highlights = []
+    previous_clean = [" ".join(str(item).split()) for item in previous_highlights if " ".join(str(item).split())]
+    current_clean = _agenda_highlights(extraction)
+
+    if not previous_clean and not current_clean:
+        return ""
+
+    previous_set = set(previous_clean)
+    current_set = set(current_clean)
+    added = [item for item in current_clean if item not in previous_set]
+    removed = [item for item in previous_clean if item not in current_set]
+
+    change_bits = []
+    if added:
+        change_bits.append("New agenda items include {}".format("; ".join(added[:2])))
+    if removed:
+        change_bits.append("Items no longer listed include {}".format("; ".join(removed[:2])))
+    if not change_bits and current_clean != previous_clean:
+        change_bits.append("The order or emphasis of agenda items changed")
+
+    return ". ".join(change_bits[:2]).strip(". ")
 
 
 def _story_update_note(
@@ -134,6 +170,8 @@ def _story_update_note(
     except ValueError:
         formatted = note_date
 
+    change_summary = _change_summary(previous_basis, extraction)
+
     if is_amended:
         note_text = "{}: Wareham posted a revised source document for this meeting, and this story was refreshed on {} to reflect the latest public record.".format(
             note_label,
@@ -144,6 +182,8 @@ def _story_update_note(
             note_label,
             formatted,
         )
+    if change_summary:
+        note_text = "{} {}.".format(note_text, change_summary)
 
     return '<p class="story-update"><strong>{}</strong></p>'.format(html.escape(note_text))
 
