@@ -11,10 +11,27 @@ function newsroom_latest_stories(int $limit = 8): array
     }
 
     $statement = newsroom_db()->prepare(
-        'SELECT id, slug, story_type, headline, dek, summary, published_at
-         FROM stories
+        'SELECT s.id, s.slug, s.story_type, s.headline, s.dek, s.summary, s.published_at, s.display_date, s.sort_date
+         FROM stories s
+         LEFT JOIN meetings m ON m.id = s.meeting_id
          WHERE publish_status = :status
-         ORDER BY published_at DESC, id DESC
+           AND NOT (
+                s.story_type = "meeting_preview"
+                AND m.meeting_date IS NOT NULL
+                AND m.meeting_date < DATE_SUB(CURDATE(), INTERVAL 2 DAY)
+            )
+         ORDER BY
+            CASE
+                WHEN s.story_type = "meeting_preview" AND m.meeting_date IS NOT NULL AND TIMESTAMP(m.meeting_date, COALESCE(m.meeting_time, "00:00:00")) >= NOW() THEN 0
+                ELSE 1
+            END ASC,
+            CASE
+                WHEN s.story_type = "meeting_preview" AND m.meeting_date IS NOT NULL AND TIMESTAMP(m.meeting_date, COALESCE(m.meeting_time, "00:00:00")) >= NOW()
+                THEN TIMESTAMP(m.meeting_date, COALESCE(m.meeting_time, "00:00:00"))
+                ELSE NULL
+            END ASC,
+            COALESCE(s.sort_date, s.display_date, s.published_at, TIMESTAMP(m.meeting_date, COALESCE(m.meeting_time, "00:00:00"))) DESC,
+            s.id DESC
          LIMIT :limit'
     );
     $statement->bindValue(':status', 'published');
@@ -31,7 +48,7 @@ function newsroom_story_by_slug(string $slug): ?array
     }
 
     $statement = newsroom_db()->prepare(
-        'SELECT id, slug, story_type, headline, dek, summary, body_html, published_at
+        'SELECT id, slug, story_type, headline, dek, summary, body_html, published_at, display_date
          FROM stories
          WHERE slug = :slug AND publish_status = :status
          LIMIT 1'
@@ -113,13 +130,19 @@ function newsroom_diagnostic_items(int $limit = 20): array
             si.title,
             si.canonical_url,
             si.status,
-            de.confidence_score,
-            de.warnings_json
+            MAX(de.confidence_score) AS confidence_score,
+            MAX(de.warnings_json) AS warnings_json
          FROM source_items si
          LEFT JOIN documents d ON d.source_item_id = si.id
          LEFT JOIN document_extractions de ON de.document_id = d.id
-         WHERE si.status IN ("needs_review", "extracted", "normalized")
-            OR (de.confidence_score IS NOT NULL AND de.confidence_score < 0.60)
+         WHERE (
+                si.status IN ("needs_review", "extracted")
+                OR (de.confidence_score IS NOT NULL AND de.confidence_score < 0.60)
+            )
+           AND LOWER(COALESCE(si.title, "")) NOT LIKE "%packet%"
+           AND LOWER(COALESCE(si.title, "")) NOT LIKE "%previous version%"
+           AND LOWER(COALESCE(si.title, "")) NOT LIKE "%html%"
+         GROUP BY si.id, si.title, si.canonical_url, si.status
          ORDER BY si.updated_at DESC, si.id DESC
          LIMIT :limit'
     );

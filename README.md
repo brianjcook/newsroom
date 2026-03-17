@@ -22,6 +22,7 @@ Create a MySQL database and apply:
 ```sql
 source db/migrations/001_initial_schema.sql;
 source db/migrations/002_generation_run_metrics.sql;
+source db/migrations/003_meeting_first_model.sql;
 source db/seeds/001_sources.sql;
 ```
 

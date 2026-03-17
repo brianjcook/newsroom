@@ -2,11 +2,19 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pymysql.connections import Connection
 
 from .extract import ExtractionRecord
+from .modeling import (
+    classify_artifact,
+    classify_body_type,
+    derive_meeting_status,
+    normalize_body_name,
+    parse_source_meta,
+    slugify,
+)
 
 
 DATE_PATTERNS = [
@@ -69,33 +77,6 @@ def _parse_time(text: str) -> Optional[str]:
     return None
 
 
-def _normalize_body_name(text: str) -> Optional[str]:
-    patterns = [
-        r"(Select Board)",
-        r"(Board of Selectmen)",
-        r"(Planning Board)",
-        r"(Conservation Commission)",
-        r"(School Committee)",
-        r"(Board of Health)",
-        r"(Finance Committee)",
-        r"(Zoning Board of Appeals)",
-        r"(Historical Commission)",
-        r"(Community Preservation Committee)",
-        r"(Capital Planning Committee)",
-        r"(Sewer Commissioners)",
-        r"(Water Pollution Control Facility Board)",
-        r"(Redevelopment Authority)",
-        r"(Municipal Maintenance Department)",
-    ]
-    for pattern in patterns:
-        value = _first_match(pattern, text)
-        if value:
-            if value.lower() == "board of selectmen":
-                return "Select Board"
-            return value
-    return None
-
-
 def _parse_location(text: str) -> Optional[str]:
     patterns = [
         r"(Town Hall(?: Auditorium)?)",
@@ -112,6 +93,142 @@ def _parse_location(text: str) -> Optional[str]:
     return None
 
 
+def _derive_meeting_title(governing_body, meeting_type, meeting_date):
+    if not governing_body:
+        return None
+    label = "Minutes" if meeting_type == "minutes_recap" else "Meeting"
+    if meeting_date:
+        return "{} {} {}".format(governing_body, label, meeting_date)
+    return "{} {}".format(governing_body, label)
+
+
+def _coalesce(*values):
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _meeting_type_for_artifact(artifact_type: str) -> str:
+    if artifact_type == "minutes":
+        return "minutes_recap"
+    return "meeting_preview"
+
+
+def _meeting_key(governing_body: Optional[str], meeting_date: Optional[str]) -> Optional[str]:
+    if governing_body and meeting_date:
+        return "{}-{}".format(slugify(governing_body), meeting_date)
+    return None
+
+
+def _candidate_from_source(
+    source_title: str,
+    item_type: str,
+    canonical_url: str,
+    raw_meta_json: Optional[str],
+    published_at,
+    extraction: ExtractionRecord,
+) -> Dict[str, object]:
+    meta = parse_source_meta(raw_meta_json)
+    combined_text = "\n".join(
+        [
+            source_title or "",
+            str(meta.get("entry_title") or ""),
+            extraction.title,
+            extraction.body_text[:6000],
+        ]
+    )
+    artifact_type, _, is_primary, _ = classify_artifact(source_title, item_type, canonical_url, meta)
+    governing_body = _coalesce(
+        normalize_body_name(str(meta.get("governing_body") or "")),
+        normalize_body_name(str(meta.get("entry_title") or "")),
+        normalize_body_name(combined_text),
+        str(meta.get("governing_body") or None),
+    )
+    meeting_date = _coalesce(
+        meta.get("meeting_date"),
+        _parse_date(combined_text),
+    )
+    meeting_time = _parse_time(combined_text)
+    location_name = _parse_location(combined_text)
+    meeting_type = _meeting_type_for_artifact(artifact_type)
+    status = derive_meeting_status(" ".join([source_title or "", str(meta.get("entry_title") or ""), combined_text[:500]]))
+
+    if status == "cancelled" and artifact_type != "minutes":
+        meeting_type = "meeting_preview"
+
+    posted_at = None
+    if published_at:
+        try:
+            posted_at = published_at.strftime("%Y-%m-%d %H:%M:%S")
+        except AttributeError:
+            posted_at = str(published_at)
+    posted_at = _coalesce(meta.get("posted_at"), posted_at)
+
+    return {
+        "meta": meta,
+        "artifact_type": artifact_type,
+        "is_primary": is_primary,
+        "governing_body": governing_body,
+        "meeting_date": meeting_date,
+        "meeting_time": meeting_time,
+        "location_name": location_name,
+        "meeting_type": meeting_type,
+        "status": status,
+        "posted_at": posted_at,
+        "meeting_key": _coalesce(meta.get("meeting_key"), _meeting_key(governing_body, meeting_date)),
+        "meeting_title": _derive_meeting_title(governing_body, meeting_type, meeting_date),
+    }
+
+
+def _governing_body_id(connection, name):
+    if not name:
+        return None
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT id FROM municipalities WHERE slug = %s LIMIT 1",
+            ("wareham-ma",),
+        )
+        municipality = cursor.fetchone()
+        if not municipality:
+            return None
+
+        normalized_name = normalize_body_name(name) or name
+        slug = "wareham-{}".format(slugify(normalized_name))
+        cursor.execute(
+            """
+            INSERT INTO governing_bodies (
+                municipality_id,
+                name,
+                normalized_name,
+                body_type,
+                slug,
+                agenda_center_name,
+                is_active
+            ) VALUES (%s, %s, %s, %s, %s, %s, 1)
+            ON DUPLICATE KEY UPDATE
+                normalized_name = VALUES(normalized_name),
+                body_type = VALUES(body_type),
+                agenda_center_name = VALUES(agenda_center_name)
+            """,
+            (
+                int(municipality["id"]),
+                normalized_name,
+                normalized_name,
+                classify_body_type(normalized_name),
+                slug,
+                normalized_name,
+            ),
+        )
+        cursor.execute(
+            "SELECT id FROM governing_bodies WHERE slug = %s LIMIT 1",
+            (slug,),
+        )
+        row = cursor.fetchone()
+        return int(row["id"]) if row else None
+
+
 def normalize_meetings(connection: Connection, extractions: List[ExtractionRecord]) -> int:
     normalized_count = 0
 
@@ -119,7 +236,13 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT d.source_item_id, COALESCE(si.title, '') AS source_title
+                SELECT
+                    d.source_item_id,
+                    COALESCE(si.title, '') AS source_title,
+                    COALESCE(si.item_type, '') AS item_type,
+                    si.canonical_url,
+                    si.raw_meta_json,
+                    si.published_at
                 FROM documents d
                 INNER JOIN source_items si ON si.id = d.source_item_id
                 WHERE d.id = %s
@@ -133,24 +256,41 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
 
             source_item_id = int(document_row["source_item_id"])
             source_title = document_row["source_title"]
-            combined_text = "\n".join([source_title, extraction.title, extraction.body_text[:6000]])
-            governing_body = _normalize_body_name(combined_text)
-            meeting_date = _parse_date(combined_text)
-            meeting_time = _parse_time(combined_text)
-            location_name = _parse_location(combined_text)
-            meeting_type = "minutes_recap" if "minute" in combined_text.lower() else "meeting_preview"
-            status = "completed" if meeting_type == "minutes_recap" else "scheduled"
-            agenda_posted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") if meeting_type == "meeting_preview" else None
-            minutes_posted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") if meeting_type == "minutes_recap" else None
-            meeting_key = None
-            if governing_body and meeting_date:
-                meeting_key = f"{governing_body.lower().replace(' ', '-')}-{meeting_date}"
+            candidate = _candidate_from_source(
+                source_title,
+                document_row["item_type"],
+                document_row["canonical_url"],
+                document_row["raw_meta_json"],
+                document_row["published_at"],
+                extraction,
+            )
+            governing_body = candidate["governing_body"]
+            meeting_date = candidate["meeting_date"]
+            meeting_time = candidate["meeting_time"]
+            location_name = candidate["location_name"]
+            meeting_type = candidate["meeting_type"]
+            status = candidate["status"]
+            agenda_posted_at = candidate["posted_at"] if candidate["artifact_type"] == "agenda" else None
+            minutes_posted_at = candidate["posted_at"] if candidate["artifact_type"] == "minutes" else None
+            governing_body_id = _governing_body_id(connection, governing_body)
+            meeting_title = candidate["meeting_title"]
+            meeting_key = candidate["meeting_key"]
+
+            if not meeting_key and not candidate["is_primary"]:
+                cursor.execute(
+                    "UPDATE source_items SET status = %s, updated_at = NOW() WHERE id = %s",
+                    ("ignored", source_item_id),
+                )
+                continue
 
             cursor.execute(
                 """
                 INSERT INTO meetings (
                     source_item_id,
+                    governing_body_id,
                     governing_body,
+                    title,
+                    normalized_title,
                     meeting_type,
                     meeting_date,
                     meeting_time,
@@ -159,20 +299,27 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
                     agenda_posted_at,
                     minutes_posted_at,
                     meeting_key
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
+                    source_item_id = IF(%s = 1, VALUES(source_item_id), source_item_id),
+                    governing_body_id = VALUES(governing_body_id),
                     governing_body = VALUES(governing_body),
+                    title = VALUES(title),
+                    normalized_title = VALUES(normalized_title),
                     meeting_type = VALUES(meeting_type),
                     meeting_date = VALUES(meeting_date),
-                    meeting_time = VALUES(meeting_time),
-                    location_name = VALUES(location_name),
+                    meeting_time = COALESCE(VALUES(meeting_time), meeting_time),
+                    location_name = COALESCE(VALUES(location_name), location_name),
                     status = VALUES(status),
-                    agenda_posted_at = VALUES(agenda_posted_at),
-                    minutes_posted_at = VALUES(minutes_posted_at)
+                    agenda_posted_at = COALESCE(VALUES(agenda_posted_at), agenda_posted_at),
+                    minutes_posted_at = COALESCE(VALUES(minutes_posted_at), minutes_posted_at)
                 """,
                 (
                     source_item_id,
+                    governing_body_id,
                     governing_body,
+                    meeting_title,
+                    slugify(meeting_title or meeting_key or source_title) if (meeting_title or meeting_key or source_title) else None,
                     meeting_type,
                     meeting_date,
                     meeting_time,
@@ -181,13 +328,14 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
                     agenda_posted_at,
                     minutes_posted_at,
                     meeting_key,
+                    1 if candidate["is_primary"] else 0,
                 ),
             )
             cursor.execute(
                 "UPDATE source_items SET status = %s, updated_at = NOW() WHERE id = %s",
-                ("normalized" if governing_body and meeting_date else "needs_review", source_item_id),
+                ("normalized" if meeting_key else "needs_review", source_item_id),
             )
-            if governing_body and meeting_date:
+            if meeting_key:
                 normalized_count += 1
             else:
                 cursor.execute(
@@ -202,6 +350,7 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
                                 "missing_governing_body": governing_body is None,
                                 "missing_meeting_date": meeting_date is None,
                                 "missing_meeting_time": meeting_time is None,
+                                "artifact_type": candidate["artifact_type"],
                             }
                         ),
                         source_item_id,

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Dict, List
 
 from .config import load_config
+from .artifacts import sync_meeting_artifacts
 from .db import connect
 from .documents import fetch_documents, pending_source_items
 from .extract import extract_documents
@@ -85,6 +86,7 @@ def run_daily() -> Dict[str, object]:
         meetings_normalized = 0
         stories_published = 0
         events_created = 0
+        artifacts_synced = 0
 
         try:
             with connection.cursor() as cursor:
@@ -110,6 +112,7 @@ def run_daily() -> Dict[str, object]:
                 extractions = extract_documents(config, connection, documents)
                 extractions_created = len(extractions)
                 meetings_normalized = normalize_meetings(connection, extractions)
+                artifacts_synced = sync_meeting_artifacts(connection)
             else:
                 warnings.append("No pending source items were available for fetch/extract.")
 
@@ -141,6 +144,7 @@ def run_daily() -> Dict[str, object]:
                 "events_created": events_created,
                 "warnings": warnings,
                 "errors": errors,
+                "artifacts_synced": artifacts_synced,
             }
         except Exception as exc:
             errors.append(str(exc))

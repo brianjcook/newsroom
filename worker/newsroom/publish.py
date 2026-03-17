@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from pymysql.connections import Connection
 
+from .modeling import canonical_event_title, derive_story_dates, is_calendar_artifact, is_public_story_artifact
+
 
 @dataclass(frozen=True)
 class PublishedCounts:
@@ -17,6 +19,28 @@ class PublishedCounts:
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return slug[:180] or "story"
+
+
+def _story_slug(connection: Connection, meeting: Dict[str, object], story_type: str) -> str:
+    parts = [
+        meeting["governing_body"] or "wareham",
+        story_type,
+        meeting["meeting_date"] or "undated",
+    ]
+    if meeting.get("meeting_time"):
+        parts.append(str(meeting["meeting_time"]).replace(":", "")[:4])
+
+    base_slug = _slugify("-".join(parts))
+    slug = base_slug
+    suffix = 2
+
+    with connection.cursor() as cursor:
+        while True:
+            cursor.execute("SELECT id FROM stories WHERE slug = %s LIMIT 1", (slug,))
+            if not cursor.fetchone():
+                return slug
+            slug = "{}-{}".format(base_slug, suffix)
+            suffix += 1
 
 
 def _format_date(date_value: Optional[str]) -> str:
@@ -59,6 +83,8 @@ def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
     filtered = []
     for line in lines:
         lower = line.lower()
+        if "agenda center" in lower or "previous versions" in lower or "packet" in lower:
+            continue
         if "agenda" in lower or "minutes" in lower or "wareham" in lower or "page " in lower:
             if len(line) < 40:
                 continue
@@ -68,12 +94,11 @@ def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
     return filtered
 
 
-def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object], extraction: Dict[str, object]) -> Tuple[str, str, str, str, str]:
+def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object], extraction: Dict[str, object], story_type: str) -> Tuple[str, str, str, str, str]:
     body_name = meeting["governing_body"] or "Wareham officials"
     meeting_date = _format_date(meeting["meeting_date"])
     meeting_time = _format_time(meeting["meeting_time"])
     location = meeting["location_name"] or "a location not listed in the source"
-    story_type = meeting["meeting_type"] or "meeting_preview"
     source_url = source_item["canonical_url"]
     source_label = "posted minutes" if story_type == "minutes_recap" else "posted agenda"
 
@@ -128,42 +153,56 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             """
             SELECT
                 m.id AS meeting_id,
-                m.source_item_id,
+                m.governing_body_id,
                 m.governing_body,
                 m.meeting_type,
                 m.meeting_date,
                 m.meeting_time,
                 m.location_name,
+                m.status,
+                m.agenda_posted_at,
+                m.minutes_posted_at,
+                ma.artifact_type,
+                ma.posted_at AS artifact_posted_at,
+                ma.source_item_id,
                 si.canonical_url,
                 si.title AS source_title,
                 de.id AS extraction_id,
                 de.body_text,
                 de.title AS extraction_title
             FROM meetings m
-            INNER JOIN source_items si ON si.id = m.source_item_id
-            INNER JOIN documents d ON d.source_item_id = m.source_item_id
-            INNER JOIN document_extractions de ON de.document_id = d.id
-            LEFT JOIN stories s ON s.meeting_id = m.id
-            WHERE s.id IS NULL
-            ORDER BY m.id ASC, de.id DESC
+            INNER JOIN meeting_artifacts ma ON ma.meeting_id = m.id
+            INNER JOIN source_items si ON si.id = ma.source_item_id
+            LEFT JOIN document_extractions de ON de.document_id = ma.document_id
+            WHERE ma.is_primary = 1
+            ORDER BY m.id ASC, ma.id ASC
             """
         )
         rows = cursor.fetchall()
 
-    seen_meetings = set()  # type: Set[int]
+    seen_story_keys = set()  # type: Set[Tuple[int, str]]
     for row in rows:
         meeting_id = int(row["meeting_id"])
-        if meeting_id in seen_meetings:
+        artifact_type = row["artifact_type"] or ""
+        if not is_public_story_artifact(artifact_type):
             continue
-        seen_meetings.add(meeting_id)
+        story_type = "minutes_recap" if artifact_type == "minutes" else "meeting_preview"
+        story_key = (meeting_id, story_type)
+        if story_key in seen_story_keys:
+            continue
+        seen_story_keys.add(story_key)
 
         meeting = {
             "id": meeting_id,
+            "governing_body_id": row["governing_body_id"],
             "governing_body": row["governing_body"],
             "meeting_type": row["meeting_type"],
             "meeting_date": row["meeting_date"].strftime("%Y-%m-%d") if row["meeting_date"] else None,
             "meeting_time": _db_time_string(row["meeting_time"]),
             "location_name": row["location_name"],
+            "agenda_posted_at": row["agenda_posted_at"].strftime("%Y-%m-%d %H:%M:%S") if row["agenda_posted_at"] else None,
+            "minutes_posted_at": row["minutes_posted_at"].strftime("%Y-%m-%d %H:%M:%S") if row["minutes_posted_at"] else None,
+            "status": row["status"],
         }
         source_item = {
             "source_item_id": int(row["source_item_id"]),
@@ -171,28 +210,41 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             "source_title": row["source_title"] or "",
         }
         extraction = {
-            "id": int(row["extraction_id"]),
+            "id": int(row["extraction_id"]) if row["extraction_id"] else 0,
             "title": row["extraction_title"] or "",
             "body_text": row["body_text"] or "",
         }
 
         if not meeting["governing_body"] or not meeting["meeting_date"]:
             continue
+        if story_type == "meeting_preview" and meeting["status"] == "cancelled":
+            continue
 
-        headline, dek, summary, body_html, body_text = _build_story_copy(meeting, source_item, extraction)
-        slug = _slugify(
-            f"{meeting['governing_body'] or 'wareham'}-{meeting['meeting_type'] or 'story'}-{meeting['meeting_date'] or 'undated'}"
+        artifact_posted_at = row["artifact_posted_at"].strftime("%Y-%m-%d %H:%M:%S") if row["artifact_posted_at"] else None
+        headline, dek, summary, body_html, body_text = _build_story_copy(meeting, source_item, extraction, story_type)
+        published_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        display_date, sort_date = derive_story_dates(
+            story_type,
+            meeting["meeting_date"],
+            meeting["meeting_time"],
+            artifact_posted_at,
+            published_at,
         )
-
         with connection.cursor() as cursor:
-            cursor.execute("SELECT id FROM stories WHERE slug = %s LIMIT 1", (slug,))
+            cursor.execute(
+                "SELECT id FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
+                (meeting["id"], story_type),
+            )
             existing_story = cursor.fetchone()
             if existing_story:
                 continue
+        slug = _story_slug(connection, meeting, story_type)
+        with connection.cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO stories (
                     meeting_id,
+                    governing_body_id,
                     story_type,
                     slug,
                     headline,
@@ -203,23 +255,30 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                     tone_profile,
                     publish_status,
                     published_at,
+                    display_date,
+                    sort_date,
                     source_basis_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', NOW(), %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', %s, %s, %s, %s)
                 """,
                 (
                     meeting["id"],
-                    meeting["meeting_type"] or "meeting_preview",
+                    meeting["governing_body_id"],
+                    story_type,
                     slug,
                     headline,
                     dek,
                     summary,
                     body_html,
                     body_text,
+                    published_at,
+                    display_date,
+                    sort_date,
                     json.dumps(
                         {
                             "source_item_id": source_item["source_item_id"],
                             "extraction_id": extraction["id"],
                             "source_url": source_item["canonical_url"],
+                            "artifact_type": artifact_type,
                         }
                     ),
                 ),
@@ -253,26 +312,38 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             """
             SELECT
                 m.id,
+                m.governing_body_id,
                 m.governing_body,
                 m.meeting_date,
                 m.meeting_time,
                 m.location_name,
+                m.status,
+                ma.artifact_type,
                 si.canonical_url
             FROM meetings m
-            INNER JOIN source_items si ON si.id = m.source_item_id
+            INNER JOIN meeting_artifacts ma ON ma.meeting_id = m.id
+            INNER JOIN source_items si ON si.id = ma.source_item_id
             LEFT JOIN calendar_events ce ON ce.meeting_id = m.id
-            WHERE ce.id IS NULL AND m.meeting_date IS NOT NULL
+            WHERE ce.id IS NULL
+              AND m.meeting_date IS NOT NULL
+              AND ma.is_primary = 1
             ORDER BY m.meeting_date ASC, m.id ASC
             """
         )
         meeting_rows = cursor.fetchall()
 
     for row in meeting_rows:
-        body_name = row["governing_body"] or "Official Meeting"
+        body_name = row["governing_body"]
+        if not body_name:
+            continue
+        if row["status"] == "cancelled":
+            continue
+        if not is_calendar_artifact(row["artifact_type"] or ""):
+            continue
         meeting_date = row["meeting_date"].strftime("%Y-%m-%d")
         meeting_time = _db_time_string(row["meeting_time"]) if row["meeting_time"] else "00:00:00"
         starts_at = f"{meeting_date} {meeting_time}"
-        title = f"{body_name} Meeting"
+        title = canonical_event_title(body_name)
 
         with connection.cursor() as cursor:
             cursor.execute("SELECT id FROM calendar_events WHERE meeting_id = %s LIMIT 1", (int(row["id"]),))
@@ -283,6 +354,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 """
                 INSERT INTO calendar_events (
                     meeting_id,
+                    governing_body_id,
                     title,
                     starts_at,
                     location_name,
@@ -290,10 +362,11 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                     source_url,
                     status,
                     description
-                ) VALUES (%s, %s, %s, %s, %s, %s, 'scheduled', %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'scheduled', %s)
                 """,
                 (
                     int(row["id"]),
+                    row["governing_body_id"],
                     title,
                     starts_at,
                     row["location_name"],

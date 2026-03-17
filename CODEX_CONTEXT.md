@@ -2,81 +2,55 @@
 Build a local-news publishing system that ingests municipal and other local content sources, extracts structured information, drafts news-style articles and calendar items, and publishes them to a newspaper-style website.
 
 ## Current scope and decisions
-- Project has moved from planning into initial scaffold/build.
 - Initial geography is Wareham, Massachusetts.
 - Primary v1 source is `https://www.wareham.gov`, especially `https://www.wareham.gov/AgendaCenter`.
 - Expected source formats for v1 are HTML and PDFs.
-- User wants coverage of local government and community sources such as municipal websites, meeting agendas, and minutes.
-- User wants article drafting, local calendar generation, and a newspaper-style web presentation.
-- Initial content types in scope: briefs, explainers, and official event listings.
+- Initial content types in scope: briefs, explainers, meeting previews, minutes recaps, and official event listings.
 - Out of scope for now: investigations, election guides, email ingestion.
 - Publishing preference is auto-publish rather than editor approval.
 - Articles should include footnotes or sidenotes with source links where appropriate.
 - Initial refresh cadence target is daily.
 - Calendar should begin with official meetings only.
 - User prefers MySQL over Postgres due to planned hosting on Freehostia Wildhoney.
-- Deployment database target provided by user: host `localhost`, database `bricoo10_newsroom`.
-- GitHub repository created by user: `https://github.com/brianjcook/newsroom`.
-- Freehostia SSH access works intermittently; one successful session confirmed `python3` is `3.6.8`, `python` is unavailable, and the account is effectively rooted at `/home` with a `www` directory present.
-- Domain-scoped FTPS access for `warehamtimes.com` works and appears rooted at the site directory itself.
-- Canonical host preference is now `https://www.warehamtimes.com`.
-- Typography direction is now defined as:
+- Canonical host preference is `https://www.warehamtimes.com`.
+- User wants the site to prioritize timely/recent content over older discovered records.
+- User wants to move toward descriptive, parameter-free, SEO-friendly URL patterns where practical.
+- Typography direction is:
 - `Manufacturing Consent` for the masthead
 - `Merriweather` for body copy and some headlines
 - `Fira Code` for eyebrows and metadata
 - `Datatype` for data-heavy numerals and chart-like values
 - `Roboto Condensed` for sans-serif headlines
-- Visual direction appears to be print/editorial rather than generic modern blog styling, based on reference images in `examples/`.
-- Initial implementation direction is a PHP 8 publishing app plus a Python worker, with MySQL as the shared system of record.
+- Architectural direction is a PHP 8 publishing app plus a Python worker, with MySQL as the shared system of record.
+- The data model direction is now meeting-first:
+- `municipalities`
+- `governing_bodies`
+- canonical `meetings`
+- sibling `meeting_artifacts` for agendas/minutes/packets/previous versions
+- `stories` and `calendar_events` published downstream from canonical meetings
 
 ## Implemented work summary
-- Confirmed `C:\codex\newsroom` exists.
-- Confirmed `examples/` contains editorial layout references.
-- Created initial project handoff context file.
-- Captured initial product constraints for Wareham-focused v1.
-- Verified Freehostia Wildhoney publicly advertises MySQL, Python, PHP, and cron-job support, making MySQL feasible for deployment-oriented planning.
-- Added `V1_BLUEPRINT.md` with product scope, architecture, data model, publishing model, and safety rules.
-- Added `IMPLEMENTATION_ROADMAP.md` with phased build order and immediate next tasks.
-- Initialized local git repository in `C:\codex\newsroom`.
-- Added `origin` remote pointing to the GitHub repository and set the local branch to `main`.
-- Recorded Freehostia MySQL deployment target details supplied by user.
-- Added the initial repository scaffold:
-- `web/` PHP publishing app
-- `worker/` Python pipeline package
-- `db/` MySQL migrations and seeds
-- `storage/` runtime artifact directories
-- Added initial MySQL schema and seed files for Wareham `AgendaCenter`.
-- Added a first-pass newspaper-style public site scaffold with homepage, story page, and calendar page.
-- Added a first-pass Python daily pipeline command that seeds run history and performs Wareham `AgendaCenter` source discovery into `source_items`.
-- Validated the scaffold with `python -m compileall worker` and PHP linting on public entrypoint files.
-- Added `002_generation_run_metrics.sql` to track fetched documents, created extractions, and normalized meetings per pipeline run.
-- Extended the worker with document download/storage, HTML/PDF extraction, and first-pass meeting normalization.
-- Added a minimal status page that displays recent pipeline runs and ingestion counts.
-- Re-ran syntax validation after the pipeline expansion with `python -m compileall worker` and PHP linting on public entrypoints including `status.php`.
-- Added deterministic story publication from normalized meetings into `stories` and `story_citations`.
-- Added calendar-event generation from normalized meetings into `calendar_events`.
-- Updated pipeline run reporting so `generation_runs` now surfaces published story and created event counts in the status page.
-- Improved meeting parsing with broader date/time/body/location heuristics aimed at Wareham-style agendas and minutes.
-- Added diagnostics to the status page for low-confidence or review-needed source items.
-- Added a publish-time quality gate so records missing a governing body or meeting date are withheld from public story output.
-- Adjusted the worker codebase for Python 3.6 compatibility after confirming the Freehostia host runtime.
-- Added PHP support for a local config-file fallback via `web/config.local.php` for shared-hosting deployments.
-- Uploaded the PHP site files to the `warehamtimes.com` FTPS root and replaced the default `index.xhtml` with the newsroom site entrypoint.
-- Uploaded a non-tracked production `config.local.php` to the host with the live MySQL connection values.
-- Applied the MySQL schema and initial source seed on the Freehostia host using the local `mysql` client.
-- Verified the expected tables exist in `bricoo10_newsroom` and that the `wareham-agenda-center` source seed is present.
-- Added `.htaccess` rules to force HTTPS and the `www` host for `warehamtimes.com`.
-- Updated the site templates and CSS to use the requested font stack.
-- Uploaded the Python worker and protected `storage/`/`worker/` directories to the host.
-- Installed the worker dependencies into a site-local Python user base under the Freehostia account.
-- Ran the first successful live pipeline on production:
-- `items_discovered`: `370`
-- `documents_fetched`: `370`
-- `extractions_created`: `370`
-- `meetings_normalized`: `158`
-- `stories_published`: `91`
-- `events_created`: `176`
-- Removed the temporary host probe script after the successful run.
+- Created the planning docs: `V1_BLUEPRINT.md` and `IMPLEMENTATION_ROADMAP.md`.
+- Initialized the git repo, connected GitHub, and scaffolded the project under `web/`, `worker/`, `db/`, and `storage/`.
+- Added initial MySQL schema and source seed files for Wareham `AgendaCenter`.
+- Built the PHP public site with homepage, story page, calendar page, and status page.
+- Built the Python worker for source discovery, document fetch/storage, HTML/PDF extraction, meeting normalization, story publication, and calendar generation.
+- Added `002_generation_run_metrics.sql` for richer run reporting.
+- Added diagnostics for low-confidence or review-needed source items.
+- Added `003_meeting_first_model.sql` and applied it on production.
+- Added `worker/newsroom/modeling.py` for governing-body normalization, artifact classification, story date derivation, and other shared meeting-first logic.
+- Added `worker/newsroom/artifacts.py` to sync sibling artifacts onto canonical meetings.
+- Refactored `sources.py` to parse AgendaCenter more structurally, capturing governing body, meeting date, posted timestamp, artifact label, and meeting key from the listing page.
+- Refactored `meetings.py` to normalize source items into canonical meetings keyed by governing body/date and to upsert governing bodies.
+- Refactored `publish.py` so stories and calendar events are driven by primary artifacts, allowing preview and recap stories per meeting and handling slug collisions for same-body same-day meetings.
+- Updated `web/lib/content.php` so the homepage prioritizes imminent upcoming meeting coverage and suppresses stale previews from the main news list.
+- Tightened diagnostics filtering to reduce packet/previous-version noise and show one diagnostic row per source item.
+- Added a filter so AgendaCenter utility links like `Notify Me` and `RSS` are no longer discovered on future runs.
+- Deployed the PHP site, worker, and protected directories to Freehostia.
+- Installed Python dependencies into a site-local Python user base on Freehostia.
+- Added `.htaccess` rules to force HTTPS and the `www` host.
+- Uploaded a non-tracked production `config.local.php` on the host.
+- Removed temporary production admin and migration helper scripts after the rebuild was complete.
 
 ## Key files/entry points
 - `C:\codex\newsroom\CODEX_CONTEXT.md`
@@ -85,38 +59,49 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `C:\codex\newsroom\README.md`
 - `C:\codex\newsroom\db\migrations\001_initial_schema.sql`
 - `C:\codex\newsroom\db\migrations\002_generation_run_metrics.sql`
+- `C:\codex\newsroom\db\migrations\003_meeting_first_model.sql`
 - `C:\codex\newsroom\db\seeds\001_sources.sql`
+- `C:\codex\newsroom\web\bootstrap.php`
+- `C:\codex\newsroom\web\config.local.example.php`
+- `C:\codex\newsroom\web\lib\content.php`
 - `C:\codex\newsroom\web\public\index.php`
 - `C:\codex\newsroom\web\public\story.php`
 - `C:\codex\newsroom\web\public\calendar.php`
 - `C:\codex\newsroom\web\public\status.php`
 - `C:\codex\newsroom\web\public\.htaccess`
-- `C:\codex\newsroom\web\config.local.example.php`
 - `C:\codex\newsroom\worker\scripts\run_daily.py`
 - `C:\codex\newsroom\worker\newsroom\pipeline.py`
 - `C:\codex\newsroom\worker\newsroom\sources.py`
 - `C:\codex\newsroom\worker\newsroom\documents.py`
 - `C:\codex\newsroom\worker\newsroom\extract.py`
 - `C:\codex\newsroom\worker\newsroom\meetings.py`
+- `C:\codex\newsroom\worker\newsroom\artifacts.py`
+- `C:\codex\newsroom\worker\newsroom\modeling.py`
 - `C:\codex\newsroom\worker\newsroom\publish.py`
 - `C:\codex\newsroom\examples\`
 
 ## Deployment/runtime status
-- Initial application scaffold exists.
-- Initial ingestion pipeline now supports source discovery, document download/storage, HTML/PDF extraction, first-pass meeting normalization, deterministic story publication, citation creation, and calendar-event generation.
-- Story output is currently template-based and source-grounded rather than model-generated.
-- Records with weak parsing now remain visible in diagnostics instead of being published automatically.
-- Tentative hosting target is Freehostia Wildhoney.
-- Shared-hosting constraints likely require simple scheduled jobs and a deployment shape that does not depend on persistent background workers.
-- Preferred architectural direction is a PHP/MySQL publishing app plus a Python ingestion/generation worker.
-- Production database target named by user: MySQL database `bricoo10_newsroom` on host `localhost`.
-- Initial scaffold has been pushed to GitHub `main`.
-- The PHP web app has been deployed to the `warehamtimes.com` FTPS root, including a host-local `config.local.php`.
-- The MySQL schema and initial source seed have been applied successfully on the production database.
-- `.htaccess` has been deployed to force `https://www.warehamtimes.com`.
-- Public verification is now confirmed: homepage and status page render live data.
-- Worker deployment succeeded and at least one live production run completed successfully.
-- SSH remains intermittent, but FTPS plus the now-installed on-host Python environment are sufficient for follow-up worker iterations.
+- GitHub repo: `https://github.com/brianjcook/newsroom`
+- Production site: `https://www.warehamtimes.com`
+- Production MySQL database: `bricoo10_newsroom` on host `localhost`
+- Freehostia SSH works intermittently; FTPS is the more reliable deployment path.
+- Freehostia host runtime confirmed `python3` at `3.6.8`; worker code is compatible.
+- PHP web app is deployed and publicly reachable.
+- Production schema, seeds, and meeting-first migration are applied.
+- Worker dependencies are installed on-host in a site-local Python user base.
+- Worker runs successfully on-host using the MySQL Unix socket.
+- Story output is still deterministic/template-based and source-grounded rather than model-generated.
+- Live ordering now favors imminent upcoming meeting coverage instead of the farthest-future preview.
+- Current live quality is materially better than the first run, but still needs refinement around amended/cancelled meetings, low-confidence PDFs, and duplicate canonical meeting counts.
+- Latest successful production run:
+- `run_id`: `10`
+- `items_discovered`: `368`
+- `documents_fetched`: `370`
+- `extractions_created`: `370`
+- `meetings_normalized`: `355`
+- `stories_published`: `106`
+- `events_created`: `106`
+- `artifacts_synced`: `1065`
 
 ## Recent commits
 - `655a78b` - `Initial newsroom scaffold`
@@ -128,15 +113,18 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `bbd4318` - `Make worker compatible with Freehostia Python`
 - `c693bf8` - `Add shared-host config support`
 - `bcb2333` - `Deploy canonical redirects and typography`
+- `ed62a8e` - `Deploy live pipeline to Freehostia`
 
 ## Next priority tasks
-- Add configuration guidance for deployment credentials and local development.
-- Improve meeting parsing quality further using live Wareham examples once the pipeline is run against the real database.
-- Add a more detailed diagnostics view with per-item parsing failures and extraction warnings rendered cleanly instead of raw JSON.
-- Replace or augment deterministic story generation with a constrained model-backed drafting step when credentials and runtime are available.
-- Improve the quality of generated headlines, summaries, event titles, and board-name normalization now that live data is flowing.
-- Decide how recurring worker runs will be triggered on-host, likely via cron or a protected trigger endpoint.
-- Continue refining the site typography and layout against the editorial references.
+- Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.
+- Improve handling of amended, revised, cancelled, and postponed agenda items.
+- Improve low-confidence PDF extraction handling and related publish rules.
+- Expand diagnostics into a more useful editorial/ops view instead of raw warnings.
+- Decide on and implement a repeatable on-host trigger, preferably cron-based rather than ad hoc admin endpoints.
+- Move public URLs from query-parameter patterns toward descriptive path-based routing.
+- Improve generated headlines, summaries, and meeting/location normalization against live Wareham examples.
+- Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
+- Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 
 ## Resume prompt for a brand-new Codex session
-Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. The project is a Wareham, Massachusetts local-news platform with a live PHP public site, a deployed Python worker, a production MySQL schema, Wareham `AgendaCenter` source seeding/discovery, document download/storage, HTML/PDF extraction, first-pass meeting normalization, deterministic story publication with citations, calendar-event generation, and a status page with diagnostics. Hosting target is Freehostia Wildhoney. The PHP site, `.htaccess`, and a non-tracked production `config.local.php` are deployed to the `warehamtimes.com` FTPS root. The worker is Python 3.6-compatible, its dependencies are installed into a site-local Python user base, and the first live run completed successfully with 370 discovered items, 158 normalized meetings, 91 published stories, and 176 created events. Next priority is improving content quality and setting up a repeatable on-host trigger for future runs.
+Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. Production run `#10` completed successfully with 106 stories and 106 events. The main remaining work is quality tuning: reduce duplicate canonical meetings, improve amended/cancelled handling, improve low-confidence PDF handling, clean up diagnostics, and then move on to cleaner path-based URL routing.

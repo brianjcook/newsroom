@@ -16,6 +16,7 @@ $config = newsroom_config();
 $slug = isset($_GET['slug']) ? (string) $_GET['slug'] : '';
 $story = $slug !== '' ? newsroom_story_by_slug($slug) : null;
 $citations = $story ? newsroom_story_citations((int) $story['id']) : [];
+$storyDate = $story ? (string) ($story['display_date'] ?? $story['published_at']) : null;
 
 http_response_code($story ? 200 : 404);
 ?>
@@ -47,7 +48,7 @@ http_response_code($story ? 200 : 404);
                 <div class="eyebrow"><?= htmlspecialchars(str_replace('_', ' ', $story['story_type'])) ?></div>
                 <h2 class="story-headline"><?= htmlspecialchars($story['headline']) ?></h2>
                 <div class="story-dek"><?= htmlspecialchars((string) ($story['dek'] ?? '')) ?></div>
-                <div class="masthead__meta"><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $story['published_at']))) ?></div>
+                <div class="masthead__meta"><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $storyDate))) ?></div>
                 <div><?= $story['body_html'] ?></div>
             <?php else: ?>
                 <h2 class="story-headline">Story not found</h2>
