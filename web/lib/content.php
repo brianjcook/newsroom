@@ -62,6 +62,23 @@ function newsroom_format_story_type(string $storyType): string
     return ucwords(str_replace('_', ' ', $storyType));
 }
 
+function newsroom_display_location(?string $locationName): ?string
+{
+    $location = trim((string) $locationName);
+    if ($location === '') {
+        return null;
+    }
+
+    if (strtoupper($location) === $location) {
+        $location = ucwords(strtolower($location));
+        $location = str_replace(['Ma ', 'Rm ', 'Po Box '], ['MA ', 'Rm. ', 'PO Box '], $location);
+        $location = preg_replace('/\bMa\b/', 'MA', $location);
+        $location = preg_replace('/\bFy(\d+)/', 'FY$1', $location);
+    }
+
+    return preg_replace('/\s+/', ' ', $location);
+}
+
 function newsroom_format_meeting_datetime(?string $date, ?string $time, string $fallback = ''): string
 {
     if (!$date) {
@@ -101,10 +118,15 @@ function newsroom_remote_details(array $structured): array
         ? array_values(array_filter(array_map('strval', $sourceMeta['remote_phone_numbers'])))
         : [];
 
+    $joinUrl = !empty($sourceMeta['remote_join_url']) ? (string) $sourceMeta['remote_join_url'] : null;
+    $webinarId = !empty($sourceMeta['remote_webinar_id']) ? (string) $sourceMeta['remote_webinar_id'] : null;
+    $passcode = !empty($sourceMeta['remote_passcode']) ? (string) $sourceMeta['remote_passcode'] : null;
+    $hasActionable = $joinUrl !== null || $webinarId !== null || !empty($phones);
+
     return [
-        'join_url' => !empty($sourceMeta['remote_join_url']) ? (string) $sourceMeta['remote_join_url'] : null,
-        'webinar_id' => !empty($sourceMeta['remote_webinar_id']) ? (string) $sourceMeta['remote_webinar_id'] : null,
-        'passcode' => !empty($sourceMeta['remote_passcode']) ? (string) $sourceMeta['remote_passcode'] : null,
+        'join_url' => $joinUrl,
+        'webinar_id' => $webinarId,
+        'passcode' => $hasActionable ? $passcode : null,
         'phones' => $phones,
     ];
 }
@@ -116,7 +138,7 @@ function newsroom_story_meta_presenter(array $row): array
     $storyType = (string) ($row['story_type'] ?? '');
     $meetingDate = isset($row['meeting_date']) ? (string) $row['meeting_date'] : null;
     $meetingTime = isset($row['meeting_time']) ? (string) $row['meeting_time'] : null;
-    $locationName = !empty($row['location_name']) ? preg_replace('/\s+/', ' ', (string) $row['location_name']) : null;
+    $locationName = newsroom_display_location(isset($row['location_name']) ? (string) $row['location_name'] : null);
     $structured = newsroom_parse_json($row['artifact_structured_json'] ?? null);
     $sourceMeta = newsroom_parse_json($row['agenda_source_meta_json'] ?? null);
     if ($sourceMeta) {
@@ -136,7 +158,8 @@ function newsroom_story_meta_presenter(array $row): array
         'location_map_url' => $storyType === 'meeting_preview' ? newsroom_google_maps_url($locationName) : null,
         'agenda_url' => !empty($row['agenda_url']) ? (string) $row['agenda_url'] : null,
         'minutes_url' => !empty($row['minutes_url']) ? (string) $row['minutes_url'] : null,
-        'summary_text' => trim((string) ($row['dek'] ?? $row['summary'] ?? '')),
+        'summary_text' => trim((string) ($row['summary'] ?? $row['dek'] ?? '')),
+        'dek_text' => trim((string) ($row['dek'] ?? '')),
         'remote' => $remote,
     ];
 }
@@ -154,9 +177,7 @@ function newsroom_event_presenter(array $row): array
         );
     }
     $remote = newsroom_remote_details($structured);
-    $locationName = !empty($row['location_name']) ? preg_replace('/\s+/', ' ', (string) $row['location_name']) : null;
-    $summaryText = trim((string) ($row['story_dek'] ?? $row['story_summary'] ?? $row['description'] ?? ''));
-
+    $locationName = newsroom_display_location(isset($row['location_name']) ? (string) $row['location_name'] : null);
     return [
         'id' => $row['id'],
         'title' => (string) $row['title'],
@@ -168,7 +189,8 @@ function newsroom_event_presenter(array $row): array
         'agenda_url' => !empty($row['agenda_url']) ? (string) $row['agenda_url'] : (string) ($row['source_url'] ?? ''),
         'minutes_url' => !empty($row['minutes_url']) ? (string) $row['minutes_url'] : null,
         'remote' => $remote,
-        'summary_text' => $summaryText,
+        'summary_text' => trim((string) ($row['story_summary'] ?? $row['story_dek'] ?? $row['description'] ?? '')),
+        'dek_text' => trim((string) ($row['story_dek'] ?? '')),
     ];
 }
 

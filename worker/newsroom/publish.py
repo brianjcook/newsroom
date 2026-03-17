@@ -404,35 +404,95 @@ def _headline_phrase(text: str) -> str:
     return cleaned[:120].rstrip(" ,;:-")
 
 
+def _headline_action(text: str) -> str:
+    lowered = _normalize_item_text(text).lower()
+    if "public hearing" in lowered or "hearing" in lowered:
+        return "to Hear"
+    if "presentation" in lowered:
+        return "to Review"
+    if "appoint" in lowered or "appointment" in lowered:
+        return "to Consider"
+    if "vote" in lowered or "consider" in lowered:
+        return "to Consider"
+    if "discussion" in lowered:
+        return "to Meet and Discuss"
+    return "to Meet and Consider"
+
+
 def _focus_summary_phrase(text: str) -> str:
     return _headline_phrase(text)
 
 
+def _display_location(value: str) -> str:
+    location = " ".join(str(value or "").split())
+    if not location:
+        return ""
+    if location.upper() == location:
+        location = location.title()
+        location = re.sub(r"\bMa\b", "MA", location)
+        location = re.sub(r"\bRm\b\.?", "Rm.", location)
+        location = re.sub(r"\bFy(\d+)\b", r"FY\1", location)
+    return location
+
+
+def _looks_garbled(text: str) -> bool:
+    normalized = _normalize_item_text(text)
+    if not normalized:
+        return True
+    if normalized.startswith("PK\x03\x04") or "\x00" in normalized:
+        return True
+
+    printable = sum(1 for char in normalized if char.isprintable())
+    if printable / float(max(len(normalized), 1)) < 0.95:
+        return True
+
+    letters = [char for char in normalized if char.isalpha()]
+    if letters:
+        upper_ratio = sum(1 for char in letters if char.isupper()) / float(len(letters))
+        if upper_ratio > 0.88 and len(normalized.split()) > 3:
+            return True
+
+    return False
+
+
+def _summary_phrase_list(items: List[str], limit: int = 2) -> List[str]:
+    phrases = []  # type: List[str]
+    seen = set()
+    for item in items:
+        phrase = _focus_summary_phrase(item)
+        if not phrase or _looks_garbled(phrase):
+            continue
+        if phrase in seen:
+            continue
+        seen.add(phrase)
+        phrases.append(phrase)
+        if len(phrases) >= limit:
+            break
+    return phrases
+
+
+def _sentence_from_phrases(prefix: str, phrases: List[str]) -> str:
+    if not phrases:
+        return ""
+    if len(phrases) == 1:
+        return "{} {}.".format(prefix, phrases[0])
+    return "{} {} and {}.".format(prefix, phrases[0], phrases[1])
+
+
 def _preview_headline(body_name: str, meeting_date: str, focus_items: List[Dict[str, object]]) -> str:
     if not focus_items:
-        return f"Wareham {body_name} meeting scheduled for {meeting_date}"
+        return f"{body_name} to Meet {meeting_date}"
 
     first = _headline_phrase(str(focus_items[0]["text"]))
-    second = _headline_phrase(str(focus_items[1]["text"])) if len(focus_items) > 1 else ""
-
-    if first and second:
-        return f"Wareham {body_name} to weigh {first} and {second}"
     if first:
-        return f"Wareham {body_name} to weigh {first}"
-    return f"Wareham {body_name} meeting scheduled for {meeting_date}"
+        return f"{body_name} {_headline_action(str(focus_items[0]['text']))} {first}"
+    return f"{body_name} to Meet {meeting_date}"
 
 
 def _preview_dek(body_name: str, meeting_date: str, meeting_time: str, location: str, focus_items: List[Dict[str, object]]) -> str:
-    if not focus_items:
-        return f"The {body_name} is scheduled to meet {meeting_date} {meeting_time} at {location}."
-
-    first = _focus_summary_phrase(str(focus_items[0]["text"]))
-    second = _focus_summary_phrase(str(focus_items[1]["text"])) if len(focus_items) > 1 else ""
-    if first and second:
-        return f"At {meeting_time} on {meeting_date}, the {body_name} is set to take up {first} and {second}."
-    if first:
-        return f"At {meeting_time} on {meeting_date}, the {body_name} is set to take up {first}."
-    return f"The {body_name} is scheduled to meet {meeting_date} {meeting_time} at {location}."
+    if meeting_time and meeting_time != "at a time not listed in the source":
+        return f"{body_name} will meet {meeting_date} at {meeting_time}."
+    return f"{body_name} will meet {meeting_date}."
 
 
 def _preview_intro(body_name: str, meeting_date: str, meeting_time: str, location: str, focus_items: List[Dict[str, object]]) -> str:
@@ -467,6 +527,8 @@ def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
     filtered = []
     for line in lines:
         lower = line.lower()
+        if _looks_garbled(line):
+            continue
         if "agenda center" in lower or "previous versions" in lower or "packet" in lower:
             continue
         if "agenda" in lower or "minutes" in lower or "wareham" in lower or "page " in lower:
@@ -743,7 +805,7 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
     body_name = meeting["governing_body"] or "Wareham officials"
     meeting_date = _format_date(meeting["meeting_date"])
     meeting_time = _format_time(meeting["meeting_time"])
-    location = meeting["location_name"] or "a location not listed in the source"
+    location = _display_location(str(meeting["location_name"] or "")) or "a location not listed in the source"
     source_url = source_item["canonical_url"]
     source_label = "posted minutes" if story_type == "minutes_recap" else "posted agenda"
     agenda_block = ""
@@ -758,8 +820,13 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
         if focus_items:
             dek = f"The minutes highlight action on {_focus_summary(focus_items)}."
             focus_block = _focus_list_block(focus_items, "What stands out in the minutes")
+            summary = _sentence_from_phrases(
+                "The posted minutes highlight",
+                _summary_phrase_list([str(item["text"]) for item in focus_items]),
+            ) or dek
         else:
             dek = f"Posted minutes show what the {body_name} recorded for its {meeting_date} meeting."
+            summary = dek
         intro = (
             f"<p>Minutes for the Wareham {html.escape(body_name)} meeting dated {html.escape(meeting_date)} "
             f"have been posted on the town website, according to the linked source document.</p>"
@@ -771,11 +838,18 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
     else:
         focus_items = _agenda_focus_items(extraction)
         headline = _preview_headline(body_name, meeting_date, focus_items)
+        dek = _preview_dek(body_name, meeting_date, meeting_time, location, focus_items)
         if focus_items:
-            dek = _preview_dek(body_name, meeting_date, meeting_time, location, focus_items)
             focus_block = _focus_list_block(focus_items, "What matters most on the agenda")
+            summary = _sentence_from_phrases(
+                "The posted agenda centers on",
+                _summary_phrase_list([str(item["text"]) for item in focus_items]),
+            ) or dek
         else:
-            dek = f"The {body_name} is scheduled to meet {meeting_date} {meeting_time} at {location}."
+            summary = _sentence_from_phrases(
+                "The posted agenda includes",
+                _summary_phrase_list(_agenda_highlights(extraction)),
+            ) or dek
         intro = _preview_intro(body_name, meeting_date, meeting_time, location, focus_items)
         agenda_block, explainers = _agenda_highlight_blocks(extraction)
         remote_block = _remote_access_block(extraction)
@@ -787,22 +861,24 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
     summary_lines = _choose_summary_lines(extraction["body_text"])
     if focus_items:
         middle = ""
-        summary = dek
     elif story_type == "meeting_preview" and agenda_block:
         middle = ""
-        summary = dek
     elif summary_lines:
         middle = "".join(
             f"<p>{html.escape(line)}</p>"
             for line in summary_lines
         )
-        summary = " ".join(summary_lines[:2])
+        if story_type == "minutes_recap" or not summary:
+            summary = " ".join(summary_lines[:2])
     else:
         middle = (
             f"<p>The source document was available, but this automated pass did not extract a strong meeting summary. "
             f"Readers should refer directly to the town's {html.escape(source_label)}.</p>"
         )
-        summary = f"Wareham posted a {source_label} for the {body_name} meeting dated {meeting_date}."
+        if story_type == "meeting_preview":
+            summary = dek
+        else:
+            summary = f"Wareham posted {source_label} for the {body_name} meeting dated {meeting_date}."
 
     body_html = intro + remote_block + focus_block + agenda_block + middle + kicker
     body_text = re.sub(r"<[^>]+>", "", body_html)

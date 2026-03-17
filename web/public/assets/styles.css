@@ -33,12 +33,25 @@ body {
 }
 
 a {
-    color: inherit;
-    text-decoration: none;
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-thickness: 0.08em;
+    text-underline-offset: 0.14em;
 }
 
 a:hover {
     color: var(--accent);
+}
+
+.masthead a,
+.nav a,
+.lead-story h2 a,
+.rail-story h3 a,
+.story-tease h3 a,
+.story-headline a,
+.masthead__title a {
+    color: inherit;
+    text-decoration: none;
 }
 
 .page {
@@ -86,7 +99,7 @@ a:hover {
     align-items: center;
     padding: 0.3rem 0.58rem 0.26rem;
     border: 1px solid var(--pill-border, var(--rule));
-    border-radius: 999px;
+    border-radius: 2px;
     background: var(--pill-bg, var(--paper-deep));
     color: var(--pill-fg, var(--ink));
     font-family: var(--meta);
@@ -194,7 +207,7 @@ a:hover {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
-    margin-bottom: 12px;
+    margin-top: 12px;
 }
 
 .story-meta-row--compact {
@@ -202,7 +215,7 @@ a:hover {
 }
 
 .story-meta-row--story {
-    margin-bottom: 18px;
+    margin-bottom: 16px;
 }
 
 .story-meta-row__date {
@@ -222,6 +235,15 @@ a:hover {
     font-size: 0.7rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
+}
+
+.story-filed-meta {
+    margin: 8px 0 10px;
+    font-family: var(--meta);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
 }
 
 .section-heading {
@@ -302,7 +324,7 @@ a:hover {
 
 .story-tease h3 {
     font-size: 1.58rem;
-    margin-top: 6px;
+    margin-top: 0;
     text-wrap: balance;
 }
 
@@ -330,7 +352,7 @@ a:hover {
 }
 
 .story-dek {
-    margin: 14px 0 18px;
+    margin: 0 0 18px;
     color: var(--muted);
     font-size: 1.24rem;
     line-height: 1.65;
@@ -348,12 +370,11 @@ a:hover {
     grid-template-columns: 92px minmax(0, 1fr);
     gap: 12px;
     align-items: start;
-    padding: 8px 0;
+    padding: 10px 0;
     border-top: 1px solid rgba(198, 183, 166, 0.5);
 }
 
 .story-information__row:first-child {
-    padding-top: 0;
     border-top: 0;
 }
 
@@ -363,12 +384,14 @@ a:hover {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--muted);
+    padding: 1px 0;
 }
 
 .story-information__stack {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+    padding: 1px 0;
 }
 
 .story-body > div:last-child {

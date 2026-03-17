@@ -15,6 +15,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Canonical host preference is `https://www.warehamtimes.com`.
 - User wants the site to prioritize timely/recent content over older discovered records.
 - User wants to move toward descriptive, parameter-free, SEO-friendly URL patterns where practical.
+- User prefers that routine deployment/publish/access work proceed automatically without repeated permission asks in chat; only real decision points should be surfaced.
 - Typography direction is:
 - `Manufacturing Consent` for the masthead
 - `Merriweather` for body copy and some headlines
@@ -79,6 +80,22 @@ Build a local-news publishing system that ingests municipal and other local cont
 - richer upcoming-meeting rows on the homepage and calendar
 - a `Recent Minutes` section on the calendar page
 - Added `worker/scripts/refetch_source_documents.py` and fixed `sources.py` upserts so discovery metadata now merges with existing `raw_meta_json` instead of wiping wrapper-derived remote-access fields on later runs.
+- Refined public story and homepage presentation:
+- board/committee pills are now squared off and sit below headlines on the homepage and story pages
+- the filed datetime now appears above the story title
+- the story-information table now starts with `Date & Time`
+- story links remain clean while global inline links now render red and underlined by default
+- story-information rows now use more even vertical spacing
+- homepage location links were removed from the lead/upcoming lists while story-page meeting locations still link to Google Maps for previews
+- Tightened metadata presentation and normalization in `web/lib/content.php`:
+- all-caps location strings are normalized more aggressively for display
+- partial remote metadata like passcode-only records are suppressed unless there is an actionable join path
+- homepage/event/story summary fields now prefer `summary` over `dek`, so the concise factual dek can coexist with a more informative issue summary
+- Refined preview-story generation in `worker/newsroom/publish.py`:
+- preview headlines now omit `Wareham` and try to pull the most interesting agenda item into the headline when structured focus items exist
+- preview deks are now short factual meeting lines like `Select Board will meet March 17, 2026 at 7:00 PM.`
+- meeting locations are normalized before being written into public story copy
+- summary generation is now more selective: garbled/binary extraction lines are discarded, structured agenda highlights are preferred for summaries, and weak fallback copy now reuses the factual dek instead of surfacing raw extraction junk
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -137,16 +154,21 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Production run `#31` refreshed published stories after the latest-extraction selection fix in `publish.py`, and run `#32` applied the final Town Meeting headline cleanup after the full re-extraction pass.
 - After the source-metadata merge fix and live refetch/re-extraction cycle, Zoom details reappeared for meetings whose wrapper pages provide them, including the Select Board March 17, 2026 preview.
 - The Select Board March 17, 2026 preview now includes the full Municipal Maintenance abatements line and the full Open Space and Recreation Plan line, instead of the earlier truncated fragments.
+- Production runs `#33` through `#36` applied the latest presentation/editorial polish:
+- squared signal pills and cleaned story-information table layout are live
+- the Select Board preview now uses the issue-led headline `Select Board to Consider Comprehensive Wastewater Management Plan (CWMP)` with a concise factual dek and a substantive summary row
+- homepage/story/event summaries now avoid raw binary extraction noise and weak fallback archive phrasing
+- low-information previews now fall back to the concise factual dek instead of leaking PDF/header garbage into cards
 - Latest successful production run:
-- `run_id`: `32`
-- `items_discovered`: `368`
+- `run_id`: `36`
+- `items_discovered`: `371`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
 - `meetings_normalized`: `0`
 - `stories_published`: `0`
-- `stories_updated`: `1`
+- `stories_updated`: `3`
 - `events_created`: `0`
-- `events_updated`: `108`
+- `events_updated`: `110`
 - `artifacts_synced`: `0`
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
@@ -175,6 +197,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `0be2446` - `Shift public site toward newspaper layout`
 - `978382a` - `Sharpen issue-led story phrasing`
 - `a453408` - `Improve agenda extraction and republishing`
+- `aced537` - `Add richer meeting signals across the site`
 - `d5a5c2e` - `Summarize agenda changes in update notes`
 
 ## Next priority tasks
@@ -186,6 +209,8 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Normalize location casing and other presentation details that still leak through from raw extraction, such as `TOWN HALL` and similar all-caps venue strings.
 - Improve long/hearing agenda item condensation so very long public-hearing bullets read more like edited summaries and less like raw legal text.
 - Improve remote-access normalization so partial Zoom metadata like passcode-only records are handled more gracefully in the UI.
+- Improve low-information preview summaries so more meetings can surface a substantive one-line agenda summary rather than only the factual dek.
+- Improve structured extraction for weak agenda PDFs/packets so bodies like Board of Health, Recycling Committee, and School Committee surface stronger issue-led headlines and summaries.
 - Add more complete past-meeting surfacing once published minutes recaps start landing regularly.
 - Decide whether low-confidence published items like the January 13, 2025 Special Town Meeting agenda should be suppressed or manually curated.
 - Improve agenda-item summarization so even fully extracted lines are rewritten into clearer plain-language bullets when they are still too procedural or verbose.
@@ -197,4 +222,4 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 
 ## Resume prompt for a brand-new Codex session
-Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. The public site now uses a more newspaper-like layout and a richer meeting-signals layer: board/committee color pills, structured story meta, resolved official agenda/minutes links, map links for upcoming locations, restored Zoom details where available, richer upcoming-meeting rows, and a `Recent Minutes` section on the calendar page. `extract.py` now stitches wrapped PDF agenda lines back together and strips repeated page/date boilerplate, `worker/scripts/reextract_documents.py` exists for full re-extraction passes, `worker/scripts/refetch_source_documents.py` exists to rebuild source-item metadata, `sources.py` now merges `raw_meta_json` instead of wiping wrapper-derived fields, and `publish.py` now selects the latest extraction per document instead of sometimes rendering stale text. The Select Board March 17, 2026 preview now carries full agenda lines for the CWMP item, Open Space and Recreation Plan item, Town Meeting recommendation item, Municipal Maintenance abatements item, and live Zoom details. Weak PDFs already get `review_flags` on future extraction runs, and run metrics distinguish created vs updated records. The main remaining work is to keep refining editorial voice and edge-case handling, normalize raw-casing leaks like `TOWN HALL`, improve long hearing-item condensation, improve partial Zoom metadata handling, observe the next real extraction run to tune PDF quarantine thresholds, improve diagnostics further, and continue later work on path-based URL routing.
+Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. The public site now uses a more newspaper-like layout and a richer meeting-signals layer: squared board/committee color pills, structured story meta, resolved official agenda/minutes links, map links for preview-story locations, restored Zoom details where available, richer upcoming-meeting rows, and a `Recent Minutes` section on the calendar page. Story presentation now puts the filed timestamp above the title, moves the `Date & Time` row into the story-information table, and keeps the dek as a concise factual meeting line while the summary row carries the stronger issue summary when available. `extract.py` now stitches wrapped PDF agenda lines back together and strips repeated page/date boilerplate, `worker/scripts/reextract_documents.py` exists for full re-extraction passes, `worker/scripts/refetch_source_documents.py` exists to rebuild source-item metadata, `sources.py` now merges `raw_meta_json` instead of wiping wrapper-derived fields, and `publish.py` now selects the latest extraction per document instead of sometimes rendering stale text. `publish.py` also now drives cleaner preview headlines/deks, discards garbled extraction lines from summary generation, and falls back to factual dek copy instead of surfacing junk extraction text. The Select Board March 17, 2026 preview now carries full agenda lines for the CWMP item, Open Space and Recreation Plan item, Town Meeting recommendation item, Municipal Maintenance abatements item, and live Zoom details, with a more issue-led headline and summary. Weak PDFs already get `review_flags` on future extraction runs, and run metrics distinguish created vs updated records. The main remaining work is to keep improving low-information preview summaries and extraction quality for weaker agenda packets, condense long hearing/legal bullets into cleaner civic language, continue refining editorial voice, expand diagnostics/editorial tooling, and later move public URLs toward path-based routing.

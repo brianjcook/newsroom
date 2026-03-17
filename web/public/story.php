@@ -64,16 +64,16 @@ http_response_code($story ? 200 : 404);
         <article class="story-body">
             <?php if ($story): ?>
                 <div class="eyebrow"><?= htmlspecialchars(str_replace('_', ' ', $story['story_type'])) ?></div>
+                <div class="story-filed-meta"><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $storyDate))) ?></div>
+                <h2 class="story-headline"><?= htmlspecialchars($story['headline']) ?></h2>
                 <div class="story-meta-row story-meta-row--story">
                     <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
-                    <span class="story-meta-row__date"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
                 </div>
-                <h2 class="story-headline"><?= htmlspecialchars($story['headline']) ?></h2>
                 <div class="story-dek"><?= htmlspecialchars((string) ($story['dek'] ?? '')) ?></div>
                 <div class="story-information">
                     <div class="story-information__row">
-                        <span class="story-information__label">Filed</span>
-                        <span><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $storyDate))) ?></span>
+                        <span class="story-information__label">Date &amp; Time</span>
+                        <span><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
                     </div>
                     <?php if (!empty($story['meta']['location_name'])): ?>
                         <div class="story-information__row">
@@ -117,7 +117,7 @@ http_response_code($story ? 200 : 404);
                     <?php endif; ?>
                     <?php if (!empty($story['meta']['summary_text'])): ?>
                         <div class="story-information__row">
-                            <span class="story-information__label"><?= $story['story_type'] === 'minutes_recap' ? 'Summary' : 'Coverage' ?></span>
+                            <span class="story-information__label">Summary</span>
                             <span><?= htmlspecialchars((string) $story['meta']['summary_text']) ?></span>
                         </div>
                     <?php endif; ?>
