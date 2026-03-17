@@ -40,6 +40,10 @@ def _is_pdf_noise_line(line: str) -> bool:
         return True
     if re.fullmatch(r"(january|february|march|april|may|june|july|august|september|october|november|december) \d{1,2}, \d{4}", lowered):
         return True
+    if lowered.startswith("publication date:"):
+        return True
+    if lowered.startswith("by order of"):
+        return True
     return False
 
 
@@ -88,10 +92,15 @@ def _looks_like_agenda_item(line: str) -> bool:
 
 def _extract_pdf_source_meta(body_text: str) -> Dict[str, object]:
     metadata = {}  # type: Dict[str, object]
+    compact = re.sub(r"\s+", "", body_text)
 
     join_match = re.search(r"(https://[^\s]*zoom\.us/j/[^\s]+)", body_text, flags=re.IGNORECASE)
     if join_match:
         metadata["remote_join_url"] = join_match.group(1).strip()
+    else:
+        compact_match = re.search(r"(https://[^\s]*zoom\.us/j/[A-Za-z0-9?=&._%-]+)", compact, flags=re.IGNORECASE)
+        if compact_match:
+            metadata["remote_join_url"] = compact_match.group(1).strip()
 
     meeting_id_match = re.search(r"Meeting ID:\s*([0-9 ]{9,})", body_text, flags=re.IGNORECASE)
     if meeting_id_match:
@@ -102,7 +111,7 @@ def _extract_pdf_source_meta(body_text: str) -> Dict[str, object]:
         metadata["remote_passcode"] = passcode_match.group(1).strip()
 
     phone_numbers = []
-    for value in re.findall(r"(\+\d{10,}(?:,,[0-9#,*]+)?)", body_text):
+    for value in re.findall(r"(\+\d[\d\s().,-]{7,}\d(?:,,[0-9#,*]+)?)", body_text):
         normalized = value.strip()
         if normalized not in phone_numbers:
             phone_numbers.append(normalized)
@@ -110,6 +119,35 @@ def _extract_pdf_source_meta(body_text: str) -> Dict[str, object]:
         metadata["remote_phone_numbers"] = phone_numbers
 
     return metadata
+
+
+def _sanitize_location_text(value: str) -> str:
+    location = _normalize_line(value)
+    location = re.sub(r"^locati\s*on:\s*", "", location, flags=re.IGNORECASE)
+    location = re.split(r"\b(?:To join remotely|Join Zoom Meeting|Meeting ID|Mobile:|The WAREHAM)\b", location, maxsplit=1, flags=re.IGNORECASE)[0]
+    location = re.sub(r"\bRoom\s+(\d)\s+(\d{2})\b", r"Room \1\2", location, flags=re.IGNORECASE)
+    return location.strip(" ,.;:-")
+
+
+def _is_procedural_item(text: str) -> bool:
+    lowered = _normalize_line(text).lower().strip(" .;:-")
+    procedural_starts = (
+        "call to order",
+        "roll call",
+        "announcements",
+        "adjournment",
+        "good news",
+        "public participation",
+        "student representative report",
+        "student attending report",
+        "report of the conservation agent",
+        "administrative approvals",
+        "consent agenda",
+        "any other business",
+        "signing of documents approved",
+        "review and approve minutes",
+    )
+    return lowered.startswith(procedural_starts)
 
 
 def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
@@ -122,6 +160,17 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
 
     date_time_index = None
     for index, line in enumerate(header_lines[:20]):
+        if line.lower().startswith("date and time:"):
+            value = line.split(":", 1)[1].strip()
+            structured["meeting_line"] = value
+            date_match = re.search(r"([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})", value)
+            time_match = re.search(r"(\d{1,2}:\d{2}\s*[ap]\.?m\.?)", value, flags=re.IGNORECASE)
+            if date_match:
+                structured["meeting_date_line"] = date_match.group(1).strip()
+            if time_match:
+                structured["meeting_time_line"] = time_match.group(1).strip()
+            date_time_index = index
+            break
         if re.search(r"[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4}\s*[-\u2013\u2014]\s*\d{1,2}:\d{2}\s*[ap]\.?m\.?", line, flags=re.IGNORECASE):
             date_time_index = index
             structured["meeting_line"] = line
@@ -133,7 +182,13 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
                 structured["meeting_time_line"] = time_match.group(1).strip()
             break
 
-    if date_time_index is not None:
+    explicit_location = next((line.split(":", 1)[1].strip().rstrip(".") for line in header_lines if line.lower().startswith("location:")), None)
+    if explicit_location:
+        explicit_location = _sanitize_location_text(explicit_location)
+        structured["meeting_location_line"] = explicit_location
+        structured["meeting_location_name"] = explicit_location.split(",", 1)[0].strip()
+
+    if date_time_index is not None and not structured.get("meeting_location_line"):
         location_lines = []
         for line in header_lines[date_time_index + 1:]:
             lowered = line.lower()
@@ -160,21 +215,45 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
             room_lines = [item for item in remainder if re.search(r"\broom\b|\brm\b", item, flags=re.IGNORECASE)]
             address_lines = [item for item in remainder if item not in room_lines]
             location_parts = [venue] + address_lines + room_lines
-            structured["meeting_location_name"] = venue
-            structured["meeting_location_line"] = ", ".join(location_parts)
+            structured["meeting_location_name"] = _sanitize_location_text(venue)
+            structured["meeting_location_line"] = _sanitize_location_text(", ".join(location_parts))
             if address_lines:
-                structured["meeting_address_line"] = ", ".join(address_lines)
+                structured["meeting_address_line"] = _sanitize_location_text(", ".join(address_lines))
+
+    if not structured.get("meeting_location_line"):
+        header_text = " ".join(header_lines)
+        address_match = re.search(r"(\d+\s+[A-Za-z]+\s+(?:Road|Rd\.?|Street|St\.?|Avenue|Ave\.?)(?:\s*,?\s*Room\s+\d+)?(?:\s*,?\s*Wareham,\s*MA\.?)?)", header_text, flags=re.IGNORECASE)
+        room_match = re.search(r"(Room\s+\d+)", header_text, flags=re.IGNORECASE)
+        if address_match:
+            location_parts = [address_match.group(1).strip()]
+            if room_match and room_match.group(1) not in location_parts[0]:
+                location_parts.append(room_match.group(1).strip())
+            structured["meeting_location_line"] = _sanitize_location_text(", ".join(location_parts))
+            structured["meeting_location_name"] = structured["meeting_location_line"]
 
     sections = []
     current_section = {"number": 1, "title": "Agenda", "items": []}  # type: Dict[str, object]
+    current_heading = ""
     for line in lines[agenda_start_index:]:
+        heading_match = re.match(r"^([IVXLCDM]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
         section_match = re.match(r"^(\d+)[\.\)]\s+(.+)$", line)
         subitem_match = re.match(r"^([a-z]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
         nested_match = re.match(r"^\((\d+)\)\s+(.+)$", line)
         roman_match = re.match(r"^([ivxlcdm]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
 
+        if heading_match:
+            current_heading = heading_match.group(2).strip().rstrip(":")
+            continue
+
+        if line.endswith(":") and len(line) < 120 and not section_match:
+            current_heading = line.rstrip(":").strip()
+            continue
+
         if section_match:
-            current_section["items"].append(section_match.group(2).strip())
+            item_text = section_match.group(2).strip()
+            if current_heading and current_heading.lower() not in ("agenda", "call to order by the chair", "roll call"):
+                item_text = "{}: {}".format(current_heading, item_text)
+            current_section["items"].append(item_text)
             continue
 
         if subitem_match:
@@ -205,7 +284,7 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
             cleaned_items = []
             for item in section.get("items") or []:
                 normalized = _normalize_line(str(item))
-                if normalized:
+                if normalized and not _is_procedural_item(normalized):
                     cleaned_items.append(normalized)
             section["items"] = cleaned_items
         structured["agenda_sections"] = sections
@@ -216,6 +295,18 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
         for item in section["items"]:
             lowered = item.lower()
             score = 0
+            if "continued public hearings" in lowered and " – " not in item and "-" not in item:
+                continue
+            if "public hearings:" in lowered and " – " not in item and "-" not in item:
+                continue
+            if "safe harbor marina" in lowered:
+                score += 92
+            if "school choice" in lowered:
+                score += 70
+            if "policy review" in lowered:
+                score += 58
+            if "discriminatory harassment" in lowered:
+                score += 44
             if "tobacco violation" in lowered:
                 score += 95
             if "comprehensive wastewater management plan" in lowered:

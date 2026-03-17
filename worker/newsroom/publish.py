@@ -39,6 +39,12 @@ GENERIC_EXTRACTION_TITLES = {
 
 
 EDITORIAL_SIGNAL_RULES = [
+    ("safe harbor marina", 95, "land_use"),
+    ("redevelop", 42, "land_use"),
+    ("school choice", 82, "policy"),
+    ("policy review", 76, "policy"),
+    ("discriminatory harassment", 52, "policy"),
+    ("stormwater", 40, "infrastructure"),
     ("possible vote", 50, "formal_action"),
     ("vote", 35, "formal_action"),
     ("public hearing", 45, "public_hearing"),
@@ -370,8 +376,8 @@ def _strip_agenda_lead_in(text: str) -> str:
         r"^possible vote regarding\s+",
         r"^possible vote on\s+",
         r"^possible vote to\s+",
-        r"^public hearing(?:\s*\([^)]*\))?\s*[:\-]?\s*",
-        r"^continued public hearing(?:\s*\([^)]*\))?\s*[:\-]?\s*",
+        r"^public hearings?(?:\s*\([^)]*\))?\s*[:\-]?\s*",
+        r"^continued public hearings?(?:\s*\([^)]*\))?\s*[:\-]?\s*",
     ]
     for pattern in patterns:
         normalized = re.sub(pattern, "", normalized, flags=re.IGNORECASE)
@@ -382,9 +388,28 @@ def _headline_phrase(text: str) -> str:
     cleaned = _strip_agenda_lead_in(text)
     if not cleaned:
         return ""
+    lowered = cleaned.lower()
+    if "safe harbor marina" in lowered and "redevelop" in lowered:
+        return "Safe Harbor Marina Redevelopment"
+    if "river hawk" in lowered and "stormwater" in lowered:
+        return "River Hawk Stormwater Upgrades"
+    if "school choice" in lowered:
+        return "School Choice Vote"
+    if "policy review" in lowered:
+        return "Policy Review"
+    if "title 5" in lowered:
+        return "Title 5 Regulations"
     cleaned = re.sub(r"^wareham\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(continued\s+)?public hearings?:\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(continued\s+)?hearing[s]?:\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^request for determination of applicability \(rda\)\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^notice of intents? \(noi\)\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^abbreviated notice of resource area delineation requests? \(anrad\)\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bthe finalization of\b", "finalizing", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bto recommend action on\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b\d{1,2}:\d{2}\s*[ap]\.?m\.?\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*-\s*vote\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\(possible vote\)", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(
         r"\barticles for the spring annual town meeting\b",
         "Spring Annual Town Meeting articles",
@@ -404,6 +429,7 @@ def _headline_phrase(text: str) -> str:
         flags=re.IGNORECASE,
     )
     cleaned = re.sub(r"\bregarding\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bpolicy review\s*-\s*", "Policy Review: ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
     return cleaned[:120].rstrip(" ,;:-")
 
@@ -445,6 +471,8 @@ def _looks_garbled(text: str) -> bool:
     normalized = _normalize_item_text(text)
     if not normalized:
         return True
+    if re.match(r"^[a-z]:\s", normalized, flags=re.IGNORECASE):
+        return True
     if normalized.startswith("PK\x03\x04") or "\x00" in normalized:
         return True
 
@@ -461,13 +489,36 @@ def _looks_garbled(text: str) -> bool:
     return False
 
 
+def _is_low_value_focus_line(text: str) -> bool:
+    lowered = _normalize_item_text(text).lower()
+    if not lowered:
+        return True
+    if any(
+        token in lowered
+        for token in (
+            "call to order",
+            "roll call",
+            "adjournment",
+            "signing of documents approved",
+            "any other business",
+            "good news",
+            "public participation",
+            "announcements",
+            "consent agenda",
+            "review and approve minutes",
+        )
+    ):
+        return True
+    return False
+
+
 def _summary_phrase_list(items: List[str], limit: int = 2) -> List[str]:
     normalized_items = [_normalize_item_text(item) for item in items]
     if sum(1 for item in normalized_items if "tobacco violation" in item.lower()) >= 2:
         phrases = ["Tobacco Violations"]
         for item in normalized_items:
             phrase = _focus_summary_phrase(item)
-            if not phrase or _looks_garbled(phrase) or "tobacco violation" in phrase.lower():
+            if not phrase or _looks_garbled(phrase) or _is_low_value_focus_line(phrase) or "tobacco violation" in phrase.lower():
                 continue
             phrases.append(phrase)
             if len(phrases) >= limit:
@@ -478,7 +529,7 @@ def _summary_phrase_list(items: List[str], limit: int = 2) -> List[str]:
     seen = set()
     for item in normalized_items:
         phrase = _focus_summary_phrase(item)
-        if not phrase or _looks_garbled(phrase):
+        if not phrase or _looks_garbled(phrase) or _is_low_value_focus_line(phrase):
             continue
         if phrase in seen:
             continue
@@ -622,6 +673,8 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
                 item = " ".join(str(raw_item).split())
                 if not item:
                     continue
+                if _is_low_value_focus_line(item):
+                    continue
                 if _looks_truncated(item):
                     continue
                 score, reasons = _score_editorial_line(item, section_title)
@@ -638,6 +691,8 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
 
     if not focus:
         for item in _agenda_highlights(extraction):
+            if _is_low_value_focus_line(item):
+                continue
             if _looks_truncated(item):
                 continue
             score, reasons = _score_editorial_line(item)
@@ -661,6 +716,8 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
 def _minutes_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[Dict[str, object]]:
     focus = []  # type: List[Dict[str, object]]
     for line in _clean_lines(str(extraction.get("body_text") or "")):
+        if _is_low_value_focus_line(line):
+            continue
         if _looks_truncated(line):
             continue
         score, reasons = _score_editorial_line(line)
