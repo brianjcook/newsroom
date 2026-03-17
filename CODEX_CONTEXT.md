@@ -63,6 +63,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Added and deployed `004_sync_metrics.sql` plus worker/status-page changes that split `stories_published` vs `stories_updated` and `events_created` vs `events_updated` so sync runs report created records separately from refreshed ones.
 - Added and deployed low-confidence PDF quarantine rules in `extract.py`: weak PDFs now receive `review_flags` such as `low_confidence_pdf`, `thin_pdf_text`, `sparse_pdf_pages`, `empty_pdf_text`, and `unstructured_pdf`, and newly extracted weak items are pushed into `needs_review` instead of staying in the generic extracted state.
 - Updated the diagnostics UI so review flags from extraction metadata appear on the status page alongside confidence and warnings.
+- Added and deployed a deterministic editorial-ranking layer in `publish.py` that scores agenda and minutes items by likely civic impact, rewrites the dek/summary around the top-ranked issues, and inserts sections like `What matters most on the agenda` or `What stands out in the minutes`.
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -114,14 +115,15 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Story amendment notes are now slightly richer: if the previous and current agenda highlights differ, the update banner can summarize what appears to have been added, removed, or re-emphasized.
 - Live run metrics now distinguish newly created records from updated ones. The first deployed sync-metrics run was `#24`, which reported `0` new stories, `0` updated stories, `0` new events, and `108` updated events on a no-new-documents sync.
 - Low-confidence PDF handling is now stricter on future extraction runs, but `run #25` was a no-new-documents sync, so the first visible effect on diagnostics will appear when new PDFs are fetched and extracted.
+- Editorial story framing is now more selective: `run #26` updated one live story, and the Select Board March 17, 2026 preview now leads with a ranked list of high-impact agenda items instead of relying only on a generic schedule summary.
 - Latest successful production run:
-- `run_id`: `25`
+- `run_id`: `26`
 - `items_discovered`: `368`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
 - `meetings_normalized`: `0`
 - `stories_published`: `0`
-- `stories_updated`: `0`
+- `stories_updated`: `1`
 - `events_created`: `0`
 - `events_updated`: `108`
 - `artifacts_synced`: `0`
@@ -146,6 +148,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `6e9a51e` - `Add amendment diff awareness to stories`
 - `d5a5c2e` - `Summarize agenda changes in update notes`
 - `b89a41e` - `Track created vs updated sync metrics`
+- `842ea2d` - `Quarantine weak PDF extractions`
 - `d5a5c2e` - `Summarize agenda changes in update notes`
 
 ## Next priority tasks
@@ -153,6 +156,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Improve handling of amended, revised, cancelled, and postponed agenda items, especially more precise amendment/change summaries and better event sync metrics so routine updates are distinguishable from newly created events.
 - Improve low-confidence PDF extraction handling and related publish rules.
 - Evaluate the next live extraction run to confirm the new PDF quarantine flags catch the right Wareham edge cases without over-quarantining useful documents.
+- Refine the new editorial-ranking language so the “why it matters” notes are less repetitive and better tailored to specific categories like infrastructure, Town Meeting articles, appointments, spending, and hearings.
 - Decide whether low-confidence published items like the January 13, 2025 Special Town Meeting agenda should be suppressed or manually curated.
 - Improve agenda-item summarization so lines truncated by PDF extraction are rewritten into clearer plain-language bullets.
 - Expand diagnostics into a more useful editorial/ops view instead of raw warnings.
@@ -163,4 +167,4 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 
 ## Resume prompt for a brand-new Codex session
-Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. Production run `#25` completed successfully after the low-confidence PDF quarantine rules and diagnostics UI updates were deployed, though that run had no new fetches/extractions. Future weak PDFs now get `review_flags` in extraction metadata and should land in `needs_review` rather than blending into generic extracted items. The main remaining work is to observe the next real extraction run, tune those quarantine thresholds against actual Wareham documents, improve diagnostics further, and continue quality work on amendment framing and path-based URL routing.
+Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. Production run `#26` completed successfully after a deterministic editorial-ranking layer was deployed in `publish.py`; the Select Board March 17, 2026 preview now includes a ranked `What matters most on the agenda` section and a more selective dek built around the top issues. Weak PDFs already get `review_flags` on future extraction runs, and run metrics distinguish created vs updated records. The main remaining work is to refine the editorial language and category-specific explanations, observe the next real extraction run to tune PDF quarantine thresholds, improve diagnostics further, and continue later work on path-based URL routing.

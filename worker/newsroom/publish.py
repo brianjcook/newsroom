@@ -38,6 +38,37 @@ GENERIC_EXTRACTION_TITLES = {
 }
 
 
+EDITORIAL_SIGNAL_RULES = [
+    ("possible vote", 50, "could lead to a board vote"),
+    ("vote", 35, "could result in formal board action"),
+    ("public hearing", 45, "opens the issue to formal public comment"),
+    ("hearing", 20, "is scheduled for a public hearing"),
+    ("budget", 35, "affects town budgeting or spending"),
+    ("appropriation", 35, "could affect town spending"),
+    ("contract", 28, "could lead to a contract or procurement decision"),
+    ("bid", 24, "could affect procurement or project costs"),
+    ("zoning", 38, "could affect land use or development rules"),
+    ("special permit", 38, "could affect land use or development decisions"),
+    ("site plan", 32, "could affect development review"),
+    ("wastewater", 42, "could affect wastewater planning or infrastructure"),
+    ("sewer", 34, "could affect sewer or utility planning"),
+    ("water", 22, "could affect utility or infrastructure planning"),
+    ("road", 18, "could affect local infrastructure or public works"),
+    ("capital", 24, "could affect capital planning or long-term spending"),
+    ("town meeting", 28, "could shape what reaches Town Meeting"),
+    ("article", 18, "could influence a Town Meeting article or formal proposal"),
+    ("bylaw", 30, "could affect local rules or governance"),
+    ("policy", 28, "could change town policy or procedure"),
+    ("appoint", 20, "could change town appointments or representation"),
+    ("license", 22, "could affect a local license or permit"),
+    ("permit", 20, "could affect a local permit decision"),
+    ("accept", 14, "could formalize a town action or filing"),
+    ("approve", 14, "could formalize a town decision"),
+    ("adopt", 22, "could formalize a policy or planning decision"),
+    ("deny", 18, "could reject a proposal or request"),
+]
+
+
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return slug[:180] or "story"
@@ -290,6 +321,131 @@ def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
     return filtered
 
 
+def _score_editorial_line(text: str, context: str = "") -> Tuple[int, List[str]]:
+    lowered = " ".join([context, text]).lower()
+    score = 0
+    reasons = []  # type: List[str]
+
+    for needle, weight, explanation in EDITORIAL_SIGNAL_RULES:
+        if needle in lowered:
+            score += weight
+            reasons.append(explanation)
+
+    if len(text) > 80:
+        score += 4
+    if "discussion" in lowered:
+        score += 10
+    if "presentation" in lowered:
+        score += 8
+
+    deduped = []
+    for reason in reasons:
+        if reason not in deduped:
+            deduped.append(reason)
+    return score, deduped
+
+
+def _focus_reason(reasons: List[str]) -> str:
+    if not reasons:
+        return ""
+    if len(reasons) == 1:
+        return reasons[0]
+    return "{} and {}".format(", ".join(reasons[:-1]), reasons[-1])
+
+
+def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[Dict[str, object]]:
+    structured = _agenda_details(extraction)
+    sections = structured.get("agenda_sections") or []
+    focus = []  # type: List[Dict[str, object]]
+
+    if isinstance(sections, list):
+        for section in sections:
+            if not isinstance(section, dict):
+                continue
+            section_title = " ".join(str(section.get("title") or "").split())
+            for raw_item in section.get("items") or []:
+                item = " ".join(str(raw_item).split())
+                if not item:
+                    continue
+                score, reasons = _score_editorial_line(item, section_title)
+                if score <= 0:
+                    continue
+                focus.append(
+                    {
+                        "text": item,
+                        "score": score,
+                        "section": section_title,
+                        "reasons": reasons,
+                    }
+                )
+
+    if not focus:
+        for item in _agenda_highlights(extraction):
+            score, reasons = _score_editorial_line(item)
+            if score <= 0:
+                continue
+            focus.append({"text": item, "score": score, "section": "", "reasons": reasons})
+
+    focus.sort(key=lambda entry: (-int(entry["score"]), str(entry["text"])))
+    deduped = []
+    seen = set()
+    for item in focus:
+        if item["text"] in seen:
+            continue
+        seen.add(str(item["text"]))
+        deduped.append(item)
+        if len(deduped) >= limit:
+            break
+    return deduped
+
+
+def _minutes_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[Dict[str, object]]:
+    focus = []  # type: List[Dict[str, object]]
+    for line in _clean_lines(str(extraction.get("body_text") or "")):
+        score, reasons = _score_editorial_line(line)
+        lowered = line.lower()
+        if "approved" in lowered or "denied" in lowered or "adopted" in lowered or "voted" in lowered:
+            score += 20
+        if score <= 0:
+            continue
+        focus.append({"text": line, "score": score, "reasons": reasons})
+
+    focus.sort(key=lambda entry: (-int(entry["score"]), str(entry["text"])))
+    deduped = []
+    seen = set()
+    for item in focus:
+        if item["text"] in seen:
+            continue
+        seen.add(str(item["text"]))
+        deduped.append(item)
+        if len(deduped) >= limit:
+            break
+    return deduped
+
+
+def _focus_list_block(items: List[Dict[str, object]], heading: str) -> str:
+    if not items:
+        return ""
+
+    bullets = []
+    for item in items:
+        text = html.escape(str(item["text"]))
+        reason = _focus_reason(list(item.get("reasons") or []))
+        if reason:
+            bullets.append("<li>{} <span class=\"story-note\">This matters because it {}.</span></li>".format(text, html.escape(reason)))
+        else:
+            bullets.append("<li>{}</li>".format(text))
+    return "<h3>{}</h3><ul>{}</ul>".format(html.escape(heading), "".join(bullets))
+
+
+def _focus_summary(items: List[Dict[str, object]]) -> str:
+    if not items:
+        return ""
+    if len(items) == 1:
+        return str(items[0]["text"])
+    return "{} and {}".format(items[0]["text"], items[1]["text"])
+
+
 def _agenda_details(extraction: Dict[str, object]) -> Dict[str, object]:
     structured = extraction.get("structured_json") or {}
     if isinstance(structured, str):
@@ -420,12 +576,19 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
     source_url = source_item["canonical_url"]
     source_label = "posted minutes" if story_type == "minutes_recap" else "posted agenda"
     agenda_block = ""
+    focus_block = ""
     remote_block = ""
     explainers = []  # type: List[Dict[str, str]]
+    focus_items = []  # type: List[Dict[str, object]]
 
     if story_type == "minutes_recap":
+        focus_items = _minutes_focus_items(extraction)
         headline = f"Wareham {body_name} minutes posted for {meeting_date}"
-        dek = f"Posted minutes show what the {body_name} recorded for its {meeting_date} meeting."
+        if focus_items:
+            dek = f"The minutes highlight action on {_focus_summary(focus_items)}."
+            focus_block = _focus_list_block(focus_items, "What stands out in the minutes")
+        else:
+            dek = f"Posted minutes show what the {body_name} recorded for its {meeting_date} meeting."
         intro = (
             f"<p>Minutes for the Wareham {html.escape(body_name)} meeting dated {html.escape(meeting_date)} "
             f"have been posted on the town website, according to the linked source document.</p>"
@@ -435,8 +598,13 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
             f"<a href=\"{html.escape(source_url)}\">posted minutes</a> for the full record and exact wording.</p>"
         )
     else:
+        focus_items = _agenda_focus_items(extraction)
         headline = f"Wareham {body_name} meeting scheduled for {meeting_date}"
-        dek = f"The {body_name} is scheduled to meet {meeting_date} {meeting_time} at {location}."
+        if focus_items:
+            dek = f"The agenda elevates {_focus_summary(focus_items)}."
+            focus_block = _focus_list_block(focus_items, "What matters most on the agenda")
+        else:
+            dek = f"The {body_name} is scheduled to meet {meeting_date} {meeting_time} at {location}."
         intro = (
             f"<p>The Wareham {html.escape(body_name)} is scheduled to meet on {html.escape(meeting_date)} "
             f"{html.escape(meeting_time)} at {html.escape(location)}, according to the posted agenda.</p>"
@@ -449,7 +617,10 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
         )
 
     summary_lines = _choose_summary_lines(extraction["body_text"])
-    if story_type == "meeting_preview" and agenda_block:
+    if focus_items:
+        middle = ""
+        summary = dek
+    elif story_type == "meeting_preview" and agenda_block:
         middle = ""
         summary = dek
     elif summary_lines:
@@ -465,7 +636,7 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
         )
         summary = f"Wareham posted a {source_label} for the {body_name} meeting dated {meeting_date}."
 
-    body_html = intro + remote_block + agenda_block + middle + kicker
+    body_html = intro + remote_block + focus_block + agenda_block + middle + kicker
     body_text = re.sub(r"<[^>]+>", "", body_html)
     return headline, dek, summary[:1000], body_html, body_text, explainers
 
