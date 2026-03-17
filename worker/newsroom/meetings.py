@@ -65,7 +65,16 @@ def _parse_date(text: str) -> Optional[str]:
 
 
 def _parse_time(text: str) -> Optional[str]:
-    normalized_text = text.replace("a.m.", "AM").replace("p.m.", "PM").replace("a.m", "AM").replace("p.m", "PM")
+    normalized_text = (
+        text.replace("a.m.", "AM")
+        .replace("p.m.", "PM")
+        .replace("A.M.", "AM")
+        .replace("P.M.", "PM")
+        .replace("a.m", "AM")
+        .replace("p.m", "PM")
+        .replace("A.M", "AM")
+        .replace("P.M", "PM")
+    )
     match = re.search(r"(\d{1,2}(?::\d{2})?\s*[APap][Mm])", normalized_text)
     if not match:
         return None
@@ -132,10 +141,18 @@ def _candidate_from_source(
     extraction: ExtractionRecord,
 ) -> Dict[str, object]:
     meta = parse_source_meta(raw_meta_json)
+    structured = extraction.structured_json or {}
+    source_meta = structured.get("source_meta") if isinstance(structured, dict) else {}
+    if isinstance(source_meta, dict):
+        merged_meta = dict(meta)
+        merged_meta.update(source_meta)
+        meta = merged_meta
     combined_text = "\n".join(
         [
             source_title or "",
             str(meta.get("entry_title") or ""),
+            str(meta.get("wrapper_time_text") or ""),
+            str(structured.get("meeting_location_line") or ""),
             extraction.title,
             extraction.body_text[:6000],
         ]
@@ -151,8 +168,11 @@ def _candidate_from_source(
         meta.get("meeting_date"),
         _parse_date(combined_text),
     )
-    meeting_time = _parse_time(combined_text)
-    location_name = _parse_location(combined_text)
+    meeting_time = _coalesce(_parse_time(str(meta.get("wrapper_time_text") or "")), _parse_time(combined_text))
+    location_name = _coalesce(
+        structured.get("meeting_location_line"),
+        _parse_location(combined_text),
+    )
     meeting_type = _meeting_type_for_artifact(artifact_type)
     status = derive_meeting_status(" ".join([source_title or "", str(meta.get("entry_title") or ""), combined_text[:500]]))
 
@@ -292,6 +312,8 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
                 )
                 continue
 
+            promote_fields = 1 if should_normalize_artifact(candidate["artifact_type"], candidate["is_primary"]) else 0
+
             cursor.execute(
                 """
                 INSERT INTO meetings (
@@ -315,13 +337,13 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
                     governing_body = VALUES(governing_body),
                     title = VALUES(title),
                     normalized_title = VALUES(normalized_title),
-                    meeting_type = VALUES(meeting_type),
+                    meeting_type = IF(%s = 1, VALUES(meeting_type), meeting_type),
                     meeting_date = VALUES(meeting_date),
-                    meeting_time = COALESCE(VALUES(meeting_time), meeting_time),
-                    location_name = COALESCE(VALUES(location_name), location_name),
-                    status = VALUES(status),
-                    agenda_posted_at = COALESCE(VALUES(agenda_posted_at), agenda_posted_at),
-                    minutes_posted_at = COALESCE(VALUES(minutes_posted_at), minutes_posted_at)
+                    meeting_time = IF(%s = 1, COALESCE(VALUES(meeting_time), meeting_time), COALESCE(meeting_time, VALUES(meeting_time))),
+                    location_name = IF(%s = 1, COALESCE(VALUES(location_name), location_name), COALESCE(location_name, VALUES(location_name))),
+                    status = IF(%s = 1, VALUES(status), status),
+                    agenda_posted_at = IF(%s = 1, COALESCE(VALUES(agenda_posted_at), agenda_posted_at), COALESCE(agenda_posted_at, VALUES(agenda_posted_at))),
+                    minutes_posted_at = IF(%s = 1, COALESCE(VALUES(minutes_posted_at), minutes_posted_at), COALESCE(minutes_posted_at, VALUES(minutes_posted_at)))
                 """,
                 (
                     source_item_id,
@@ -338,6 +360,12 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
                     minutes_posted_at,
                     meeting_key,
                     1 if candidate["is_primary"] else 0,
+                    promote_fields,
+                    promote_fields,
+                    promote_fields,
+                    promote_fields,
+                    promote_fields,
+                    promote_fields,
                 ),
             )
             status_value = "normalized" if should_normalize_artifact(candidate["artifact_type"], candidate["is_primary"]) and meeting_key else "ignored"

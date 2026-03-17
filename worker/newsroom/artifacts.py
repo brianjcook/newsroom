@@ -29,8 +29,24 @@ def sync_meeting_artifacts(connection):
                 de.title AS extraction_title,
                 de.body_text
             FROM source_items si
-            LEFT JOIN documents d ON d.source_item_id = si.id
-            LEFT JOIN document_extractions de ON de.document_id = d.id
+            LEFT JOIN (
+                SELECT d1.*
+                FROM documents d1
+                INNER JOIN (
+                    SELECT source_item_id, MAX(id) AS max_id
+                    FROM documents
+                    GROUP BY source_item_id
+                ) latest_doc ON latest_doc.max_id = d1.id
+            ) d ON d.source_item_id = si.id
+            LEFT JOIN (
+                SELECT de1.*
+                FROM document_extractions de1
+                INNER JOIN (
+                    SELECT document_id, MAX(id) AS max_id
+                    FROM document_extractions
+                    GROUP BY document_id
+                ) latest_extraction ON latest_extraction.max_id = de1.id
+            ) de ON de.document_id = d.id
             """
         )
         rows = cursor.fetchall()

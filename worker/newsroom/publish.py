@@ -10,6 +10,15 @@ from pymysql.connections import Connection
 from .modeling import artifact_priority, canonical_event_title, derive_story_dates, is_calendar_artifact, is_public_story_artifact
 
 
+AGENDA_EXPLAINERS = {
+    "comprehensive wastewater management plan": {
+        "text": "Wareham's Sewer Department lists the 2025 Comprehensive Wastewater Management Plan as a town planning document tied to long-range wastewater system needs and project planning.",
+        "source_url": "https://www.wareham.gov/332/Sewer-Department",
+        "label": "Wareham Sewer Department",
+    },
+}
+
+
 @dataclass(frozen=True)
 class PublishedCounts:
     stories_published: int
@@ -94,13 +103,79 @@ def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
     return filtered
 
 
-def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object], extraction: Dict[str, object], story_type: str) -> Tuple[str, str, str, str, str]:
+def _agenda_details(extraction: Dict[str, object]) -> Dict[str, object]:
+    structured = extraction.get("structured_json") or {}
+    if isinstance(structured, str):
+        try:
+            structured = json.loads(structured)
+        except ValueError:
+            structured = {}
+    return structured if isinstance(structured, dict) else {}
+
+
+def _agenda_highlight_blocks(extraction: Dict[str, object]) -> Tuple[str, List[Dict[str, str]]]:
+    structured = _agenda_details(extraction)
+    highlights = structured.get("agenda_highlights") or []
+    if not isinstance(highlights, list):
+        return "", []
+
+    bullets = []
+    explainers = []
+    for raw_item in highlights[:6]:
+        item = " ".join(str(raw_item).split())
+        if not item:
+            continue
+        bullet = "<li>{}</li>".format(html.escape(item))
+        lowered = item.lower()
+        for key, explainer in AGENDA_EXPLAINERS.items():
+            if key in lowered:
+                bullet = "<li>{} <span class=\"story-note\">{}</span></li>".format(
+                    html.escape(item),
+                    html.escape(explainer["text"]),
+                )
+                explainers.append(explainer)
+                break
+        bullets.append(bullet)
+
+    if not bullets:
+        return "", []
+
+    return "<h3>What is on the agenda</h3><ul>{}</ul>".format("".join(bullets)), explainers
+
+
+def _remote_access_block(extraction: Dict[str, object]) -> str:
+    structured = _agenda_details(extraction)
+    source_meta = structured.get("source_meta") if isinstance(structured, dict) else {}
+    if not isinstance(source_meta, dict):
+        return ""
+
+    join_url = source_meta.get("remote_join_url")
+    webinar_id = source_meta.get("remote_webinar_id")
+    passcode = source_meta.get("remote_passcode")
+    if not join_url and not webinar_id and not passcode:
+        return ""
+
+    details = []
+    if join_url:
+        details.append('Join link: <a href="{0}">{0}</a>'.format(html.escape(str(join_url))))
+    if webinar_id:
+        details.append("Webinar ID: {}".format(html.escape(str(webinar_id))))
+    if passcode:
+        details.append("Passcode: {}".format(html.escape(str(passcode))))
+
+    return "<p><strong>Remote access:</strong> {}</p>".format(" | ".join(details))
+
+
+def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object], extraction: Dict[str, object], story_type: str) -> Tuple[str, str, str, str, str, List[Dict[str, str]]]:
     body_name = meeting["governing_body"] or "Wareham officials"
     meeting_date = _format_date(meeting["meeting_date"])
     meeting_time = _format_time(meeting["meeting_time"])
     location = meeting["location_name"] or "a location not listed in the source"
     source_url = source_item["canonical_url"]
     source_label = "posted minutes" if story_type == "minutes_recap" else "posted agenda"
+    agenda_block = ""
+    remote_block = ""
+    explainers = []  # type: List[Dict[str, str]]
 
     if story_type == "minutes_recap":
         headline = f"Wareham {body_name} minutes posted for {meeting_date}"
@@ -120,13 +195,18 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
             f"<p>The Wareham {html.escape(body_name)} is scheduled to meet on {html.escape(meeting_date)} "
             f"{html.escape(meeting_time)} at {html.escape(location)}, according to the posted agenda.</p>"
         )
+        agenda_block, explainers = _agenda_highlight_blocks(extraction)
+        remote_block = _remote_access_block(extraction)
         kicker = (
             f"<p>The public can review the full <a href=\"{html.escape(source_url)}\">posted agenda</a> "
             f"for the complete list of items, attachments, and procedural details.</p>"
         )
 
     summary_lines = _choose_summary_lines(extraction["body_text"])
-    if summary_lines:
+    if story_type == "meeting_preview" and agenda_block:
+        middle = ""
+        summary = dek
+    elif summary_lines:
         middle = "".join(
             f"<p>{html.escape(line)}</p>"
             for line in summary_lines
@@ -139,9 +219,9 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
         )
         summary = f"Wareham posted a {source_label} for the {body_name} meeting dated {meeting_date}."
 
-    body_html = intro + middle + kicker
+    body_html = intro + remote_block + agenda_block + middle + kicker
     body_text = re.sub(r"<[^>]+>", "", body_html)
-    return headline, dek, summary[:1000], body_html, body_text
+    return headline, dek, summary[:1000], body_html, body_text, explainers
 
 
 def _select_best_meeting_artifacts(rows: List[Dict[str, object]]) -> List[Dict[str, object]]:
@@ -200,14 +280,17 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 ma.posted_at AS artifact_posted_at,
                 ma.is_amended,
                 ma.source_item_id,
+                d.document_url AS resolved_document_url,
                 si.canonical_url,
                 si.title AS source_title,
                 de.id AS extraction_id,
                 de.body_text,
-                de.title AS extraction_title
+                de.title AS extraction_title,
+                de.structured_json
             FROM meetings m
             INNER JOIN meeting_artifacts ma ON ma.meeting_id = m.id
             INNER JOIN source_items si ON si.id = ma.source_item_id
+            LEFT JOIN documents d ON d.id = ma.document_id
             LEFT JOIN document_extractions de ON de.document_id = ma.document_id
             WHERE ma.is_primary = 1
             ORDER BY m.id ASC, ma.id ASC
@@ -234,13 +317,14 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         }
         source_item = {
             "source_item_id": int(row["source_item_id"]),
-            "canonical_url": row["canonical_url"],
+            "canonical_url": row["resolved_document_url"] or row["canonical_url"],
             "source_title": row["source_title"] or "",
         }
         extraction = {
             "id": int(row["extraction_id"]) if row["extraction_id"] else 0,
             "title": row["extraction_title"] or "",
             "body_text": row["body_text"] or "",
+            "structured_json": row["structured_json"],
         }
 
         if not meeting["governing_body"] or not meeting["meeting_date"]:
@@ -249,7 +333,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             continue
 
         artifact_posted_at = row["artifact_posted_at"].strftime("%Y-%m-%d %H:%M:%S") if row["artifact_posted_at"] else None
-        headline, dek, summary, body_html, body_text = _build_story_copy(meeting, source_item, extraction, story_type)
+        headline, dek, summary, body_html, body_text, explainers = _build_story_copy(meeting, source_item, extraction, story_type)
         published_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         display_date, sort_date = derive_story_dates(
             story_type,
@@ -329,6 +413,27 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                     source_item["source_title"] or extraction["title"] or "Wareham source document",
                 ),
             )
+            citation_number = 2
+            for explainer in explainers:
+                cursor.execute(
+                    """
+                    INSERT INTO story_citations (
+                        story_id,
+                        citation_number,
+                        label,
+                        source_url,
+                        note_text
+                    ) VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (
+                        story_id,
+                        citation_number,
+                        explainer["label"],
+                        explainer["source_url"],
+                        explainer["text"],
+                    ),
+                )
+                citation_number += 1
             cursor.execute(
                 "UPDATE source_items SET status = 'published', updated_at = NOW() WHERE id = %s",
                 (source_item["source_item_id"],),

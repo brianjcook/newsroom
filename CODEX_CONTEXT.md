@@ -41,8 +41,13 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Added `worker/newsroom/modeling.py` for governing-body normalization, artifact classification, story date derivation, and other shared meeting-first logic.
 - Added `worker/newsroom/artifacts.py` to sync sibling artifacts onto canonical meetings.
 - Refactored `sources.py` to parse AgendaCenter more structurally, capturing governing body, meeting date, posted timestamp, artifact label, and meeting key from the listing page.
+- Refactored `documents.py` so AgendaCenter wrapper URLs are resolved through `?html=true`, harvesting wrapper metadata and linked `ViewFile/Item/...` documents before storing the real source document.
+- Refactored `extract.py` so actual agenda PDFs produce structured agenda sections/highlights and preserve wrapper metadata such as remote-access details.
 - Refactored `meetings.py` to normalize source items into canonical meetings keyed by governing body/date and to upsert governing bodies.
+- Tightened meeting normalization so non-primary artifacts can enrich missing fields but cannot overwrite correct canonical time/location data.
 - Refactored `publish.py` so stories and calendar events are driven by primary artifacts, allowing preview and recap stories per meeting and handling slug collisions for same-body same-day meetings.
+- Preview stories can now render agenda-highlight lists and source-grounded explainer notes for specific items, with the Select Board wastewater-plan case used as the first working example.
+- Refactored `artifacts.py` so meeting artifacts prefer the latest resolved document and latest extraction per source item instead of stale wrapper documents.
 - Updated `web/lib/content.php` so the homepage prioritizes imminent upcoming meeting coverage and suppresses stale previews from the main news list.
 - Tightened diagnostics filtering to reduce packet/previous-version noise and show one diagnostic row per source item.
 - Added a filter so AgendaCenter utility links like `Notify Me` and `RSS` are no longer discovered on future runs.
@@ -92,16 +97,16 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Worker runs successfully on-host using the MySQL Unix socket.
 - Story output is still deterministic/template-based and source-grounded rather than model-generated.
 - Live ordering now favors imminent upcoming meeting coverage instead of the farthest-future preview.
-- Current live quality is materially better than the first run, and recent tuning reduced canonical meeting duplication while restoring better time/location enrichment from supplemental artifacts. Remaining quality work is still concentrated around amended/cancelled meetings and low-confidence PDFs.
+- Current live quality is materially better than the first run. The Select Board March 17, 2026 preview now resolves to the actual agenda document, uses the correct `7:00 PM` meeting time and `Multi-Service Center, 48 Marion Road, Room 520` location, includes remote-access details, and renders agenda highlights with a source-grounded CWMP explainer. Remaining quality work is still concentrated around amended/cancelled meetings and low-confidence PDFs.
 - Latest successful production run:
-- `run_id`: `12`
+- `run_id`: `16`
 - `items_discovered`: `368`
 - `documents_fetched`: `370`
 - `extractions_created`: `370`
-- `meetings_normalized`: `219`
-- `stories_published`: `106`
-- `events_created`: `100`
-- `artifacts_synced`: `1775`
+- `meetings_normalized`: `122`
+- `stories_published`: `105`
+- `events_created`: `105`
+- `artifacts_synced`: `362`
 
 ## Recent commits
 - `655a78b` - `Initial newsroom scaffold`
@@ -114,12 +119,15 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `c693bf8` - `Add shared-host config support`
 - `bcb2333` - `Deploy canonical redirects and typography`
 - `ed62a8e` - `Deploy live pipeline to Freehostia`
+- `bbd686c` - `Refactor pipeline around canonical meetings`
+- `bb6fb54` - `Tune meeting enrichment and artifact ranking`
 
 ## Next priority tasks
 - Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.
 - Improve handling of amended, revised, cancelled, and postponed agenda items.
 - Improve low-confidence PDF extraction handling and related publish rules.
 - Decide whether low-confidence published items like the January 13, 2025 Special Town Meeting agenda should be suppressed or manually curated.
+- Improve agenda-item summarization so lines truncated by PDF extraction are rewritten into clearer plain-language bullets.
 - Expand diagnostics into a more useful editorial/ops view instead of raw warnings.
 - Decide on and implement a repeatable on-host trigger, preferably cron-based rather than ad hoc admin endpoints.
 - Move public URLs from query-parameter patterns toward descriptive path-based routing.
@@ -128,4 +136,4 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 
 ## Resume prompt for a brand-new Codex session
-Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. Production run `#10` completed successfully with 106 stories and 106 events. The main remaining work is quality tuning: reduce duplicate canonical meetings, improve amended/cancelled handling, improve low-confidence PDF handling, clean up diagnostics, and then move on to cleaner path-based URL routing.
+Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. Production run `#16` completed successfully with 105 stories and 105 events, and the Select Board March 17, 2026 preview now uses the real agenda PDF with correct time/location and an official-source CWMP explainer. The main remaining work is quality tuning: improve amended/cancelled handling, improve low-confidence PDF handling, clean up diagnostics, strengthen agenda-item summarization, and then move on to cleaner path-based URL routing.

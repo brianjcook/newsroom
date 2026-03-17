@@ -100,6 +100,8 @@ def classify_artifact(item_title, item_type, source_url, raw_meta=None):
         return "packet", fmt, False, is_amended
     if "previous version" in lowered:
         return "previous_version", fmt, False, True
+    if "html=true" in lowered:
+        return "html_view", "html", False, is_amended
     if "transcript" in lowered:
         return "transcript", fmt, False, is_amended
     if "append" in lowered:
@@ -108,8 +110,6 @@ def classify_artifact(item_title, item_type, source_url, raw_meta=None):
         return "minutes", fmt, True, is_amended
     if "agenda" in lowered:
         return "agenda", fmt, True, is_amended
-    if "html=true" in lowered:
-        return "html_view", "html", False, is_amended
     return "reference", fmt, False, is_amended
 
 
