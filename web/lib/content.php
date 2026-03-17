@@ -138,10 +138,13 @@ function newsroom_diagnostic_items(int $limit = 20): array
          WHERE (
                 si.status IN ("needs_review", "extracted")
                 OR (de.confidence_score IS NOT NULL AND de.confidence_score < 0.60)
-            )
+           )
            AND LOWER(COALESCE(si.title, "")) NOT LIKE "%packet%"
            AND LOWER(COALESCE(si.title, "")) NOT LIKE "%previous version%"
            AND LOWER(COALESCE(si.title, "")) NOT LIKE "%html%"
+           AND LOWER(COALESCE(si.title, "")) NOT IN ("notify me®", "notify me", "rss")
+           AND LOWER(COALESCE(si.canonical_url, "")) NOT LIKE "%/list.aspx#agendacenter%"
+           AND LOWER(COALESCE(si.canonical_url, "")) NOT LIKE "%/rss.aspx#agendacenter%"
          GROUP BY si.id, si.title, si.canonical_url, si.status
          ORDER BY si.updated_at DESC, si.id DESC
          LIMIT :limit'

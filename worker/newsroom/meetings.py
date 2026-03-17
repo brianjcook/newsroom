@@ -13,6 +13,8 @@ from .modeling import (
     derive_meeting_status,
     normalize_body_name,
     parse_source_meta,
+    should_enrich_meeting_from_artifact,
+    should_normalize_artifact,
     slugify,
 )
 
@@ -283,6 +285,13 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
                 )
                 continue
 
+            if not should_normalize_artifact(candidate["artifact_type"], candidate["is_primary"]) and not should_enrich_meeting_from_artifact(candidate["artifact_type"]):
+                cursor.execute(
+                    "UPDATE source_items SET status = %s, updated_at = NOW() WHERE id = %s",
+                    ("ignored", source_item_id),
+                )
+                continue
+
             cursor.execute(
                 """
                 INSERT INTO meetings (
@@ -331,13 +340,14 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
                     1 if candidate["is_primary"] else 0,
                 ),
             )
+            status_value = "normalized" if should_normalize_artifact(candidate["artifact_type"], candidate["is_primary"]) and meeting_key else "ignored"
             cursor.execute(
                 "UPDATE source_items SET status = %s, updated_at = NOW() WHERE id = %s",
-                ("normalized" if meeting_key else "needs_review", source_item_id),
+                (status_value if meeting_key else "needs_review", source_item_id),
             )
-            if meeting_key:
+            if meeting_key and should_normalize_artifact(candidate["artifact_type"], candidate["is_primary"]):
                 normalized_count += 1
-            else:
+            elif not meeting_key:
                 cursor.execute(
                     """
                     UPDATE source_items

@@ -94,21 +94,23 @@ def classify_artifact(item_title, item_type, source_url, raw_meta=None):
     ).lower()
     fmt = _infer_format(lowered)
 
+    is_amended = any(token in lowered for token in ("amended", "revised", "updated"))
+
     if "packet" in lowered:
-        return "packet", fmt, False, False
+        return "packet", fmt, False, is_amended
     if "previous version" in lowered:
         return "previous_version", fmt, False, True
     if "transcript" in lowered:
-        return "transcript", fmt, False, False
+        return "transcript", fmt, False, is_amended
     if "append" in lowered:
-        return "appendix", fmt, False, False
+        return "appendix", fmt, False, is_amended
     if "minute" in lowered:
-        return "minutes", fmt, True, False
+        return "minutes", fmt, True, is_amended
     if "agenda" in lowered:
-        return "agenda", fmt, True, False
+        return "agenda", fmt, True, is_amended
     if "html=true" in lowered:
-        return "html_view", "html", False, False
-    return "reference", fmt, False, False
+        return "html_view", "html", False, is_amended
+    return "reference", fmt, False, is_amended
 
 
 def is_public_story_artifact(artifact_type: str) -> bool:
@@ -121,6 +123,39 @@ def is_calendar_artifact(artifact_type: str) -> bool:
 
 def should_review_artifact(artifact_type: str) -> bool:
     return artifact_type in ("agenda", "minutes", "reference")
+
+
+def should_normalize_artifact(artifact_type: str, is_primary: bool) -> bool:
+    if artifact_type in ("agenda", "minutes"):
+        return True
+    return is_primary and artifact_type == "reference"
+
+
+def should_enrich_meeting_from_artifact(artifact_type: str) -> bool:
+    return artifact_type in ("packet", "html_view", "previous_version", "reference", "appendix", "transcript")
+
+
+def artifact_priority(artifact_type: str, fmt: str, is_amended: bool, has_text: bool) -> int:
+    score = 0
+    if artifact_type == "minutes":
+        score += 400
+    elif artifact_type == "agenda":
+        score += 300
+    elif artifact_type == "reference":
+        score += 100
+    else:
+        score -= 200
+
+    if fmt == "pdf":
+        score += 25
+    elif fmt == "html":
+        score += 15
+
+    if is_amended:
+        score += 40
+    if has_text:
+        score += 20
+    return score
 
 
 def parse_agenda_center_datetime(value: Optional[str]) -> Optional[str]:

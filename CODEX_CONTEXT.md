@@ -92,16 +92,16 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Worker runs successfully on-host using the MySQL Unix socket.
 - Story output is still deterministic/template-based and source-grounded rather than model-generated.
 - Live ordering now favors imminent upcoming meeting coverage instead of the farthest-future preview.
-- Current live quality is materially better than the first run, but still needs refinement around amended/cancelled meetings, low-confidence PDFs, and duplicate canonical meeting counts.
+- Current live quality is materially better than the first run, and recent tuning reduced canonical meeting duplication while restoring better time/location enrichment from supplemental artifacts. Remaining quality work is still concentrated around amended/cancelled meetings and low-confidence PDFs.
 - Latest successful production run:
-- `run_id`: `10`
+- `run_id`: `12`
 - `items_discovered`: `368`
 - `documents_fetched`: `370`
 - `extractions_created`: `370`
-- `meetings_normalized`: `355`
+- `meetings_normalized`: `219`
 - `stories_published`: `106`
-- `events_created`: `106`
-- `artifacts_synced`: `1065`
+- `events_created`: `100`
+- `artifacts_synced`: `1775`
 
 ## Recent commits
 - `655a78b` - `Initial newsroom scaffold`
@@ -119,6 +119,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.
 - Improve handling of amended, revised, cancelled, and postponed agenda items.
 - Improve low-confidence PDF extraction handling and related publish rules.
+- Decide whether low-confidence published items like the January 13, 2025 Special Town Meeting agenda should be suppressed or manually curated.
 - Expand diagnostics into a more useful editorial/ops view instead of raw warnings.
 - Decide on and implement a repeatable on-host trigger, preferably cron-based rather than ad hoc admin endpoints.
 - Move public URLs from query-parameter patterns toward descriptive path-based routing.

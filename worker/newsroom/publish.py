@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from pymysql.connections import Connection
 
-from .modeling import canonical_event_title, derive_story_dates, is_calendar_artifact, is_public_story_artifact
+from .modeling import artifact_priority, canonical_event_title, derive_story_dates, is_calendar_artifact, is_public_story_artifact
 
 
 @dataclass(frozen=True)
@@ -144,6 +144,39 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
     return headline, dek, summary[:1000], body_html, body_text
 
 
+def _select_best_meeting_artifacts(rows: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    selected = {}
+    for row in rows:
+        meeting_id = int(row["meeting_id"])
+        artifact_type = row["artifact_type"] or ""
+        if not is_public_story_artifact(artifact_type):
+            continue
+
+        story_type = "minutes_recap" if artifact_type == "minutes" else "meeting_preview"
+        key = (meeting_id, story_type)
+        title_blob = " ".join([str(row.get("source_title") or ""), str(row.get("extraction_title") or "")]).lower()
+        has_text = bool((row.get("body_text") or "").strip())
+        if ("cancelled" in title_blob or "canceled" in title_blob) and story_type == "meeting_preview":
+            has_text = False
+
+        score = artifact_priority(
+            artifact_type,
+            row.get("artifact_format") or "",
+            bool(row.get("is_amended")),
+            has_text,
+        )
+        if row.get("artifact_posted_at"):
+            score += 5
+
+        current = selected.get(key)
+        if current is None or score > current["_score"]:
+            row_copy = dict(row)
+            row_copy["_score"] = score
+            selected[key] = row_copy
+
+    return [selected[key] for key in sorted(selected.keys())]
+
+
 def publish_stories_and_events(connection: Connection) -> PublishedCounts:
     stories_published = 0
     events_created = 0
@@ -163,7 +196,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 m.agenda_posted_at,
                 m.minutes_posted_at,
                 ma.artifact_type,
+                ma.format AS artifact_format,
                 ma.posted_at AS artifact_posted_at,
+                ma.is_amended,
                 ma.source_item_id,
                 si.canonical_url,
                 si.title AS source_title,
@@ -180,17 +215,10 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         )
         rows = cursor.fetchall()
 
-    seen_story_keys = set()  # type: Set[Tuple[int, str]]
-    for row in rows:
+    for row in _select_best_meeting_artifacts(rows):
         meeting_id = int(row["meeting_id"])
         artifact_type = row["artifact_type"] or ""
-        if not is_public_story_artifact(artifact_type):
-            continue
         story_type = "minutes_recap" if artifact_type == "minutes" else "meeting_preview"
-        story_key = (meeting_id, story_type)
-        if story_key in seen_story_keys:
-            continue
-        seen_story_keys.add(story_key)
 
         meeting = {
             "id": meeting_id,
@@ -319,6 +347,8 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 m.location_name,
                 m.status,
                 ma.artifact_type,
+                ma.format AS artifact_format,
+                ma.is_amended,
                 si.canonical_url
             FROM meetings m
             INNER JOIN meeting_artifacts ma ON ma.meeting_id = m.id
@@ -339,6 +369,8 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         if row["status"] == "cancelled":
             continue
         if not is_calendar_artifact(row["artifact_type"] or ""):
+            continue
+        if row["is_amended"] and (row["artifact_format"] or "") == "html":
             continue
         meeting_date = row["meeting_date"].strftime("%Y-%m-%d")
         meeting_time = _db_time_string(row["meeting_time"]) if row["meeting_time"] else "00:00:00"
