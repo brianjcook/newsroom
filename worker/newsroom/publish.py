@@ -25,6 +25,16 @@ class PublishedCounts:
     events_created: int
 
 
+GENERIC_EXTRACTION_TITLES = {
+    "agenda",
+    "minutes",
+    "pdf",
+    "packet",
+    "html",
+    "reference",
+}
+
+
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return slug[:180] or "story"
@@ -141,6 +151,65 @@ def _agenda_highlight_blocks(extraction: Dict[str, object]) -> Tuple[str, List[D
         return "", []
 
     return "<h3>What is on the agenda</h3><ul>{}</ul>".format("".join(bullets)), explainers
+
+
+def _story_structured_quality(extraction: Dict[str, object]) -> Dict[str, object]:
+    structured = _agenda_details(extraction)
+    warnings = extraction.get("warnings_json") or []
+    if isinstance(warnings, str):
+        try:
+            warnings = json.loads(warnings)
+        except ValueError:
+            warnings = [warnings]
+    if not isinstance(warnings, list):
+        warnings = []
+
+    title = " ".join(str(extraction.get("title") or "").split()).lower()
+    body_text = str(extraction.get("body_text") or "")
+    highlights = structured.get("agenda_highlights") or []
+    sections = structured.get("agenda_sections") or []
+    confidence = extraction.get("confidence_score")
+    try:
+        confidence_value = float(confidence) if confidence is not None else None
+    except (TypeError, ValueError):
+        confidence_value = None
+
+    return {
+        "confidence": confidence_value,
+        "warnings": warnings,
+        "title": title,
+        "body_length": len(body_text.strip()),
+        "has_highlights": isinstance(highlights, list) and len(highlights) > 0,
+        "has_sections": isinstance(sections, list) and len(sections) > 0,
+    }
+
+
+def _should_publish_story(meeting: Dict[str, object], extraction: Dict[str, object], story_type: str) -> bool:
+    if story_type == "meeting_preview" and meeting["status"] in ("cancelled", "postponed", "continued"):
+        return False
+
+    quality = _story_structured_quality(extraction)
+    confidence = quality["confidence"]
+    title = quality["title"]
+    warnings = [str(item).lower() for item in quality["warnings"]]
+
+    if story_type == "meeting_preview":
+        if "empty text" in " ".join(warnings):
+            return False
+        if title in GENERIC_EXTRACTION_TITLES and not quality["has_highlights"] and not quality["has_sections"]:
+            return False
+        if confidence is not None and confidence < 0.55 and not quality["has_highlights"]:
+            return False
+        if quality["body_length"] < 250 and not quality["has_highlights"]:
+            return False
+        if not meeting.get("meeting_time") and not meeting.get("location_name") and not quality["has_highlights"]:
+            return False
+
+    if story_type == "minutes_recap":
+        if confidence is not None and confidence < 0.45 and quality["body_length"] < 250:
+            return False
+
+    return True
 
 
 def _remote_access_block(extraction: Dict[str, object]) -> str:
@@ -286,7 +355,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 de.id AS extraction_id,
                 de.body_text,
                 de.title AS extraction_title,
-                de.structured_json
+                de.structured_json,
+                de.confidence_score,
+                de.warnings_json
             FROM meetings m
             INNER JOIN meeting_artifacts ma ON ma.meeting_id = m.id
             INNER JOIN source_items si ON si.id = ma.source_item_id
@@ -325,11 +396,13 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             "title": row["extraction_title"] or "",
             "body_text": row["body_text"] or "",
             "structured_json": row["structured_json"],
+            "confidence_score": row["confidence_score"],
+            "warnings_json": row["warnings_json"],
         }
 
         if not meeting["governing_body"] or not meeting["meeting_date"]:
             continue
-        if story_type == "meeting_preview" and meeting["status"] == "cancelled":
+        if not _should_publish_story(meeting, extraction, story_type):
             continue
 
         artifact_posted_at = row["artifact_posted_at"].strftime("%Y-%m-%d %H:%M:%S") if row["artifact_posted_at"] else None
@@ -472,6 +545,8 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         if not body_name:
             continue
         if row["status"] == "cancelled":
+            continue
+        if row["status"] in ("postponed", "continued"):
             continue
         if not is_calendar_artifact(row["artifact_type"] or ""):
             continue

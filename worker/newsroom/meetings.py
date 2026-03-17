@@ -104,6 +104,15 @@ def _parse_location(text: str) -> Optional[str]:
     return None
 
 
+def _normalize_location(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return value
+    normalized = " ".join(str(value).split())
+    normalized = re.sub(r"(?<=\w)\s+-\s*(?=\w)", "-", normalized)
+    normalized = re.sub(r"(?<=\w)-\s+(?=\w)", "-", normalized)
+    return normalized
+
+
 def _derive_meeting_title(governing_body, meeting_type, meeting_date):
     if not governing_body:
         return None
@@ -130,6 +139,17 @@ def _meeting_key(governing_body: Optional[str], meeting_date: Optional[str]) -> 
     if governing_body and meeting_date:
         return "{}-{}".format(slugify(governing_body), meeting_date)
     return None
+
+
+def _status_precedence(status: Optional[str]) -> int:
+    order = {
+        "cancelled": 4,
+        "postponed": 3,
+        "continued": 2,
+        "completed": 1,
+        "scheduled": 0,
+    }
+    return order.get(status or "", 0)
 
 
 def _candidate_from_source(
@@ -169,9 +189,11 @@ def _candidate_from_source(
         _parse_date(combined_text),
     )
     meeting_time = _coalesce(_parse_time(str(meta.get("wrapper_time_text") or "")), _parse_time(combined_text))
-    location_name = _coalesce(
-        structured.get("meeting_location_line"),
-        _parse_location(combined_text),
+    location_name = _normalize_location(
+        _coalesce(
+            structured.get("meeting_location_line"),
+            _parse_location(combined_text),
+        )
     )
     meeting_type = _meeting_type_for_artifact(artifact_type)
     status = derive_meeting_status(" ".join([source_title or "", str(meta.get("entry_title") or ""), combined_text[:500]]))
@@ -341,7 +363,20 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
                     meeting_date = VALUES(meeting_date),
                     meeting_time = IF(%s = 1, COALESCE(VALUES(meeting_time), meeting_time), COALESCE(meeting_time, VALUES(meeting_time))),
                     location_name = IF(%s = 1, COALESCE(VALUES(location_name), location_name), COALESCE(location_name, VALUES(location_name))),
-                    status = IF(%s = 1, VALUES(status), status),
+                    status = IF(
+                        %s = 1,
+                        CASE
+                            WHEN %s >= CASE status
+                                WHEN 'cancelled' THEN 4
+                                WHEN 'postponed' THEN 3
+                                WHEN 'continued' THEN 2
+                                WHEN 'completed' THEN 1
+                                ELSE 0
+                            END THEN VALUES(status)
+                            ELSE status
+                        END,
+                        status
+                    ),
                     agenda_posted_at = IF(%s = 1, COALESCE(VALUES(agenda_posted_at), agenda_posted_at), COALESCE(agenda_posted_at, VALUES(agenda_posted_at))),
                     minutes_posted_at = IF(%s = 1, COALESCE(VALUES(minutes_posted_at), minutes_posted_at), COALESCE(minutes_posted_at, VALUES(minutes_posted_at)))
                 """,
@@ -364,6 +399,7 @@ def normalize_meetings(connection: Connection, extractions: List[ExtractionRecor
                     promote_fields,
                     promote_fields,
                     promote_fields,
+                    _status_precedence(status),
                     promote_fields,
                     promote_fields,
                 ),

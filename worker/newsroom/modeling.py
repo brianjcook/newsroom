@@ -197,6 +197,10 @@ def derive_meeting_status(text: str) -> str:
     lowered = (text or "").lower()
     if "cancelled" in lowered or "canceled" in lowered:
         return "cancelled"
+    if "postponed" in lowered or "rescheduled" in lowered:
+        return "postponed"
+    if "continued to" in lowered or "continued until" in lowered:
+        return "continued"
     if "no meeting scheduled" in lowered:
         return "cancelled"
     if "minute" in lowered:

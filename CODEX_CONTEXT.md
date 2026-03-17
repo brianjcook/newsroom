@@ -51,6 +51,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Updated `web/lib/content.php` so the homepage prioritizes imminent upcoming meeting coverage and suppresses stale previews from the main news list.
 - Tightened diagnostics filtering to reduce packet/previous-version noise and show one diagnostic row per source item.
 - Added a filter so AgendaCenter utility links like `Notify Me` and `RSS` are no longer discovered on future runs.
+- Tightened meeting-status derivation to recognize postponed and continued meetings in addition to cancelled/completed states.
+- Tightened publication rules so weak/generic low-confidence artifacts do not become public preview stories as easily.
+- Tightened calendar suppression so postponed and continued meetings are excluded from public event listings.
+- Added stronger status-precedence handling during meeting normalization so high-signal cancelled/postponed artifacts are not overwritten by later weaker artifacts.
+- Normalized meeting-location strings more aggressively so public output no longer shows artifacts like `Multi -Service`.
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -97,15 +102,15 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Worker runs successfully on-host using the MySQL Unix socket.
 - Story output is still deterministic/template-based and source-grounded rather than model-generated.
 - Live ordering now favors imminent upcoming meeting coverage instead of the farthest-future preview.
-- Current live quality is materially better than the first run. The Select Board March 17, 2026 preview now resolves to the actual agenda document, uses the correct `7:00 PM` meeting time and `Multi-Service Center, 48 Marion Road, Room 520` location, includes remote-access details, and renders agenda highlights with a source-grounded CWMP explainer. Remaining quality work is still concentrated around amended/cancelled meetings and low-confidence PDFs.
+- Current live quality is materially better than the first run. The Select Board March 17, 2026 preview now resolves to the actual agenda document, uses the correct `7:00 PM` meeting time and `Multi-Service Center, 48 Marion Road, Room 520` location, includes remote-access details, and renders agenda highlights with a source-grounded CWMP explainer. The latest quality pass also suppresses more weak previews and removes postponed/continued meetings from the public calendar. Remaining quality work is still concentrated around amended/cancelled meeting edge cases and low-confidence PDFs.
 - Latest successful production run:
-- `run_id`: `16`
+- `run_id`: `20`
 - `items_discovered`: `368`
 - `documents_fetched`: `370`
 - `extractions_created`: `370`
 - `meetings_normalized`: `122`
-- `stories_published`: `105`
-- `events_created`: `105`
+- `stories_published`: `100`
+- `events_created`: `104`
 - `artifacts_synced`: `362`
 
 ## Recent commits
@@ -121,10 +126,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `ed62a8e` - `Deploy live pipeline to Freehostia`
 - `bbd686c` - `Refactor pipeline around canonical meetings`
 - `bb6fb54` - `Tune meeting enrichment and artifact ranking`
+- `a6ba2d2` - `Resolve agenda wrappers to real source documents`
 
 ## Next priority tasks
 - Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.
-- Improve handling of amended, revised, cancelled, and postponed agenda items.
+- Improve handling of amended, revised, cancelled, and postponed agenda items, especially when a later amendment should update an existing public story instead of requiring a full rebuild.
 - Improve low-confidence PDF extraction handling and related publish rules.
 - Decide whether low-confidence published items like the January 13, 2025 Special Town Meeting agenda should be suppressed or manually curated.
 - Improve agenda-item summarization so lines truncated by PDF extraction are rewritten into clearer plain-language bullets.
@@ -136,4 +142,4 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 
 ## Resume prompt for a brand-new Codex session
-Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. Production run `#16` completed successfully with 105 stories and 105 events, and the Select Board March 17, 2026 preview now uses the real agenda PDF with correct time/location and an official-source CWMP explainer. The main remaining work is quality tuning: improve amended/cancelled handling, improve low-confidence PDF handling, clean up diagnostics, strengthen agenda-item summarization, and then move on to cleaner path-based URL routing.
+Read `C:\codex\newsroom\CODEX_CONTEXT.md` first, then `C:\codex\newsroom\V1_BLUEPRINT.md`, then `C:\codex\newsroom\IMPLEMENTATION_ROADMAP.md`. This project is a live Wareham, Massachusetts local-news site with a deployed PHP frontend on Freehostia and a deployed Python 3.6-compatible worker. The system is now using a meeting-first model: AgendaCenter discovery captures governing-body/date/posting metadata, wrapper `ViewFile/Agenda/...` URLs are resolved to their real `ViewFile/Item/...` documents, canonical meetings are keyed by governing body/date, sibling agenda/minutes/packet artifacts are synced onto those meetings, and stories/calendar events publish from primary artifacts. Production run `#20` completed successfully with 100 stories and 104 events after a rebuild that tightened postponed/continued status handling, suppressed more weak preview stories, and cleaned up visible location formatting. The main remaining work is quality tuning: improve amended/cancelled story updates, improve low-confidence PDF handling, clean up diagnostics, strengthen agenda-item summarization, and then move on to cleaner path-based URL routing.
