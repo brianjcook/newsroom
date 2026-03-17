@@ -1,4 +1,5 @@
 import html
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -62,15 +63,89 @@ def _story_slug(connection: Connection, meeting: Dict[str, object], story_type: 
             suffix += 1
 
 
-def _story_basis_json(source_item: Dict[str, object], extraction: Dict[str, object], artifact_type: str) -> str:
+def _parse_story_basis(raw_value) -> Dict[str, object]:
+    if not raw_value:
+        return {}
+    if isinstance(raw_value, dict):
+        return raw_value
+    try:
+        parsed = json.loads(raw_value)
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _story_content_signature(headline: str, dek: str, summary: str, body_text: str) -> str:
+    digest = hashlib.sha256()
+    digest.update(headline.encode("utf-8"))
+    digest.update(b"\n")
+    digest.update((dek or "").encode("utf-8"))
+    digest.update(b"\n")
+    digest.update((summary or "").encode("utf-8"))
+    digest.update(b"\n")
+    digest.update((body_text or "").encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _story_basis_json(
+    source_item: Dict[str, object],
+    extraction: Dict[str, object],
+    artifact_type: str,
+    artifact_posted_at: Optional[str],
+    is_amended: bool,
+    content_signature: str,
+) -> str:
     return json.dumps(
         {
             "source_item_id": source_item["source_item_id"],
             "extraction_id": extraction["id"],
             "source_url": source_item["canonical_url"],
             "artifact_type": artifact_type,
+            "artifact_posted_at": artifact_posted_at,
+            "is_amended": bool(is_amended),
+            "content_signature": content_signature,
         }
     )
+
+
+def _story_update_note(
+    meeting: Dict[str, object],
+    previous_basis: Dict[str, object],
+    source_item: Dict[str, object],
+    extraction: Dict[str, object],
+    artifact_posted_at: Optional[str],
+    is_amended: bool,
+) -> str:
+    if not previous_basis:
+        return ""
+    if not (
+        is_amended
+        or previous_basis.get("source_item_id") != source_item["source_item_id"]
+        or previous_basis.get("extraction_id") != extraction["id"]
+        or previous_basis.get("source_url") != source_item["canonical_url"]
+        or previous_basis.get("artifact_posted_at") != artifact_posted_at
+    ):
+        return ""
+
+    note_label = "Updated agenda" if meeting.get("meeting_type") == "meeting_preview" else "Updated minutes"
+    note_date = artifact_posted_at or datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        formatted = datetime.strptime(note_date, "%Y-%m-%d %H:%M:%S").strftime("%B %d, %Y")
+    except ValueError:
+        formatted = note_date
+
+    if is_amended:
+        note_text = "{}: Wareham posted a revised source document for this meeting, and this story was refreshed on {} to reflect the latest public record.".format(
+            note_label,
+            formatted,
+        )
+    else:
+        note_text = "{}: This story was refreshed on {} after the underlying public meeting record changed.".format(
+            note_label,
+            formatted,
+        )
+
+    return '<p class="story-update"><strong>{}</strong></p>'.format(html.escape(note_text))
 
 
 def _sync_story_citations(
@@ -465,6 +540,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
 
         artifact_posted_at = row["artifact_posted_at"].strftime("%Y-%m-%d %H:%M:%S") if row["artifact_posted_at"] else None
         headline, dek, summary, body_html, body_text, explainers = _build_story_copy(meeting, source_item, extraction, story_type)
+        content_signature = _story_content_signature(headline, dek, summary, body_text)
         published_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         display_date, sort_date = derive_story_dates(
             story_type,
@@ -475,10 +551,19 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         )
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT id, slug, published_at FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
+                "SELECT id, slug, published_at, publish_status, source_basis_json FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
                 (meeting["id"], story_type),
             )
             existing_story = cursor.fetchone()
+        previous_basis = _parse_story_basis(existing_story["source_basis_json"]) if existing_story else {}
+        basis_json = _story_basis_json(
+            source_item,
+            extraction,
+            artifact_type,
+            artifact_posted_at,
+            bool(row.get("is_amended")),
+            content_signature,
+        )
 
         if not _should_publish_story(meeting, extraction, story_type):
             if existing_story:
@@ -491,16 +576,45 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         WHERE id = %s
                         """,
                         (
-                            _story_basis_json(source_item, extraction, artifact_type),
+                            basis_json,
                             int(existing_story["id"]),
                         ),
                     )
             continue
 
+        if existing_story:
+            previous_signature = previous_basis.get("content_signature")
+            basis_matches = (
+                previous_basis.get("source_item_id") == source_item["source_item_id"]
+                and previous_basis.get("extraction_id") == extraction["id"]
+                and previous_basis.get("source_url") == source_item["canonical_url"]
+                and previous_basis.get("artifact_type") == artifact_type
+            )
+            if (
+                previous_signature == content_signature
+                and basis_matches
+                and existing_story.get("publish_status") == "published"
+            ):
+                continue
+
         story_id = None
         if existing_story:
             story_id = int(existing_story["id"])
             existing_published_at = existing_story["published_at"].strftime("%Y-%m-%d %H:%M:%S") if existing_story.get("published_at") else published_at
+            story_body_html = body_html
+            story_body_text = body_text
+            if previous_basis.get("content_signature") != content_signature:
+                update_note = _story_update_note(
+                    meeting,
+                    previous_basis,
+                    source_item,
+                    extraction,
+                    artifact_posted_at,
+                    bool(row.get("is_amended")),
+                )
+                if update_note:
+                    story_body_html = update_note + story_body_html
+                    story_body_text = re.sub(r"<[^>]+>", "", story_body_html)
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
@@ -523,12 +637,12 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         headline,
                         dek,
                         summary,
-                        body_html,
-                        body_text,
+                        story_body_html,
+                        story_body_text,
                         existing_published_at,
                         display_date,
                         sort_date,
-                        _story_basis_json(source_item, extraction, artifact_type),
+                        basis_json,
                         story_id,
                     ),
                 )
@@ -568,7 +682,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         published_at,
                         display_date,
                         sort_date,
-                        _story_basis_json(source_item, extraction, artifact_type),
+                        basis_json,
                     ),
                 )
                 story_id = int(cursor.lastrowid)
