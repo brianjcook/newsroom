@@ -30,12 +30,14 @@ $diagnostics = newsroom_diagnostic_items();
 <body>
 <div class="page">
     <header class="masthead">
-        <div>
+        <div class="masthead__rail">
             <div class="masthead__meta">System Status</div>
-            <h1 class="masthead__title"><a href="/" style="text-decoration: none;">The Wareham Times</a></h1>
+            <div class="masthead__meta"><?= date('l, F j, Y') ?></div>
+        </div>
+        <div class="masthead__core">
+            <h1 class="masthead__title"><a href="/" class="masthead__home-link">The Wareham Times</a></h1>
             <div class="masthead__tagline">Recent pipeline runs and ingestion counts.</div>
         </div>
-        <div class="masthead__meta"><?= date('F j, Y') ?></div>
     </header>
 
     <nav class="nav">
@@ -45,10 +47,10 @@ $diagnostics = newsroom_diagnostic_items();
     </nav>
 
     <h2 class="section-heading">Recent Runs</h2>
-    <section class="story-list">
+    <section class="data-ledger">
         <?php if ($runs): ?>
             <?php foreach ($runs as $run): ?>
-                <article class="story-card">
+                <article class="data-row">
                     <div class="story-card__meta"><?= htmlspecialchars((string) $run['run_status']) ?></div>
                     <h3>Run #<?= htmlspecialchars((string) $run['id']) ?></h3>
                     <p>Started: <?= htmlspecialchars((string) $run['started_at']) ?></p>
@@ -64,7 +66,7 @@ $diagnostics = newsroom_diagnostic_items();
                 </article>
             <?php endforeach; ?>
         <?php else: ?>
-            <article class="story-card">
+            <article class="data-row">
                 <h3>No runs yet</h3>
                 <p class="empty-state">Run history will appear here once the worker has executed against the configured database.</p>
             </article>
@@ -72,10 +74,10 @@ $diagnostics = newsroom_diagnostic_items();
     </section>
 
     <h2 class="section-heading">Diagnostics</h2>
-    <section class="story-list">
+    <section class="data-ledger">
         <?php if ($diagnostics): ?>
             <?php foreach ($diagnostics as $item): ?>
-                <article class="story-card">
+                <article class="data-row">
                     <div class="story-card__meta"><?= htmlspecialchars((string) $item['status']) ?></div>
                     <h3><?= htmlspecialchars((string) ($item['title'] ?: 'Untitled source item')) ?></h3>
                     <p>Confidence: <?= htmlspecialchars((string) ($item['confidence_score'] ?? 'n/a')) ?></p>
@@ -98,7 +100,7 @@ $diagnostics = newsroom_diagnostic_items();
                 </article>
             <?php endforeach; ?>
         <?php else: ?>
-            <article class="story-card">
+            <article class="data-row">
                 <h3>No diagnostic items</h3>
                 <p class="empty-state">Items that need review or have weak extraction confidence will appear here.</p>
             </article>

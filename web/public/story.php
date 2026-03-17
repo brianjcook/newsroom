@@ -34,13 +34,21 @@ http_response_code($story ? 200 : 404);
 <body>
 <div class="page">
     <header class="masthead">
-        <div>
+        <div class="masthead__rail">
             <div class="masthead__meta">Wareham, Massachusetts</div>
-            <h1 class="masthead__title"><a href="/" style="text-decoration: none;">The Wareham Times</a></h1>
+            <div class="masthead__meta"><a href="/status.php">Status</a></div>
+        </div>
+        <div class="masthead__core">
+            <h1 class="masthead__title"><a href="/" class="masthead__home-link">The Wareham Times</a></h1>
             <div class="masthead__tagline">Civic reporting, meeting coverage, and the public record.</div>
         </div>
-        <div class="masthead__meta"><a href="/status.php">Status</a></div>
     </header>
+
+    <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/calendar.php">Calendar</a>
+        <a href="/status.php">Status</a>
+    </nav>
 
     <div class="story-layout">
         <article class="story-body">

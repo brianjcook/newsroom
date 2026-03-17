@@ -29,12 +29,14 @@ $events = newsroom_upcoming_events(50);
 <body>
 <div class="page">
     <header class="masthead">
-        <div>
+        <div class="masthead__rail">
             <div class="masthead__meta">Wareham, Massachusetts</div>
-            <h1 class="masthead__title"><a href="/" style="text-decoration: none;">The Wareham Times</a></h1>
+            <div class="masthead__meta"><?= date('l, F j, Y') ?></div>
+        </div>
+        <div class="masthead__core">
+            <h1 class="masthead__title"><a href="/" class="masthead__home-link">The Wareham Times</a></h1>
             <div class="masthead__tagline">Official meetings and public dates.</div>
         </div>
-        <div class="masthead__meta"><?= date('F j, Y') ?></div>
     </header>
 
     <nav class="nav">
@@ -44,21 +46,24 @@ $events = newsroom_upcoming_events(50);
     </nav>
 
     <h2 class="section-heading">Upcoming Meetings</h2>
-    <section class="story-list">
+    <section class="calendar-ledger">
         <?php if ($events): ?>
             <?php foreach ($events as $event): ?>
-                <article class="event-card">
-                    <div class="event-card__meta"><?= htmlspecialchars((string) ($event['body_name'] ?? 'Official Meeting')) ?></div>
-                    <h3><?= htmlspecialchars($event['title']) ?></h3>
-                    <p><?= htmlspecialchars(date('l, F j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
-                    <?php if (!empty($event['location_name'])): ?>
-                        <p><?= htmlspecialchars((string) $event['location_name']) ?></p>
-                    <?php endif; ?>
-                    <p><a href="<?= htmlspecialchars($event['source_url']) ?>">Source</a></p>
+                <article class="calendar-row">
+                    <div class="calendar-row__when"><?= htmlspecialchars(date('D', strtotime((string) $event['starts_at']))) ?><span><?= htmlspecialchars(date('M j', strtotime((string) $event['starts_at']))) ?></span></div>
+                    <div class="calendar-row__body">
+                        <div class="event-card__meta"><?= htmlspecialchars((string) ($event['body_name'] ?? 'Official Meeting')) ?></div>
+                        <h3><?= htmlspecialchars($event['title']) ?></h3>
+                        <p><?= htmlspecialchars(date('l, F j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
+                        <?php if (!empty($event['location_name'])): ?>
+                            <p><?= htmlspecialchars((string) $event['location_name']) ?></p>
+                        <?php endif; ?>
+                    </div>
+                    <div class="calendar-row__source"><a href="<?= htmlspecialchars($event['source_url']) ?>">Source</a></div>
                 </article>
             <?php endforeach; ?>
         <?php else: ?>
-            <article class="event-card">
+            <article class="calendar-row">
                 <h3>No events yet</h3>
                 <p class="empty-state">Official meeting listings will appear after the daily pipeline discovers Wareham source material.</p>
             </article>

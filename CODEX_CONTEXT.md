@@ -65,6 +65,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Updated the diagnostics UI so review flags from extraction metadata appear on the status page alongside confidence and warnings.
 - Added and deployed a deterministic editorial-ranking layer in `publish.py` that scores agenda and minutes items by likely civic impact, rewrites the dek/summary around the top-ranked issues, and inserts sections like `What matters most on the agenda` or `What stands out in the minutes`.
 - Refined that editorial-ranking layer so high-impact items are grouped into civic categories like `formal_action`, `public_hearing`, `budget`, `infrastructure`, `town_meeting`, `policy`, `appointment`, and `permit`, producing cleaner category-specific “why it matters” notes instead of repetitive generic phrasing.
+- Reworked the public-site visual system away from boxed cards and toward a newspaper-style layout: stronger masthead rules, centered paper-style header, column-driven homepage, vertical dividers, masonry-style secondary story columns, ledger-style calendar/status layouts, serif-dominant headlines, and the existing off-white paper background.
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -118,6 +119,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Low-confidence PDF handling is now stricter on future extraction runs, but `run #25` was a no-new-documents sync, so the first visible effect on diagnostics will appear when new PDFs are fetched and extracted.
 - Editorial story framing is now more selective: `run #26` updated one live story, and the Select Board March 17, 2026 preview now leads with a ranked list of high-impact agenda items instead of relying only on a generic schedule summary.
 - Editorial tone is now somewhat sharper: by `run #28`, the Select Board preview still uses deterministic ranking, but the explanatory notes read more like civic framing and less like a raw rules dump.
+- The public front end now visually hews closer to a newspaper/reference-journal aesthetic, with fewer boxes and more column/rule structure across the homepage, story pages, calendar, and status views.
 - Latest successful production run:
 - `run_id`: `28`
 - `items_discovered`: `368`
@@ -152,6 +154,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `b89a41e` - `Track created vs updated sync metrics`
 - `842ea2d` - `Quarantine weak PDF extractions`
 - `3a89488` - `Prioritize high-impact meeting items`
+- `782c1a7` - `Refine civic framing for ranked meeting stories`
 - `d5a5c2e` - `Summarize agenda changes in update notes`
 
 ## Next priority tasks

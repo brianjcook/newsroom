@@ -32,12 +32,14 @@ $secondaryStories = array_slice($stories, 1);
 <body>
 <div class="page">
     <header class="masthead">
-        <div>
+        <div class="masthead__rail">
             <div class="masthead__meta">Wareham, Massachusetts</div>
+            <div class="masthead__meta"><?= date('l, F j, Y') ?></div>
+        </div>
+        <div class="masthead__core">
             <h1 class="masthead__title">The Wareham Times</h1>
             <div class="masthead__tagline">Civic reporting, meeting coverage, and the public record.</div>
         </div>
-        <div class="masthead__meta"><?= date('F j, Y') ?></div>
     </header>
 
     <nav class="nav">
@@ -46,27 +48,46 @@ $secondaryStories = array_slice($stories, 1);
         <a href="/status.php">Status</a>
     </nav>
 
-    <section class="lead-grid">
+    <section class="front-page">
         <article class="lead-story">
             <div class="eyebrow">Lead Story</div>
             <?php if ($lead): ?>
                 <h2><a href="/story.php?slug=<?= urlencode($lead['slug']) ?>"><?= htmlspecialchars($lead['headline']) ?></a></h2>
-                <p><?= htmlspecialchars($lead['dek'] ?: $lead['summary'] ?: '') ?></p>
+                <p class="lead-story__summary"><?= htmlspecialchars($lead['dek'] ?: $lead['summary'] ?: '') ?></p>
             <?php else: ?>
                 <h2>Newsroom scaffold is live.</h2>
                 <p class="empty-state">Published stories will appear here once the worker discovers and processes Wareham source material.</p>
             <?php endif; ?>
         </article>
 
-        <aside class="sidebar">
-            <div class="eyebrow">Upcoming Meetings</div>
+        <section class="news-rail">
+            <h2 class="section-heading section-heading--tight">Latest Coverage</h2>
+            <?php if ($secondaryStories): ?>
+                <?php foreach (array_slice($secondaryStories, 0, 3) as $story): ?>
+                    <article class="rail-story">
+                        <div class="story-card__meta"><?= htmlspecialchars(str_replace('_', ' ', $story['story_type'])) ?></div>
+                        <h3><a href="/story.php?slug=<?= urlencode($story['slug']) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
+                        <p><?= htmlspecialchars($story['dek'] ?: $story['summary'] ?: '') ?></p>
+                    </article>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <article class="rail-story">
+                    <div class="story-card__meta">Status</div>
+                    <h3>Initial site scaffold</h3>
+                    <p>The public site is connected to the database schema and ready for published stories and official meeting listings.</p>
+                </article>
+            <?php endif; ?>
+        </section>
+
+        <aside class="agenda-ledger">
+            <h2 class="section-heading section-heading--tight">Upcoming Meetings</h2>
             <div class="event-list">
                 <?php if ($events): ?>
                     <?php foreach ($events as $event): ?>
-                        <article class="event-card">
+                        <article class="event-item">
                             <div class="event-card__meta"><?= htmlspecialchars((string) ($event['body_name'] ?? 'Official Meeting')) ?></div>
                             <strong><?= htmlspecialchars($event['title']) ?></strong>
-                            <p><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
+                            <p><?= htmlspecialchars(date('M. j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
                         </article>
                     <?php endforeach; ?>
                 <?php else: ?>
@@ -76,18 +97,18 @@ $secondaryStories = array_slice($stories, 1);
         </aside>
     </section>
 
-    <h2 class="section-heading">Latest Coverage</h2>
-    <section class="section-grid">
+    <h2 class="section-heading">From the Town</h2>
+    <section class="story-masonry">
         <?php if ($secondaryStories): ?>
             <?php foreach ($secondaryStories as $story): ?>
-                <article class="story-card">
+                <article class="story-tease">
                     <div class="story-card__meta"><?= htmlspecialchars(str_replace('_', ' ', $story['story_type'])) ?></div>
                     <h3><a href="/story.php?slug=<?= urlencode($story['slug']) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
                     <p><?= htmlspecialchars($story['dek'] ?: $story['summary'] ?: '') ?></p>
                 </article>
             <?php endforeach; ?>
         <?php else: ?>
-            <article class="story-card">
+            <article class="story-tease">
                 <div class="story-card__meta">Status</div>
                 <h3>Initial site scaffold</h3>
                 <p>The public site is connected to the database schema and ready for published stories and official meeting listings.</p>
