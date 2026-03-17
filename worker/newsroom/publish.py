@@ -62,6 +62,66 @@ def _story_slug(connection: Connection, meeting: Dict[str, object], story_type: 
             suffix += 1
 
 
+def _story_basis_json(source_item: Dict[str, object], extraction: Dict[str, object], artifact_type: str) -> str:
+    return json.dumps(
+        {
+            "source_item_id": source_item["source_item_id"],
+            "extraction_id": extraction["id"],
+            "source_url": source_item["canonical_url"],
+            "artifact_type": artifact_type,
+        }
+    )
+
+
+def _sync_story_citations(
+    connection: Connection,
+    story_id: int,
+    source_item: Dict[str, object],
+    extraction: Dict[str, object],
+    explainers: List[Dict[str, str]],
+) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute("DELETE FROM story_citations WHERE story_id = %s", (story_id,))
+        cursor.execute(
+            """
+            INSERT INTO story_citations (
+                story_id,
+                citation_number,
+                label,
+                source_url,
+                note_text
+            ) VALUES (%s, 1, %s, %s, %s)
+            """,
+            (
+                story_id,
+                "Source document",
+                source_item["canonical_url"],
+                source_item["source_title"] or extraction["title"] or "Wareham source document",
+            ),
+        )
+        citation_number = 2
+        for explainer in explainers:
+            cursor.execute(
+                """
+                INSERT INTO story_citations (
+                    story_id,
+                    citation_number,
+                    label,
+                    source_url,
+                    note_text
+                ) VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    story_id,
+                    citation_number,
+                    explainer["label"],
+                    explainer["source_url"],
+                    explainer["text"],
+                ),
+            )
+            citation_number += 1
+
+
 def _format_date(date_value: Optional[str]) -> str:
     if not date_value:
         return "an upcoming date"
@@ -402,8 +462,6 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
 
         if not meeting["governing_body"] or not meeting["meeting_date"]:
             continue
-        if not _should_publish_story(meeting, extraction, story_type):
-            continue
 
         artifact_posted_at = row["artifact_posted_at"].strftime("%Y-%m-%d %H:%M:%S") if row["artifact_posted_at"] else None
         headline, dek, summary, body_html, body_text, explainers = _build_story_copy(meeting, source_item, extraction, story_type)
@@ -417,96 +475,109 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         )
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT id FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
+                "SELECT id, slug, published_at FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
                 (meeting["id"], story_type),
             )
             existing_story = cursor.fetchone()
+
+        if not _should_publish_story(meeting, extraction, story_type):
             if existing_story:
-                continue
-        slug = _story_slug(connection, meeting, story_type)
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO stories (
-                    meeting_id,
-                    governing_body_id,
-                    story_type,
-                    slug,
-                    headline,
-                    dek,
-                    summary,
-                    body_html,
-                    body_text,
-                    tone_profile,
-                    publish_status,
-                    published_at,
-                    display_date,
-                    sort_date,
-                    source_basis_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', %s, %s, %s, %s)
-                """,
-                (
-                    meeting["id"],
-                    meeting["governing_body_id"],
-                    story_type,
-                    slug,
-                    headline,
-                    dek,
-                    summary,
-                    body_html,
-                    body_text,
-                    published_at,
-                    display_date,
-                    sort_date,
-                    json.dumps(
-                        {
-                            "source_item_id": source_item["source_item_id"],
-                            "extraction_id": extraction["id"],
-                            "source_url": source_item["canonical_url"],
-                            "artifact_type": artifact_type,
-                        }
-                    ),
-                ),
-            )
-            story_id = int(cursor.lastrowid)
-            cursor.execute(
-                """
-                INSERT INTO story_citations (
-                    story_id,
-                    citation_number,
-                    label,
-                    source_url,
-                    note_text
-                ) VALUES (%s, 1, %s, %s, %s)
-                """,
-                (
-                    story_id,
-                    "Source document",
-                    source_item["canonical_url"],
-                    source_item["source_title"] or extraction["title"] or "Wareham source document",
-                ),
-            )
-            citation_number = 2
-            for explainer in explainers:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        UPDATE stories
+                        SET publish_status = 'suppressed',
+                            source_basis_json = %s
+                        WHERE id = %s
+                        """,
+                        (
+                            _story_basis_json(source_item, extraction, artifact_type),
+                            int(existing_story["id"]),
+                        ),
+                    )
+            continue
+
+        story_id = None
+        if existing_story:
+            story_id = int(existing_story["id"])
+            existing_published_at = existing_story["published_at"].strftime("%Y-%m-%d %H:%M:%S") if existing_story.get("published_at") else published_at
+            with connection.cursor() as cursor:
                 cursor.execute(
                     """
-                    INSERT INTO story_citations (
-                        story_id,
-                        citation_number,
-                        label,
-                        source_url,
-                        note_text
-                    ) VALUES (%s, %s, %s, %s, %s)
+                    UPDATE stories
+                    SET governing_body_id = %s,
+                        headline = %s,
+                        dek = %s,
+                        summary = %s,
+                        body_html = %s,
+                        body_text = %s,
+                        publish_status = 'published',
+                        published_at = %s,
+                        display_date = %s,
+                        sort_date = %s,
+                        source_basis_json = %s
+                    WHERE id = %s
                     """,
                     (
+                        meeting["governing_body_id"],
+                        headline,
+                        dek,
+                        summary,
+                        body_html,
+                        body_text,
+                        existing_published_at,
+                        display_date,
+                        sort_date,
+                        _story_basis_json(source_item, extraction, artifact_type),
                         story_id,
-                        citation_number,
-                        explainer["label"],
-                        explainer["source_url"],
-                        explainer["text"],
                     ),
                 )
-                citation_number += 1
+        else:
+            slug = _story_slug(connection, meeting, story_type)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO stories (
+                        meeting_id,
+                        governing_body_id,
+                        story_type,
+                        slug,
+                        headline,
+                        dek,
+                        summary,
+                        body_html,
+                        body_text,
+                        tone_profile,
+                        publish_status,
+                        published_at,
+                        display_date,
+                        sort_date,
+                        source_basis_json
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', %s, %s, %s, %s)
+                    """,
+                    (
+                        meeting["id"],
+                        meeting["governing_body_id"],
+                        story_type,
+                        slug,
+                        headline,
+                        dek,
+                        summary,
+                        body_html,
+                        body_text,
+                        published_at,
+                        display_date,
+                        sort_date,
+                        _story_basis_json(source_item, extraction, artifact_type),
+                    ),
+                )
+                story_id = int(cursor.lastrowid)
+
+        if story_id is None:
+            continue
+
+        _sync_story_citations(connection, story_id, source_item, extraction, explainers)
+        with connection.cursor() as cursor:
             cursor.execute(
                 "UPDATE source_items SET status = 'published', updated_at = NOW() WHERE id = %s",
                 (source_item["source_item_id"],),
@@ -531,9 +602,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             FROM meetings m
             INNER JOIN meeting_artifacts ma ON ma.meeting_id = m.id
             INNER JOIN source_items si ON si.id = ma.source_item_id
-            LEFT JOIN calendar_events ce ON ce.meeting_id = m.id
-            WHERE ce.id IS NULL
-              AND m.meeting_date IS NOT NULL
+            WHERE m.meeting_date IS NOT NULL
               AND ma.is_primary = 1
             ORDER BY m.meeting_date ASC, m.id ASC
             """
@@ -544,49 +613,82 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         body_name = row["governing_body"]
         if not body_name:
             continue
-        if row["status"] == "cancelled":
-            continue
-        if row["status"] in ("postponed", "continued"):
-            continue
-        if not is_calendar_artifact(row["artifact_type"] or ""):
-            continue
-        if row["is_amended"] and (row["artifact_format"] or "") == "html":
-            continue
         meeting_date = row["meeting_date"].strftime("%Y-%m-%d")
         meeting_time = _db_time_string(row["meeting_time"]) if row["meeting_time"] else "00:00:00"
         starts_at = f"{meeting_date} {meeting_time}"
         title = canonical_event_title(body_name)
+        valid_calendar_item = True
+        if row["status"] == "cancelled":
+            valid_calendar_item = False
+        if row["status"] in ("postponed", "continued"):
+            valid_calendar_item = False
+        if not is_calendar_artifact(row["artifact_type"] or ""):
+            valid_calendar_item = False
+        if row["is_amended"] and (row["artifact_format"] or "") == "html":
+            valid_calendar_item = False
 
         with connection.cursor() as cursor:
             cursor.execute("SELECT id FROM calendar_events WHERE meeting_id = %s LIMIT 1", (int(row["id"]),))
             existing_event = cursor.fetchone()
+
+        if not valid_calendar_item:
             if existing_event:
-                continue
-            cursor.execute(
-                """
-                INSERT INTO calendar_events (
-                    meeting_id,
-                    governing_body_id,
-                    title,
-                    starts_at,
-                    location_name,
-                    body_name,
-                    source_url,
-                    status,
-                    description
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'scheduled', %s)
-                """,
-                (
-                    int(row["id"]),
-                    row["governing_body_id"],
-                    title,
-                    starts_at,
-                    row["location_name"],
-                    body_name,
-                    row["canonical_url"],
-                    f"Official Wareham meeting listing for the {body_name}.",
-                ),
-            )
+                with connection.cursor() as cursor:
+                    cursor.execute("DELETE FROM calendar_events WHERE id = %s", (int(existing_event["id"]),))
+            continue
+
+        with connection.cursor() as cursor:
+            if existing_event:
+                cursor.execute(
+                    """
+                    UPDATE calendar_events
+                    SET governing_body_id = %s,
+                        title = %s,
+                        starts_at = %s,
+                        location_name = %s,
+                        body_name = %s,
+                        source_url = %s,
+                        status = 'scheduled',
+                        description = %s
+                    WHERE id = %s
+                    """,
+                    (
+                        row["governing_body_id"],
+                        title,
+                        starts_at,
+                        row["location_name"],
+                        body_name,
+                        row["canonical_url"],
+                        f"Official Wareham meeting listing for the {body_name}.",
+                        int(existing_event["id"]),
+                    ),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO calendar_events (
+                        meeting_id,
+                        governing_body_id,
+                        title,
+                        starts_at,
+                        location_name,
+                        body_name,
+                        source_url,
+                        status,
+                        description
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'scheduled', %s)
+                    """,
+                    (
+                        int(row["id"]),
+                        row["governing_body_id"],
+                        title,
+                        starts_at,
+                        row["location_name"],
+                        body_name,
+                        row["canonical_url"],
+                        f"Official Wareham meeting listing for the {body_name}.",
+                    ),
+                )
         events_created += 1
 
     return PublishedCounts(stories_published=stories_published, events_created=events_created)
