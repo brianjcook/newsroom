@@ -18,6 +18,16 @@ $story = $slug !== '' ? newsroom_story_by_slug($slug) : null;
 $citations = $story ? newsroom_story_citations((int) $story['id']) : [];
 $storyDate = $story ? (string) ($story['display_date'] ?? $story['published_at']) : null;
 
+function newsroom_pill_style(array $signal): string
+{
+    return sprintf(
+        '--pill-bg:%s; --pill-fg:%s; --pill-border:%s;',
+        $signal['bg'] ?? '#ece4d8',
+        $signal['fg'] ?? '#47362b',
+        $signal['border'] ?? '#a98767'
+    );
+}
+
 http_response_code($story ? 200 : 404);
 ?>
 <!DOCTYPE html>
@@ -54,9 +64,64 @@ http_response_code($story ? 200 : 404);
         <article class="story-body">
             <?php if ($story): ?>
                 <div class="eyebrow"><?= htmlspecialchars(str_replace('_', ' ', $story['story_type'])) ?></div>
+                <div class="story-meta-row story-meta-row--story">
+                    <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
+                    <span class="story-meta-row__date"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
+                </div>
                 <h2 class="story-headline"><?= htmlspecialchars($story['headline']) ?></h2>
                 <div class="story-dek"><?= htmlspecialchars((string) ($story['dek'] ?? '')) ?></div>
-                <div class="masthead__meta"><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $storyDate))) ?></div>
+                <div class="story-information">
+                    <div class="story-information__row">
+                        <span class="story-information__label">Filed</span>
+                        <span><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $storyDate))) ?></span>
+                    </div>
+                    <?php if (!empty($story['meta']['location_name'])): ?>
+                        <div class="story-information__row">
+                            <span class="story-information__label">Location</span>
+                            <span>
+                                <?php if (!empty($story['meta']['location_map_url'])): ?>
+                                    <a href="<?= htmlspecialchars((string) $story['meta']['location_map_url']) ?>"><?= htmlspecialchars((string) $story['meta']['location_name']) ?></a>
+                                <?php else: ?>
+                                    <?= htmlspecialchars((string) $story['meta']['location_name']) ?>
+                                <?php endif; ?>
+                            </span>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (!empty($story['meta']['remote']['join_url']) || !empty($story['meta']['remote']['webinar_id']) || !empty($story['meta']['remote']['passcode'])): ?>
+                        <div class="story-information__row">
+                            <span class="story-information__label">Remote</span>
+                            <span class="story-information__stack">
+                                <?php if (!empty($story['meta']['remote']['join_url'])): ?>
+                                    <a href="<?= htmlspecialchars((string) $story['meta']['remote']['join_url']) ?>">Join via Zoom</a>
+                                <?php endif; ?>
+                                <?php if (!empty($story['meta']['remote']['webinar_id'])): ?>
+                                    <span>ID <?= htmlspecialchars((string) $story['meta']['remote']['webinar_id']) ?></span>
+                                <?php endif; ?>
+                                <?php if (!empty($story['meta']['remote']['passcode'])): ?>
+                                    <span>Passcode <?= htmlspecialchars((string) $story['meta']['remote']['passcode']) ?></span>
+                                <?php endif; ?>
+                            </span>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($story['story_type'] === 'meeting_preview' && !empty($story['meta']['agenda_url'])): ?>
+                        <div class="story-information__row">
+                            <span class="story-information__label">Agenda</span>
+                            <span><a href="<?= htmlspecialchars((string) $story['meta']['agenda_url']) ?>">View official agenda</a></span>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($story['story_type'] === 'minutes_recap' && !empty($story['meta']['minutes_url'])): ?>
+                        <div class="story-information__row">
+                            <span class="story-information__label">Minutes</span>
+                            <span><a href="<?= htmlspecialchars((string) $story['meta']['minutes_url']) ?>">View posted minutes</a></span>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (!empty($story['meta']['summary_text'])): ?>
+                        <div class="story-information__row">
+                            <span class="story-information__label"><?= $story['story_type'] === 'minutes_recap' ? 'Summary' : 'Coverage' ?></span>
+                            <span><?= htmlspecialchars((string) $story['meta']['summary_text']) ?></span>
+                        </div>
+                    <?php endif; ?>
+                </div>
                 <div><?= $story['body_html'] ?></div>
             <?php else: ?>
                 <h2 class="story-headline">Story not found</h2>

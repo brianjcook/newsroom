@@ -17,6 +17,16 @@ $stories = newsroom_latest_stories();
 $events = newsroom_upcoming_events();
 $lead = $stories[0] ?? null;
 $secondaryStories = array_slice($stories, 1);
+
+function newsroom_pill_style(array $signal): string
+{
+    return sprintf(
+        '--pill-bg:%s; --pill-fg:%s; --pill-border:%s;',
+        $signal['bg'] ?? '#ece4d8',
+        $signal['fg'] ?? '#47362b',
+        $signal['border'] ?? '#a98767'
+    );
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -52,8 +62,22 @@ $secondaryStories = array_slice($stories, 1);
         <article class="lead-story">
             <div class="eyebrow">Lead Story</div>
             <?php if ($lead): ?>
+                <div class="story-meta-row">
+                    <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($lead['meta']['body_signal'])) ?>"><?= htmlspecialchars($lead['meta']['body_name']) ?></span>
+                    <span class="story-meta-row__date"><?= htmlspecialchars($lead['meta']['meeting_datetime']) ?></span>
+                </div>
                 <h2><a href="/story.php?slug=<?= urlencode($lead['slug']) ?>"><?= htmlspecialchars($lead['headline']) ?></a></h2>
                 <p class="lead-story__summary"><?= htmlspecialchars($lead['dek'] ?: $lead['summary'] ?: '') ?></p>
+                <div class="story-link-row">
+                    <?php if (!empty($lead['meta']['location_name']) && !empty($lead['meta']['location_map_url'])): ?>
+                        <a href="<?= htmlspecialchars($lead['meta']['location_map_url']) ?>">Map</a>
+                    <?php endif; ?>
+                    <?php if (!empty($lead['meta']['agenda_url'])): ?>
+                        <a href="<?= htmlspecialchars($lead['meta']['agenda_url']) ?>">Agenda</a>
+                    <?php elseif (!empty($lead['meta']['minutes_url'])): ?>
+                        <a href="<?= htmlspecialchars($lead['meta']['minutes_url']) ?>">Minutes</a>
+                    <?php endif; ?>
+                </div>
             <?php else: ?>
                 <h2>Newsroom scaffold is live.</h2>
                 <p class="empty-state">Published stories will appear here once the worker discovers and processes Wareham source material.</p>
@@ -65,7 +89,10 @@ $secondaryStories = array_slice($stories, 1);
             <?php if ($secondaryStories): ?>
                 <?php foreach (array_slice($secondaryStories, 0, 3) as $story): ?>
                     <article class="rail-story">
-                        <div class="story-card__meta"><?= htmlspecialchars(str_replace('_', ' ', $story['story_type'])) ?></div>
+                        <div class="story-meta-row story-meta-row--compact">
+                            <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
+                            <span class="story-card__meta"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
+                        </div>
                         <h3><a href="/story.php?slug=<?= urlencode($story['slug']) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
                         <p><?= htmlspecialchars($story['dek'] ?: $story['summary'] ?: '') ?></p>
                     </article>
@@ -85,9 +112,23 @@ $secondaryStories = array_slice($stories, 1);
                 <?php if ($events): ?>
                     <?php foreach ($events as $event): ?>
                         <article class="event-item">
-                            <div class="event-card__meta"><?= htmlspecialchars((string) ($event['body_name'] ?? 'Official Meeting')) ?></div>
+                            <div class="story-meta-row story-meta-row--compact">
+                                <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['body_name']) ?></span>
+                            </div>
                             <strong><?= htmlspecialchars($event['title']) ?></strong>
                             <p><?= htmlspecialchars(date('M. j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
+                            <?php if (!empty($event['location_name'])): ?>
+                                <p><a href="<?= htmlspecialchars((string) $event['location_map_url']) ?>"><?= htmlspecialchars((string) $event['location_name']) ?></a></p>
+                            <?php endif; ?>
+                            <?php if (!empty($event['remote']['join_url'])): ?>
+                                <p><a href="<?= htmlspecialchars((string) $event['remote']['join_url']) ?>">Zoom</a><?php if (!empty($event['remote']['webinar_id'])): ?> · ID <?= htmlspecialchars((string) $event['remote']['webinar_id']) ?><?php endif; ?></p>
+                            <?php endif; ?>
+                            <?php if (!empty($event['summary_text'])): ?>
+                                <p class="event-item__summary"><?= htmlspecialchars((string) $event['summary_text']) ?></p>
+                            <?php endif; ?>
+                            <?php if (!empty($event['agenda_url'])): ?>
+                                <p><a href="<?= htmlspecialchars((string) $event['agenda_url']) ?>">Agenda</a></p>
+                            <?php endif; ?>
                         </article>
                     <?php endforeach; ?>
                 <?php else: ?>
@@ -102,7 +143,10 @@ $secondaryStories = array_slice($stories, 1);
         <?php if ($secondaryStories): ?>
             <?php foreach ($secondaryStories as $story): ?>
                 <article class="story-tease">
-                    <div class="story-card__meta"><?= htmlspecialchars(str_replace('_', ' ', $story['story_type'])) ?></div>
+                    <div class="story-meta-row story-meta-row--compact">
+                        <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
+                        <span class="story-card__meta"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
+                    </div>
                     <h3><a href="/story.php?slug=<?= urlencode($story['slug']) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
                     <p><?= htmlspecialchars($story['dek'] ?: $story['summary'] ?: '') ?></p>
                 </article>

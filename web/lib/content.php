@@ -4,6 +4,179 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 
+function newsroom_body_signal(?string $bodyName): array
+{
+    $name = trim((string) $bodyName);
+    $palette = [
+        ['bg' => '#eadfd1', 'fg' => '#53341d', 'border' => '#b17e45'],
+        ['bg' => '#dbe7dc', 'fg' => '#214433', 'border' => '#5b8f73'],
+        ['bg' => '#dfe3f1', 'fg' => '#283457', 'border' => '#6d7fba'],
+        ['bg' => '#efe0df', 'fg' => '#5a2a28', 'border' => '#bd766d'],
+        ['bg' => '#e7e0f0', 'fg' => '#47305c', 'border' => '#8c6bb0'],
+        ['bg' => '#f0e8d7', 'fg' => '#5f4420', 'border' => '#c39748'],
+        ['bg' => '#dae9ea', 'fg' => '#1f4850', 'border' => '#5c98a0'],
+        ['bg' => '#ece2d4', 'fg' => '#5f3825', 'border' => '#c48b62'],
+        ['bg' => '#e1e9d9', 'fg' => '#3c5327', 'border' => '#7e9d57'],
+        ['bg' => '#e8dde8', 'fg' => '#5a355a', 'border' => '#9c6b9d'],
+    ];
+
+    if ($name === '') {
+        return [
+            'name' => 'Town Meeting',
+            'slug' => 'town-meeting',
+            'bg' => '#ece4d8',
+            'fg' => '#47362b',
+            'border' => '#a98767',
+        ];
+    }
+
+    $index = abs(crc32(strtolower($name))) % count($palette);
+    $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower($name));
+    $slug = trim((string) $slug, '-');
+
+    return array_merge(
+        [
+            'name' => $name,
+            'slug' => $slug !== '' ? $slug : 'body',
+        ],
+        $palette[$index]
+    );
+}
+
+function newsroom_parse_json($value): array
+{
+    if (is_array($value)) {
+        return $value;
+    }
+
+    if (!is_string($value) || $value === '') {
+        return [];
+    }
+
+    $decoded = json_decode($value, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function newsroom_format_story_type(string $storyType): string
+{
+    return ucwords(str_replace('_', ' ', $storyType));
+}
+
+function newsroom_format_meeting_datetime(?string $date, ?string $time, string $fallback = ''): string
+{
+    if (!$date) {
+        return $fallback;
+    }
+
+    $stamp = trim($date . ' ' . ($time ?: '00:00:00'));
+    $parsed = strtotime($stamp);
+    if ($parsed === false) {
+        return $fallback ?: $date;
+    }
+
+    if ($time && $time !== '00:00:00') {
+        return date('F j, Y g:i A', $parsed);
+    }
+
+    return date('F j, Y', $parsed);
+}
+
+function newsroom_google_maps_url(?string $locationName): ?string
+{
+    $location = trim((string) $locationName);
+    if ($location === '') {
+        return null;
+    }
+
+    return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($location);
+}
+
+function newsroom_remote_details(array $structured): array
+{
+    $sourceMeta = isset($structured['source_meta']) && is_array($structured['source_meta'])
+        ? $structured['source_meta']
+        : [];
+
+    $phones = isset($sourceMeta['remote_phone_numbers']) && is_array($sourceMeta['remote_phone_numbers'])
+        ? array_values(array_filter(array_map('strval', $sourceMeta['remote_phone_numbers'])))
+        : [];
+
+    return [
+        'join_url' => !empty($sourceMeta['remote_join_url']) ? (string) $sourceMeta['remote_join_url'] : null,
+        'webinar_id' => !empty($sourceMeta['remote_webinar_id']) ? (string) $sourceMeta['remote_webinar_id'] : null,
+        'passcode' => !empty($sourceMeta['remote_passcode']) ? (string) $sourceMeta['remote_passcode'] : null,
+        'phones' => $phones,
+    ];
+}
+
+function newsroom_story_meta_presenter(array $row): array
+{
+    $bodyName = (string) ($row['body_name'] ?? $row['governing_body'] ?? '');
+    $signal = newsroom_body_signal($bodyName);
+    $storyType = (string) ($row['story_type'] ?? '');
+    $meetingDate = isset($row['meeting_date']) ? (string) $row['meeting_date'] : null;
+    $meetingTime = isset($row['meeting_time']) ? (string) $row['meeting_time'] : null;
+    $locationName = !empty($row['location_name']) ? preg_replace('/\s+/', ' ', (string) $row['location_name']) : null;
+    $structured = newsroom_parse_json($row['artifact_structured_json'] ?? null);
+    $sourceMeta = newsroom_parse_json($row['agenda_source_meta_json'] ?? null);
+    if ($sourceMeta) {
+        $structured['source_meta'] = array_merge(
+            isset($structured['source_meta']) && is_array($structured['source_meta']) ? $structured['source_meta'] : [],
+            $sourceMeta
+        );
+    }
+    $remote = newsroom_remote_details($structured);
+
+    return [
+        'body_name' => $signal['name'],
+        'body_signal' => $signal,
+        'story_type_label' => newsroom_format_story_type($storyType),
+        'meeting_datetime' => newsroom_format_meeting_datetime($meetingDate, $meetingTime, (string) ($row['display_date'] ?? $row['published_at'] ?? '')),
+        'location_name' => $locationName,
+        'location_map_url' => $storyType === 'meeting_preview' ? newsroom_google_maps_url($locationName) : null,
+        'agenda_url' => !empty($row['agenda_url']) ? (string) $row['agenda_url'] : null,
+        'minutes_url' => !empty($row['minutes_url']) ? (string) $row['minutes_url'] : null,
+        'summary_text' => trim((string) ($row['dek'] ?? $row['summary'] ?? '')),
+        'remote' => $remote,
+    ];
+}
+
+function newsroom_event_presenter(array $row): array
+{
+    $bodyName = (string) ($row['body_name'] ?? '');
+    $signal = newsroom_body_signal($bodyName);
+    $structured = newsroom_parse_json($row['agenda_structured_json'] ?? null);
+    $sourceMeta = newsroom_parse_json($row['agenda_source_meta_json'] ?? null);
+    if ($sourceMeta) {
+        $structured['source_meta'] = array_merge(
+            isset($structured['source_meta']) && is_array($structured['source_meta']) ? $structured['source_meta'] : [],
+            $sourceMeta
+        );
+    }
+    $remote = newsroom_remote_details($structured);
+    $locationName = !empty($row['location_name']) ? preg_replace('/\s+/', ' ', (string) $row['location_name']) : null;
+    $summaryText = trim((string) ($row['story_dek'] ?? $row['story_summary'] ?? $row['description'] ?? ''));
+
+    return [
+        'id' => $row['id'],
+        'title' => (string) $row['title'],
+        'starts_at' => (string) $row['starts_at'],
+        'body_name' => $signal['name'],
+        'body_signal' => $signal,
+        'location_name' => $locationName,
+        'location_map_url' => newsroom_google_maps_url($locationName),
+        'agenda_url' => !empty($row['agenda_url']) ? (string) $row['agenda_url'] : (string) ($row['source_url'] ?? ''),
+        'minutes_url' => !empty($row['minutes_url']) ? (string) $row['minutes_url'] : null,
+        'remote' => $remote,
+        'summary_text' => $summaryText,
+    ];
+}
+
+function newsroom_recent_story_presenter(array $row): array
+{
+    return array_merge($row, ['meta' => newsroom_story_meta_presenter($row)]);
+}
+
 function newsroom_latest_stories(int $limit = 8): array
 {
     if (!newsroom_db_available()) {
@@ -11,9 +184,64 @@ function newsroom_latest_stories(int $limit = 8): array
     }
 
     $statement = newsroom_db()->prepare(
-        'SELECT s.id, s.slug, s.story_type, s.headline, s.dek, s.summary, s.published_at, s.display_date, s.sort_date
+        'SELECT
+            s.id,
+            s.slug,
+            s.story_type,
+            s.headline,
+            s.dek,
+            s.summary,
+            s.published_at,
+            s.display_date,
+            s.sort_date,
+            m.meeting_date,
+            TIME_FORMAT(m.meeting_time, "%H:%i:%s") AS meeting_time,
+            m.location_name,
+            COALESCE(gb.normalized_name, m.governing_body) AS body_name,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_url,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "minutes"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS minutes_url,
+            (
+                SELECT de.structured_json
+                FROM meeting_artifacts ma
+                INNER JOIN (
+                    SELECT de1.*
+                    FROM document_extractions de1
+                    INNER JOIN (
+                        SELECT document_id, MAX(id) AS max_id
+                        FROM document_extractions
+                        GROUP BY document_id
+                    ) latest_extraction ON latest_extraction.max_id = de1.id
+                ) de ON de.document_id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS artifact_structured_json
+            ,
+            (
+                SELECT si.raw_meta_json
+                FROM meeting_artifacts ma
+                INNER JOIN source_items si ON si.id = ma.source_item_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_source_meta_json
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
+         LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
          WHERE publish_status = :status
            AND NOT (
                 s.story_type = "meeting_preview"
@@ -38,7 +266,7 @@ function newsroom_latest_stories(int $limit = 8): array
     $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
     $statement->execute();
 
-    return $statement->fetchAll();
+    return array_map('newsroom_recent_story_presenter', $statement->fetchAll());
 }
 
 function newsroom_story_by_slug(string $slug): ?array
@@ -48,9 +276,66 @@ function newsroom_story_by_slug(string $slug): ?array
     }
 
     $statement = newsroom_db()->prepare(
-        'SELECT id, slug, story_type, headline, dek, summary, body_html, published_at, display_date
-         FROM stories
-         WHERE slug = :slug AND publish_status = :status
+        'SELECT
+            s.id,
+            s.slug,
+            s.story_type,
+            s.headline,
+            s.dek,
+            s.summary,
+            s.body_html,
+            s.published_at,
+            s.display_date,
+            m.meeting_date,
+            TIME_FORMAT(m.meeting_time, "%H:%i:%s") AS meeting_time,
+            m.location_name,
+            COALESCE(gb.normalized_name, m.governing_body) AS body_name,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_url,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "minutes"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS minutes_url,
+            (
+                SELECT de.structured_json
+                FROM meeting_artifacts ma
+                INNER JOIN (
+                    SELECT de1.*
+                    FROM document_extractions de1
+                    INNER JOIN (
+                        SELECT document_id, MAX(id) AS max_id
+                        FROM document_extractions
+                        GROUP BY document_id
+                    ) latest_extraction ON latest_extraction.max_id = de1.id
+                ) de ON de.document_id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id
+                  AND ma.artifact_type = CASE WHEN s.story_type = "minutes_recap" THEN "minutes" ELSE "agenda" END
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS artifact_structured_json
+            ,
+            (
+                SELECT si.raw_meta_json
+                FROM meeting_artifacts ma
+                INNER JOIN source_items si ON si.id = ma.source_item_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_source_meta_json
+         FROM stories s
+         LEFT JOIN meetings m ON m.id = s.meeting_id
+         LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
+         WHERE s.slug = :slug AND s.publish_status = :status
          LIMIT 1'
     );
     $statement->execute([
@@ -59,8 +344,12 @@ function newsroom_story_by_slug(string $slug): ?array
     ]);
 
     $story = $statement->fetch();
+    if (!$story) {
+        return null;
+    }
 
-    return $story ?: null;
+    $story['meta'] = newsroom_story_meta_presenter($story);
+    return $story;
 }
 
 function newsroom_story_citations(int $storyId): array
@@ -87,17 +376,134 @@ function newsroom_upcoming_events(int $limit = 10): array
     }
 
     $statement = newsroom_db()->prepare(
-        'SELECT id, title, starts_at, location_name, body_name, source_url
-         FROM calendar_events
-         WHERE starts_at >= NOW() AND status = :status
-         ORDER BY starts_at ASC
+        'SELECT
+            ce.id,
+            ce.title,
+            ce.starts_at,
+            ce.location_name,
+            ce.body_name,
+            ce.source_url,
+            ce.description,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = ce.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_url,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = ce.meeting_id AND ma.artifact_type = "minutes"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS minutes_url,
+            (
+                SELECT s.dek
+                FROM stories s
+                WHERE s.meeting_id = ce.meeting_id AND s.story_type = "meeting_preview" AND s.publish_status = "published"
+                LIMIT 1
+            ) AS story_dek,
+            (
+                SELECT s.summary
+                FROM stories s
+                WHERE s.meeting_id = ce.meeting_id AND s.story_type = "meeting_preview" AND s.publish_status = "published"
+                LIMIT 1
+            ) AS story_summary,
+            (
+                SELECT de.structured_json
+                FROM meeting_artifacts ma
+                INNER JOIN (
+                    SELECT de1.*
+                    FROM document_extractions de1
+                    INNER JOIN (
+                        SELECT document_id, MAX(id) AS max_id
+                        FROM document_extractions
+                        GROUP BY document_id
+                    ) latest_extraction ON latest_extraction.max_id = de1.id
+                ) de ON de.document_id = ma.document_id
+                WHERE ma.meeting_id = ce.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_structured_json
+            ,
+            (
+                SELECT si.raw_meta_json
+                FROM meeting_artifacts ma
+                INNER JOIN source_items si ON si.id = ma.source_item_id
+                WHERE ma.meeting_id = ce.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_source_meta_json
+         FROM calendar_events ce
+         WHERE ce.starts_at >= NOW() AND ce.status = :status
+         ORDER BY ce.starts_at ASC
          LIMIT :limit'
     );
     $statement->bindValue(':status', 'scheduled');
     $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
     $statement->execute();
 
-    return $statement->fetchAll();
+    return array_map('newsroom_event_presenter', $statement->fetchAll());
+}
+
+function newsroom_recent_meeting_recaps(int $limit = 12): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            s.id,
+            s.slug,
+            s.story_type,
+            s.headline,
+            s.dek,
+            s.summary,
+            s.published_at,
+            s.display_date,
+            m.meeting_date,
+            TIME_FORMAT(m.meeting_time, "%H:%i:%s") AS meeting_time,
+            m.location_name,
+            COALESCE(gb.normalized_name, m.governing_body) AS body_name,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "minutes"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS minutes_url,
+            (
+                SELECT de.structured_json
+                FROM meeting_artifacts ma
+                INNER JOIN (
+                    SELECT de1.*
+                    FROM document_extractions de1
+                    INNER JOIN (
+                        SELECT document_id, MAX(id) AS max_id
+                        FROM document_extractions
+                        GROUP BY document_id
+                    ) latest_extraction ON latest_extraction.max_id = de1.id
+                ) de ON de.document_id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "minutes"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS artifact_structured_json
+         FROM stories s
+         LEFT JOIN meetings m ON m.id = s.meeting_id
+         LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
+         WHERE s.publish_status = "published" AND s.story_type = "minutes_recap"
+         ORDER BY COALESCE(s.sort_date, s.display_date, s.published_at) DESC, s.id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return array_map('newsroom_recent_story_presenter', $statement->fetchAll());
 }
 
 function newsroom_recent_runs(int $limit = 20): array
@@ -143,7 +549,7 @@ function newsroom_diagnostic_items(int $limit = 20): array
            AND LOWER(COALESCE(si.title, "")) NOT LIKE "%packet%"
            AND LOWER(COALESCE(si.title, "")) NOT LIKE "%previous version%"
            AND LOWER(COALESCE(si.title, "")) NOT LIKE "%html%"
-           AND LOWER(COALESCE(si.title, "")) NOT IN ("notify me®", "notify me", "rss")
+           AND LOWER(COALESCE(si.title, "")) NOT IN ("notify meÂ®", "notify me", "rss")
            AND LOWER(COALESCE(si.canonical_url, "")) NOT LIKE "%/list.aspx#agendacenter%"
            AND LOWER(COALESCE(si.canonical_url, "")) NOT LIKE "%/rss.aspx#agendacenter%"
          GROUP BY si.id, si.title, si.canonical_url, si.status

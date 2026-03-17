@@ -167,6 +167,31 @@ def upsert_source_items(connection: Connection, source_id: int, items: Iterable[
         for item in items:
             cursor.execute(
                 """
+                SELECT raw_meta_json
+                FROM source_items
+                WHERE source_id = %s AND canonical_url = %s
+                LIMIT 1
+                """,
+                (source_id, item.canonical_url),
+            )
+            existing = cursor.fetchone()
+            merged_meta = {}
+            if existing and existing.get("raw_meta_json"):
+                try:
+                    current_meta = json.loads(existing["raw_meta_json"])
+                    if isinstance(current_meta, dict):
+                        merged_meta.update(current_meta)
+                except (TypeError, ValueError):
+                    pass
+            try:
+                incoming_meta = json.loads(item.raw_meta_json)
+                if isinstance(incoming_meta, dict):
+                    merged_meta.update(incoming_meta)
+            except (TypeError, ValueError):
+                pass
+
+            cursor.execute(
+                """
                 INSERT INTO source_items (
                     source_id,
                     canonical_url,
@@ -196,7 +221,7 @@ def upsert_source_items(connection: Connection, source_id: int, items: Iterable[
                     now,
                     now,
                     item.content_hash,
-                    item.raw_meta_json,
+                    json.dumps(merged_meta),
                 ),
             )
             discovered_count += 1

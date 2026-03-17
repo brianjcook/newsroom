@@ -14,6 +14,17 @@ require_once $contentPath;
 
 $config = newsroom_config();
 $events = newsroom_upcoming_events(50);
+$recentRecaps = newsroom_recent_meeting_recaps(18);
+
+function newsroom_pill_style(array $signal): string
+{
+    return sprintf(
+        '--pill-bg:%s; --pill-fg:%s; --pill-border:%s;',
+        $signal['bg'] ?? '#ece4d8',
+        $signal['fg'] ?? '#47362b',
+        $signal['border'] ?? '#a98767'
+    );
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -52,20 +63,70 @@ $events = newsroom_upcoming_events(50);
                 <article class="calendar-row">
                     <div class="calendar-row__when"><?= htmlspecialchars(date('D', strtotime((string) $event['starts_at']))) ?><span><?= htmlspecialchars(date('M j', strtotime((string) $event['starts_at']))) ?></span></div>
                     <div class="calendar-row__body">
-                        <div class="event-card__meta"><?= htmlspecialchars((string) ($event['body_name'] ?? 'Official Meeting')) ?></div>
+                        <div class="story-meta-row story-meta-row--compact">
+                            <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['body_name']) ?></span>
+                            <span class="story-card__meta"><?= htmlspecialchars(date('g:i A', strtotime((string) $event['starts_at']))) ?></span>
+                        </div>
                         <h3><?= htmlspecialchars($event['title']) ?></h3>
                         <p><?= htmlspecialchars(date('l, F j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
                         <?php if (!empty($event['location_name'])): ?>
-                            <p><?= htmlspecialchars((string) $event['location_name']) ?></p>
+                            <p><a href="<?= htmlspecialchars((string) $event['location_map_url']) ?>"><?= htmlspecialchars((string) $event['location_name']) ?></a></p>
+                        <?php endif; ?>
+                        <?php if (!empty($event['remote']['join_url']) || !empty($event['remote']['webinar_id']) || !empty($event['remote']['passcode'])): ?>
+                            <div class="meeting-facts">
+                                <?php if (!empty($event['remote']['join_url'])): ?>
+                                    <span><a href="<?= htmlspecialchars((string) $event['remote']['join_url']) ?>">Zoom</a></span>
+                                <?php endif; ?>
+                                <?php if (!empty($event['remote']['webinar_id'])): ?>
+                                    <span>ID <?= htmlspecialchars((string) $event['remote']['webinar_id']) ?></span>
+                                <?php endif; ?>
+                                <?php if (!empty($event['remote']['passcode'])): ?>
+                                    <span>Passcode <?= htmlspecialchars((string) $event['remote']['passcode']) ?></span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($event['summary_text'])): ?>
+                            <p class="calendar-row__summary"><?= htmlspecialchars((string) $event['summary_text']) ?></p>
                         <?php endif; ?>
                     </div>
-                    <div class="calendar-row__source"><a href="<?= htmlspecialchars($event['source_url']) ?>">Source</a></div>
+                    <div class="calendar-row__source">
+                        <a href="<?= htmlspecialchars((string) $event['agenda_url']) ?>">Agenda</a>
+                    </div>
                 </article>
             <?php endforeach; ?>
         <?php else: ?>
             <article class="calendar-row">
                 <h3>No events yet</h3>
                 <p class="empty-state">Official meeting listings will appear after the daily pipeline discovers Wareham source material.</p>
+            </article>
+        <?php endif; ?>
+    </section>
+
+    <h2 class="section-heading">Recent Minutes</h2>
+    <section class="story-masonry">
+        <?php if ($recentRecaps): ?>
+            <?php foreach ($recentRecaps as $story): ?>
+                <article class="story-tease">
+                    <div class="story-meta-row story-meta-row--compact">
+                        <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
+                        <span class="story-card__meta"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
+                    </div>
+                    <h3><a href="/story.php?slug=<?= urlencode($story['slug']) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
+                    <?php if (!empty($story['meta']['location_name'])): ?>
+                        <p><?= htmlspecialchars((string) $story['meta']['location_name']) ?></p>
+                    <?php endif; ?>
+                    <?php if (!empty($story['meta']['summary_text'])): ?>
+                        <p><?= htmlspecialchars((string) $story['meta']['summary_text']) ?></p>
+                    <?php endif; ?>
+                    <?php if (!empty($story['meta']['minutes_url'])): ?>
+                        <p><a href="<?= htmlspecialchars((string) $story['meta']['minutes_url']) ?>">Minutes</a></p>
+                    <?php endif; ?>
+                </article>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <article class="story-tease">
+                <h3>No minutes recaps yet</h3>
+                <p class="empty-state">Published recaps will appear here as minutes are posted and processed.</p>
             </article>
         <?php endif; ?>
     </section>
