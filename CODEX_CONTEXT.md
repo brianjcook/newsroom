@@ -278,8 +278,14 @@ Build a local-news publishing system that ingests municipal and other local cont
 - A later March-story phrasing pass tightened the highest-traffic current stories outside zoning:
 - Board of Health March 18, 2026 now distinguishes the two retailer cases in both the intro and `What matters most`, instead of repeating the same generic tobacco-violation sentence twice
 - Select Board March 17, 2026 now headlines cleanly as `Select Board to Discuss Comprehensive Wastewater Management Plan`, summarizes around the wastewater plan and Town Counsel appointment, and no longer surfaces generic `Any other Town business`, `BOARD'S COMMENT`, or `TOWN ADMINISTRATOR'S REPORT` items in the focus section
+- A later School Committee cleanup pass materially improved the older January-to-March previews:
+- January 6 now centers on `Course of Studies Changes` instead of generic school-event text
+- January 15 now centers on `District Calendar 2026-2027` and `Substitute Pay Discussion`
+- January 21, February 11, and March 11 now collapse policy-bundle agendas into `Policy Review`
+- February 5 now centers on `Mid-Cycle Review of Goals` instead of `Any other town or school business`
+- February 26 now centers on `Bill and Payroll Warrants`
 - Latest successful production run:
-- `run_id`: `53`
+- `run_id`: `54`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -292,6 +298,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `d583827` - `Improve older school committee story framing`
 - `900563c` - `Refine March story phrasing`
 - `8d5016d` - `Update context after zoning writing pass`
 - `6ef5fa7` - `Improve zoning story phrasing`
