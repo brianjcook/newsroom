@@ -192,6 +192,16 @@ def _story_basis_json(
     )
 
 
+def _change_item_label(text: str) -> str:
+    phrase = _focus_summary_phrase(text)
+    if phrase:
+        return phrase
+    cleaned = " ".join(str(text or "").split())
+    if len(cleaned) > 120:
+        cleaned = cleaned[:117].rstrip(" ,;:-") + "..."
+    return cleaned
+
+
 def _change_summary(previous_basis: Dict[str, object], extraction: Dict[str, object]) -> str:
     previous_highlights = previous_basis.get("agenda_highlights") or []
     if not isinstance(previous_highlights, list):
@@ -209,9 +219,9 @@ def _change_summary(previous_basis: Dict[str, object], extraction: Dict[str, obj
 
     change_bits = []
     if added:
-        change_bits.append("New agenda items include {}".format("; ".join(added[:2])))
+        change_bits.append("New agenda items include {}".format("; ".join(_change_item_label(item) for item in added[:2])))
     if removed:
-        change_bits.append("Items no longer listed include {}".format("; ".join(removed[:2])))
+        change_bits.append("Items no longer listed include {}".format("; ".join(_change_item_label(item) for item in removed[:2])))
     if not change_bits and current_clean != previous_clean:
         change_bits.append("The order or emphasis of agenda items changed")
 

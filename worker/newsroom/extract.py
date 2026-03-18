@@ -35,6 +35,7 @@ def _normalize_line(value: str) -> str:
         (r"\bHar assment\b", "Harassment"),
         (r"\bFi nancial\b", "Financial"),
         (r"\bCa lendar\b", "Calendar"),
+        (r"\bSchoolh ouse\b", "Schoolhouse"),
     ]
     for pattern, replacement in repair_patterns:
         normalized = re.sub(pattern, replacement, normalized)
@@ -167,6 +168,10 @@ def _split_compound_item(text: str) -> List[str]:
     if not normalized:
         return []
 
+    petition_split = _split_zoning_petition_item(normalized)
+    if len(petition_split) > 1:
+        return petition_split
+
     split_segments = [normalized]
     if ";" in normalized:
         split_segments = [segment.strip(" ,.;:-") for segment in normalized.split(";") if segment.strip(" ,.;:-")]
@@ -215,6 +220,44 @@ def _split_compound_item(text: str) -> List[str]:
         else:
             normalized_segments.append(cleaned)
     return normalized_segments or [normalized]
+
+
+def _clean_zoning_segment(text: str) -> str:
+    cleaned = _normalize_line(text)
+    cleaned = re.sub(r"^(hearings?|continued hearings?)\s*:?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^petition#\s*applicant name\s*application type\s*decision deadline\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bthat the chair did not reasonably anticipate.*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
+    return cleaned
+
+
+def _split_zoning_petition_item(text: str) -> List[str]:
+    normalized = _normalize_line(text)
+    lowered = normalized.lower()
+    if "petition#" not in lowered and not ("variance" in lowered or "special permit" in lowered):
+        return [normalized]
+
+    matches = list(re.finditer(r"\b\d{2}-\d{2}\b", normalized))
+    if len(matches) < 2:
+        return [normalized]
+
+    segments = []
+    for index, match in enumerate(matches):
+        start = match.start()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
+        segment = _clean_zoning_segment(normalized[start:end])
+        if segment:
+            segments.append(segment)
+
+    deduped = []
+    seen = set()
+    for segment in segments:
+        key = segment.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(segment)
+    return deduped or [normalized]
 
 
 def _split_school_style_item(text: str) -> List[str]:
