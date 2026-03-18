@@ -284,8 +284,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - January 21, February 11, and March 11 now collapse policy-bundle agendas into `Policy Review`
 - February 5 now centers on `Mid-Cycle Review of Goals` instead of `Any other town or school business`
 - February 26 now centers on `Bill and Payroll Warrants`
+- A later follow-up cleanup fixed the last obvious March 5 School Committee rough edge:
+- `Class of 2026 Clas s Trip` now normalizes to `Class of 2026 class trip` in the summary and focus layer
+- generic report bullets like `NWEA Report`, `Principal Reports`, and `Important upcoming events` are now treated as low-value focus items instead of surfacing as top agenda items
 - Latest successful production run:
-- `run_id`: `54`
+- `run_id`: `55`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -298,6 +301,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `0001cd2` - `Clean school committee OCR phrasing`
 - `d583827` - `Improve older school committee story framing`
 - `900563c` - `Refine March story phrasing`
 - `8d5016d` - `Update context after zoning writing pass`
