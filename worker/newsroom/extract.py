@@ -34,6 +34,7 @@ def _normalize_line(value: str) -> str:
         (r"\bDi scriminatory\b", "Discriminatory"),
         (r"\bHar assment\b", "Harassment"),
         (r"\bFi nancial\b", "Financial"),
+        (r"\bCa lendar\b", "Calendar"),
     ]
     for pattern, replacement in repair_patterns:
         normalized = re.sub(pattern, replacement, normalized)
@@ -207,7 +208,10 @@ def _split_compound_item(text: str) -> List[str]:
         if not cleaned:
             continue
         if prefix:
-            normalized_segments.append("{}: {}".format(prefix, cleaned))
+            if cleaned.lower().startswith("{}:".format(prefix).lower()):
+                normalized_segments.append(cleaned)
+            else:
+                normalized_segments.append("{}: {}".format(prefix, cleaned))
         else:
             normalized_segments.append(cleaned)
     return normalized_segments or [normalized]
@@ -240,6 +244,25 @@ def _split_school_style_item(text: str) -> List[str]:
                 segments.append(segment)
         if segments:
             return segments
+
+    report_match = re.match(r"^(Superintendent[’']?s Report)\s+\d{1,2}:\d{2}\s*[ap]\.?m\.?\s*-\s*(.+)$", normalized, flags=re.IGNORECASE)
+    if report_match:
+        suffix = report_match.group(2).strip(" ,.;:-")
+        report_parts = [part.strip(" ,.;:-") for part in re.split(r"\s+-\s+|,\s*", suffix) if part.strip(" ,.;:-")]
+        cleaned_parts = []
+        for part in report_parts:
+            if "bill and payroll warrants-district calendar" in part.lower():
+                cleaned_parts.append("Superintendent's Report: Bill and Payroll Warrants")
+                cleaned_parts.append("Superintendent's Report: District Calendar 2025-26 Update (possible vote)")
+                continue
+            if part.lower() in ("gifts", "bill and payroll warrants", "district calendar 2025-26 update", "district calendar 2025 26 update"):
+                cleaned_parts.append("Superintendent's Report: {}".format(part))
+            elif part.lower().endswith("(possible vote)") and "district calendar" in part.lower():
+                cleaned_parts.append("Superintendent's Report: {}".format(part))
+            else:
+                cleaned_parts.append(part)
+        if len(cleaned_parts) > 1:
+            return cleaned_parts
 
     return [normalized]
 
