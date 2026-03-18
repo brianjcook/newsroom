@@ -424,6 +424,8 @@ def _headline_phrase(text: str) -> str:
     if not cleaned:
         return ""
     lowered = cleaned.lower()
+    if lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
+        return ""
     if "vote on town meeting articles" in lowered:
         return "Town Meeting Articles Vote"
     if "fy 27 budget" in lowered or "budget article" in lowered:
@@ -545,6 +547,8 @@ def _normalize_focus_phrase(text: str) -> str:
         return ""
 
     lowered = cleaned.lower()
+    if lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
+        return ""
     special_patterns = [
         (r"vote on town meeting articles", "Town Meeting articles vote"),
         (r"(fy 27 budget|budget article|school budget|enterprise budget|emergency medical services budget)", "Town Meeting budget articles"),
@@ -1177,7 +1181,7 @@ def _agenda_highlight_blocks(extraction: Dict[str, object]) -> Tuple[str, List[D
                 continue
             for raw_item in section.get("items") or []:
                 item = " ".join(str(raw_item).split())
-                if not item or _looks_truncated(item):
+                if not item or _looks_truncated(item) or item.lower().strip(" .;:-\u2013\u2014") == "discussion and possible vote":
                     continue
                 if item not in agenda_items:
                     agenda_items.append(item)
@@ -1189,7 +1193,7 @@ def _agenda_highlight_blocks(extraction: Dict[str, object]) -> Tuple[str, List[D
     if not agenda_items and isinstance(highlights, list):
         for raw_item in highlights[:8]:
             item = " ".join(str(raw_item).split())
-            if not item or _looks_truncated(item):
+            if not item or _looks_truncated(item) or item.lower().strip(" .;:-\u2013\u2014") == "discussion and possible vote":
                 continue
             agenda_items.append(item)
 

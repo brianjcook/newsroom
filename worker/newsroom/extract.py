@@ -161,8 +161,10 @@ def _is_procedural_item(text: str) -> bool:
         "call the meeting to order",
         "call public meeting to order",
         "roll call",
+        "citizens participation",
         "announcements",
         "adjournment",
+        "adjourn",
         "good news",
         "public participation",
         "student representative report",
@@ -174,6 +176,8 @@ def _is_procedural_item(text: str) -> bool:
         "signing of documents approved",
         "review and approve minutes",
         "approve minutes",
+        "next meeting",
+        "any business unanticipated",
     )
     return lowered.startswith(procedural_starts)
 
@@ -384,7 +388,7 @@ def _normalize_section_items(section: Dict[str, object]) -> List[str]:
             cleaned_candidate = _normalize_line(candidate)
             if not cleaned_candidate:
                 continue
-            if cleaned_candidate.lower().strip(" .;:-") == "discussion and possible vote":
+            if cleaned_candidate.lower().strip(" .;:-\u2013\u2014") == "discussion and possible vote":
                 continue
             if cleaned_items and re.match(r"^[\-\u2013\u2014]\s*", cleaned_candidate):
                 cleaned_items[-1] = "{} {}".format(
@@ -434,18 +438,29 @@ def _parse_heading_only_sections(lines: List[str]) -> List[Dict[str, object]]:
                 "items": [],
             }
             tail = line[len(prefix):].strip(" .;:-")
-            if tail and not _is_procedural_item(tail) and tail.lower().strip(" .;:-") != "discussion and possible vote":
+            if tail and not _is_procedural_item(tail) and tail.lower().strip(" .;:-\u2013\u2014") != "discussion and possible vote":
                 current_section["items"].append(tail)
             continue
 
         if current_section:
-            if _is_procedural_item(line) or lowered == "discussion and possible vote":
+            if _is_procedural_item(line) or lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
                 continue
             current_section["items"].append(line)
 
     if current_section and current_section.get("items"):
         sections.append(current_section)
     return sections
+
+
+def _inline_section_heading(line: str) -> Tuple[str, str]:
+    normalized = _normalize_line(line)
+    if not normalized:
+        return "", ""
+    for heading in ("Minutes", "Old Business", "New Business"):
+        if normalized.lower().startswith(heading.lower()):
+            tail = normalized[len(heading):].strip(" .;:-")
+            return heading, tail
+    return "", ""
 
 
 def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
@@ -533,11 +548,26 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
     current_section = {"number": 1, "title": "Agenda", "items": []}  # type: Dict[str, object]
     current_heading = ""
     for line in lines[agenda_start_index:]:
+        inline_section_title, inline_section_tail = _inline_section_heading(line)
         heading_match = re.match(r"^([IVXLCDM]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
         section_match = re.match(r"^(\d+)[\.\)]\s+(.+)$", line)
         subitem_match = re.match(r"^([a-z]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
         nested_match = re.match(r"^\((\d+)\)\s+(.+)$", line)
         roman_match = re.match(r"^([ivxlcdm]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
+
+        if inline_section_title:
+            if current_section.get("items"):
+                sections.append(current_section)
+            current_section = {
+                "number": len(sections) + 1,
+                "title": inline_section_title,
+                "items": [],
+            }
+            current_heading = ""
+            tail_lower = inline_section_tail.lower().strip(" .;:-")
+            if inline_section_tail and tail_lower != "discussion and possible vote" and not _is_procedural_item(inline_section_tail):
+                current_section["items"].append(inline_section_tail)
+            continue
 
         if heading_match:
             heading_title = heading_match.group(2).strip().rstrip(":")

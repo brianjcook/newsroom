@@ -147,6 +147,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - header-metadata blobs are now filtered more aggressively from Historic District-style agendas
 - heading-only agendas with `Minutes`, `Old Business`, and `New Business` sections now get a fallback section parser
 - phrase maps now cover Historic District, Historical Commission, and Little Harbor Golf items like `59 Main Street alterations`, `Historic District expansion study`, `Early Education Head Start`, and golf-equipment/course-update topics
+- Added a final Little Harbor Golf cleanup pass across `worker/newsroom/extract.py` and `worker/newsroom/publish.py`:
+- inline non-numbered section headings like `Old Business` / `New Business` now switch sections inside the main PDF parser instead of leaving their placeholder text attached to public items
+- placeholder variants like `– Discussion and possible vote` are now stripped from extraction and publishing surfaces
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -260,9 +263,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - A later rebuild improved the next preservation/club committee previews:
 - Historic District Commission January 6 and February 10, 2026 now publish around `59 Main Street Alterations` and `Historic District expansion study` instead of dumping header metadata into the headline
 - Historical Commission January 7 and February 4, 2026 now publish around `Early Education Learning Center` / `Early Education Head Start` instead of generic `to Meet` copy
-- Little Harbor Golf Course Advisory Committee agendas now surface useful items like tractor situation, golf cart fleet needs, course update, and winter schedule more clearly, but a placeholder `Discussion and possible vote` line is still leaking into the live story and remains a known parsing defect
+- Little Harbor Golf Course Advisory Committee September 24, October 2, and November 12, 2025 now publish around real course issues like golf cart fleet needs, tractor situation, course update, and winter schedule instead of the placeholder `Discussion and possible vote` line
 - Latest successful production run:
-- `run_id`: `45`
+- `run_id`: `46`
 - `items_discovered`: `374`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -312,7 +315,6 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `d5a5c2e` - `Summarize agenda changes in update notes`
 
 ## Next priority tasks
-- Fix the remaining Little Harbor Golf Course parser defect so placeholder lines like `Discussion and possible vote` never surface as standalone agenda/focus items.
 - Continue extending the same committee-agenda cleanup to other simple bodies like Historical Commission, Historic District Commission, and Little Harbor Golf Course Advisory Committee when their source agendas expose substantive agenda pairs.
 - Continue extending the same thin-agenda dual-point treatment to other simple committee agendas when the source exposes two clear substantive items.
 - Keep improving thin-agenda committees like Alternative Energy so simple agenda items can promote more than one substantive point when the source supports it, instead of only a single focus sentence.
