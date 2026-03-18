@@ -269,20 +269,24 @@ Build a local-news publishing system that ingests municipal and other local cont
 - fused historical-commission tails like `Wareham Historical Society: Fearing Tavern ... Chair Wareham Historical Commission` are now trimmed to the real item, `Wareham Historical Society: Fearing Tavern restoration`
 - Historic District raw items now read more cleanly as `WCTV Building (Main Street Old Town Hall)`, `Old Company Store property (Parker Mills)`, and `Historic District Expansion Study`
 - the amendment/change-summary layer now compares cleaned agenda labels instead of raw OCR strings, so cosmetic cleanup passes no longer create noisy `item added / item removed` update banners
+- A later zoning-normalization pass cleaned up the remaining visible ZBA raw agenda rows:
+- malformed zoning admin lines now render more cleanly as `39-23 Wareham Cranberry Hwy., LLC / Tropical Smoothie - 3020 Cranberry - As-Built Sign Off` and `46-25 / Zone-25-48 William D. Konish, Trustee – Appeal – Candle Paper Lane`
+- `PRELIMINARY BUSINESS` is now treated as procedural and will be filtered if it appears in future raw agenda lists
 - Latest successful production run:
-- `run_id`: `49`
-- `items_discovered`: `374`
-- `documents_fetched`: `0`
-- `extractions_created`: `0`
-- `meetings_normalized`: `0`
-- `stories_published`: `0`
+- `run_id`: `50`
+- `items_discovered`: `377`
+- `documents_fetched`: `3`
+- `extractions_created`: `3`
+- `meetings_normalized`: `1`
+- `stories_published`: `1`
 - `stories_updated`: `0`
-- `events_created`: `0`
+- `events_created`: `1`
 - `events_updated`: `111`
-- `artifacts_synced`: `0`
-- `warnings`: `["No pending source items were available for fetch/extract."]`
+- `artifacts_synced`: `371`
+- `warnings`: `[]`
 
 ## Recent commits
+- `8669aeb` - `Normalize zoning agenda rows`
 - `0851488` - `Update context after preservation cleanup`
 - `c32180c` - `Clean preservation raw agenda output`
 - `53f9309` - `Split zoning hearing rows into cleaner agenda items`
@@ -335,7 +339,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Normalize location casing and other presentation details that still leak through from raw extraction, such as `TOWN HALL` and similar all-caps venue strings.
 - Improve long/hearing agenda item condensation so very long public-hearing bullets read more like edited summaries and less like raw legal text.
 - Continue refining the new condensation layer so school-policy, land-use hearing, and Board of Health items read like edited civic copy instead of only shortened agenda language.
-- The next likely extraction target is the remaining ZBA raw agenda-list cleanup: the live ZBA story still begins its source-faithful list with `PRELIMINARY BUSINESS:` and could use one more pass to separate preliminary items from hearing rows more cleanly.
+- Continue tightening zoning-story normalization so long petition captions and administrative rows read more like edited listings and less like OCR-cleaned source text.
 - Continue improving low-signal fallback stories like Alternative Energy Committee so thin agendas can still produce cleaner issue-led headlines and summaries instead of only factual fallback copy.
 - Keep tightening weak-agenda suppression so bodies like Recycling Committee and Cultural Council continue to fail closed on low-quality extraction without losing legitimately useful simple agenda bullets.
 - Improve remote-access normalization so partial Zoom metadata like passcode-only records are handled more gracefully in the UI.
