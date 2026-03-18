@@ -74,9 +74,11 @@ def _clean_pdf_lines(body_text: str) -> List[str]:
         expanded = re.sub(r"\s+(Zoom Meeting Information:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
         expanded = re.sub(r"\s+(Meeting ID:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
         expanded = re.sub(r"\s+(Passcode:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
+    expanded = re.sub(r"\s+(\d+(?:\.\d+)+)\s+", r"\n\1 ", expanded)
     expanded = re.sub(r"\s+([IVXLCDM]+[\.\)])\s+", r"\n\1 ", expanded)
     expanded = re.sub(r"\s+(\d+[\.\)])\s+", r"\n\1 ", expanded)
     expanded = re.sub(r"\s+([a-z][\.\)])\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
+    expanded = re.sub(r"\s+([A-Z][\.\)])\s+", r"\n\1 ", expanded)
     lines = [
         line
         for line in (_normalize_line(line) for line in expanded.splitlines())
@@ -169,7 +171,9 @@ def _append_nested_text(section: Dict[str, object], text: str) -> None:
 def _looks_like_agenda_item(line: str) -> bool:
     return bool(
         re.match(r"^\d+[\.\)]\s+.+$", line)
+        or re.match(r"^\d+(?:\.\d+)+\s+.+$", line)
         or re.match(r"^[a-z][\.\)]\s+.+$", line, flags=re.IGNORECASE)
+        or re.match(r"^[A-Z][\.\)]\s+.+$", line)
         or re.match(r"^\([0-9]+\)\s+.+$", line)
         or re.match(r"^[ivxlcdm]+[\.\)]\s+.+$", line, flags=re.IGNORECASE)
     )
@@ -652,8 +656,8 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
     for line in lines[agenda_start_index:]:
         inline_section_title, inline_section_tail = _inline_section_heading(line)
         heading_match = re.match(r"^([IVXLCDM]+)[\.\)]\s+(.+)$", line)
-        section_match = re.match(r"^(\d+)[\.\)]\s+(.+)$", line)
-        subitem_match = re.match(r"^([a-z]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
+        section_match = re.match(r"^(\d+(?:\.\d+)?)[\.\)]?\s+(.+)$", line)
+        subitem_match = re.match(r"^([A-Za-z]+)[\.\)]\s+(.+)$", line)
         nested_match = re.match(r"^\((\d+)\)\s+(.+)$", line)
         roman_match = re.match(r"^([ivxlcdm]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
 

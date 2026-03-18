@@ -59,6 +59,23 @@ EDITORIAL_SIGNAL_RULES = [
     ("mcc fy26 grant decision report", 62, "policy"),
     ("community input survey", 48, "policy"),
     ("grant recipient reception", 28, "policy"),
+    ("town owned property", 52, "land_use"),
+    ("affordable housing", 34, "policy"),
+    ("801 main street", 42, "budget"),
+    ("committed funds", 30, "budget"),
+    ("final warrant articles", 58, "town_meeting"),
+    ("draft zoning bylaw recodification memorandum", 60, "policy"),
+    ("policy issues identified", 44, "policy"),
+    ("rescind article 40", 62, "policy"),
+    ("merge with open space", 46, "policy"),
+    ("trail improvements", 34, "infrastructure"),
+    ("new web site", 24, "policy"),
+    ("articles for town meeting", 58, "town_meeting"),
+    ("sewer bill insert", 34, "policy"),
+    ("back of sewer bills information", 28, "policy"),
+    ("dissolve the cmwrrdd", 72, "policy"),
+    ("selection of attorney", 42, "appointment"),
+    ("environmental pollution policy", 38, "policy"),
     ("trex project", 64, "infrastructure"),
     ("paint and swap", 44, "policy"),
     ("shed purchase", 36, "contract"),
@@ -624,6 +641,34 @@ def _headline_phrase(text: str) -> str:
         return "Fearing Tavern Restoration"
     if "mcc fy26 grant decision report" in lowered:
         return "FY2026 Grant Decision Report"
+    if "town owned property" in lowered and "affordable housing" in lowered:
+        return "Town-Owned Property for Affordable Housing"
+    if "what cpa funds" in lowered or ("801 main street" in lowered and "funding" in lowered):
+        return "WHAT/CPA Funding"
+    if "801 main street" in lowered and "committed funds" in lowered:
+        return "801 Main Street Funding Status"
+    if "final warrant articles" in lowered:
+        return "Final Warrant Articles"
+    if "draft zoning bylaw recodification memorandum" in lowered:
+        return "Zoning Bylaw Recodification Issues"
+    if "policy issues identified in draft zoning" in lowered:
+        return "Zoning Bylaw Policy Issues"
+    if "rescind article 40" in lowered:
+        return "Rescinding Article 40"
+    if "merge with open space" in lowered:
+        return "Open Space Merger Recommendation"
+    if "trail improvements" in lowered:
+        return "Trail Improvements"
+    if "new web site" in lowered:
+        return "Website Corrections"
+    if "articles for town meeting" in lowered:
+        return "Town Meeting Articles"
+    if "sewer bill insert" in lowered:
+        return "Sewer Bill Insert"
+    if "dissolve the cmwrrdd" in lowered:
+        return "Dissolving the CMWRRDD"
+    if "selection of attorney" in lowered:
+        return "Attorney Selection"
     if "community input survey" in lowered:
         return "Community Input Survey"
     if "grant recipient reception" in lowered:
@@ -881,6 +926,20 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"historic district expansion", "Historic District expansion study"),
         (r"fearing tavern.*restoration", "Fearing Tavern restoration"),
         (r"mcc fy26 grant decision report", "FY2026 grant decision report"),
+        (r"town owned property.*affordable housing", "town-owned property for affordable housing"),
+        (r"what cpa funds|801 main street.*funding", "WHAT/CPA funding"),
+        (r"801 main street.*committed funds|committed funds.*801 main street", "801 Main Street funding status"),
+        (r"final warrant articles", "final warrant articles"),
+        (r"draft zoning bylaw recodification memorandum", "draft zoning bylaw recodification issues"),
+        (r"policy issues identified in draft zoning", "zoning bylaw policy issues"),
+        (r"rescind article 40", "rescinding Article 40"),
+        (r"merge with open space", "merging with Open Space"),
+        (r"trail improvements", "trail improvements"),
+        (r"new web site", "website corrections"),
+        (r"articles for town meeting", "Town Meeting articles"),
+        (r"sewer bill insert", "sewer bill insert"),
+        (r"dissolve the cmwrrdd", "dissolving the CMWRRDD"),
+        (r"selection of attorney", "attorney selection"),
         (r"community input survey", "community input survey"),
         (r"grant recipient reception", "grant recipient reception plans"),
         (r"trex project", "Trex project update"),
@@ -1198,6 +1257,12 @@ def _split_generic_agenda_body(text: str) -> List[str]:
         body_text = re.sub(r"\s+(\d+[\.\)])\s+", r"\n\1 ", body_text)
         body_text = re.sub(r"\s+([a-z][\.\)])\s+", r"\n\1 ", body_text)
         body_text = re.sub(r"\s+([A-Z][A-Z /&'-]{6,}:)\s+", r"\n\1 ", body_text)
+    body_text = re.sub(r"\s+(Discussion and possible vote(?: to| on)?\b)", r"\n\1", body_text, flags=re.IGNORECASE)
+    body_text = re.sub(r"\s+(Review and Approve\b)", r"\n\1", body_text, flags=re.IGNORECASE)
+    body_text = re.sub(r"\s+(Financial Update\b)", r"\n\1", body_text, flags=re.IGNORECASE)
+    body_text = re.sub(r"\s+(Executive Director[â€™']s Report\b)", r"\n\1", body_text, flags=re.IGNORECASE)
+    body_text = re.sub(r"\s+(Update on\b)", r"\n\1", body_text, flags=re.IGNORECASE)
+    body_text = re.sub(r"\s+(Discussion-\b)", r"\n\1", body_text, flags=re.IGNORECASE)
     return [segment for segment in body_text.splitlines() if segment.strip()]
 
 
@@ -1249,8 +1314,10 @@ def _clean_generic_agenda_line(text: str) -> str:
             "zoom meeting information",
             "zoom link",
             "join zoom meeting",
+            "topic:",
             "meeting id:",
             "passcode:",
+            "dial by your location",
             "call to order",
             "roll call",
             "approval of minutes",
@@ -1263,6 +1330,12 @@ def _clean_generic_agenda_line(text: str) -> str:
             "public comment",
         )
     ):
+        return ""
+    if lowered.startswith("the board chairman reasonably anticipates"):
+        return ""
+    if "is inviting you to a scheduled zoom meeting" in lowered:
+        return ""
+    if "members of the public are encouraged" in lowered:
         return ""
 
     letters = [char for char in line if char.isalpha()]
@@ -1503,6 +1576,17 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
 
     if not focus:
         for item in _agenda_highlights(extraction):
+            if _is_low_value_focus_line(item):
+                continue
+            if _looks_truncated(item):
+                continue
+            score, reasons = _score_editorial_line(item)
+            if score <= 0:
+                continue
+            focus.append({"text": item, "score": score, "section": "", "reasons": reasons})
+
+    if not focus:
+        for item in _generic_agenda_lines(extraction, limit=8):
             if _is_low_value_focus_line(item):
                 continue
             if _looks_truncated(item):

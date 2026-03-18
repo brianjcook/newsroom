@@ -305,8 +305,24 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Live proof points after the rebuild:
 - `Cultural Council to Meet and Consider FY2026 Grant Decision Report`
 - `Recycling Committee to Discuss Trex Project Update`
+- A later parser-and-fallback pass lifted the next tier of factual fallback stories:
+- `extract.py` now recognizes decimal agenda items like `3.1` and uppercase letter subitems like `A.` / `B.`, which materially improves affordable-housing, bylaw-review, and other sectioned agendas
+- `publish.py` now lets focus scoring fall back to cleaned generic agenda lines when structured sections are still thin, and it splits long generic body text around discussion/review/update markers so substantive vote items can surface
+- `publish.py` now has targeted cleanup and phrase mappings for:
+- Affordable Housing Trust (`Town-Owned Property for Affordable Housing`, `WHAT/CPA funding`)
+- Bylaw Review Committee (`Final Warrant Articles`)
+- Comprehensive Zoning Bylaw Review and Revision Steering Committee (`Zoning Bylaw Policy Issues`)
+- Minot Forest Committee (`Rescinding Article 40`, `merging with Open Space`)
+- Sewer Commissioners (`Sewer Bill Insert`)
+- Carver Marion Wareham Regional Refuse Disposal District Committee (`Bill and Payroll Warrants`)
+- Live proof points after the second rebuild:
+- `Affordable Housing Trust to Discuss Town-Owned Property for Affordable Housing`
+- `Bylaw Review Committee to Meet and Consider Final Warrant Articles`
+- `Comprehensive Zoning Bylaw Review and Revision Steering Committee to Discuss Zoning Bylaw Policy Issues`
+- `Minot Forest Committee to Discuss Rescinding Article 40`
+- `Sewer Commissioners to Meet and Consider Sewer Bill Insert`
 - Latest successful production run:
-- `run_id`: `64`
+- `run_id`: `65`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
