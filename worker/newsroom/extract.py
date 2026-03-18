@@ -28,6 +28,7 @@ class ExtractionRecord:
 def _normalize_line(value: str) -> str:
     normalized = " ".join(value.replace("\u00a0", " ").split())
     normalized = normalized.replace("T0WN", "TOWN")
+    normalized = normalized.replace("\uf0b7", " - ")
     normalized = re.sub(r"(?<=\w)\s+-\s+(?=\w)", "-", normalized)
     repair_patterns = [
         (r"\bR eport\b", "Report"),
@@ -175,8 +176,12 @@ def _is_procedural_item(text: str) -> bool:
         "any other business",
         "signing of documents approved",
         "review and approve minutes",
+        "approval of prior meeting minutes",
+        "approval of meeting minutes",
         "approve minutes",
         "next meeting",
+        "any other business not anticipated",
+        "any other business not reasonably anticipated",
         "any business unanticipated",
     )
     return lowered.startswith(procedural_starts)
@@ -195,6 +200,39 @@ def _is_header_metadata_item(text: str) -> bool:
         "town of wareham",
     )
     return any(token in lowered for token in header_tokens)
+
+
+def _clean_preservation_item(text: str) -> str:
+    cleaned = _normalize_line(text)
+    if not cleaned:
+        return ""
+
+    cleaned = re.sub(
+        r"\s*[-\u2013\u2014]?\s*Any other (?:new )?business not (?:reasonably )?antici\w+.*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\s+[A-Z][A-Za-z.\s]+\s*,?\s*Chair Wareham Historical Commission.*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\s+[A-Z][A-Za-z.\s]+\s*,?\s*Chair Wareham Historic District Commission.*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\bWCTV Bldg\b", "WCTV Building", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bMain St\.?(?=\s|\)|,|$)", "Main Street", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bHistoric District Expansion-Study Committee\b", "Historic District Expansion Study", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bOld Company Store Property\b", "Old Company Store property", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bProposed alterations\b", "proposed alterations", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^Wareham Historical Society:\s*Fearing Tavern$", "Wareham Historical Society: Fearing Tavern restoration", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
+    return cleaned
 
 
 def _split_compound_item(text: str) -> List[str]:
@@ -381,11 +419,11 @@ def _split_finance_article_item(text: str) -> List[str]:
 def _normalize_section_items(section: Dict[str, object]) -> List[str]:
     cleaned_items = []
     for item in section.get("items") or []:
-        normalized = _normalize_line(str(item))
+        normalized = _clean_preservation_item(str(item))
         if not normalized or _is_procedural_item(normalized) or _is_header_metadata_item(normalized):
             continue
         for candidate in _split_compound_item(normalized):
-            cleaned_candidate = _normalize_line(candidate)
+            cleaned_candidate = _clean_preservation_item(candidate)
             if not cleaned_candidate:
                 continue
             if cleaned_candidate.lower().strip(" .;:-\u2013\u2014") == "discussion and possible vote":

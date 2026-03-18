@@ -192,6 +192,22 @@ def _agenda_highlights(extraction: Dict[str, object]) -> List[str]:
     return [" ".join(str(item).split()) for item in highlights if " ".join(str(item).split())]
 
 
+def _normalized_change_items(items: List[str]) -> List[str]:
+    normalized = []
+    seen = set()
+    for item in items:
+        cleaned = _clean_agenda_display_item(item)
+        if not cleaned or _is_low_value_agenda_line(cleaned):
+            continue
+        label = _change_item_label(cleaned)
+        key = label.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(cleaned)
+    return normalized
+
+
 def _story_basis_json(
     source_item: Dict[str, object],
     extraction: Dict[str, object],
@@ -200,7 +216,7 @@ def _story_basis_json(
     is_amended: bool,
     content_signature: str,
 ) -> str:
-    highlights = _agenda_highlights(extraction)
+    highlights = _normalized_change_items(_agenda_highlights(extraction))
     return json.dumps(
         {
             "source_item_id": source_item["source_item_id"],
@@ -229,23 +245,25 @@ def _change_summary(previous_basis: Dict[str, object], extraction: Dict[str, obj
     previous_highlights = previous_basis.get("agenda_highlights") or []
     if not isinstance(previous_highlights, list):
         previous_highlights = []
-    previous_clean = [" ".join(str(item).split()) for item in previous_highlights if " ".join(str(item).split())]
-    current_clean = _agenda_highlights(extraction)
+    previous_clean = _normalized_change_items([" ".join(str(item).split()) for item in previous_highlights if " ".join(str(item).split())])
+    current_clean = _normalized_change_items(_agenda_highlights(extraction))
 
     if not previous_clean and not current_clean:
         return ""
 
-    previous_set = set(previous_clean)
-    current_set = set(current_clean)
-    added = [item for item in current_clean if item not in previous_set]
-    removed = [item for item in previous_clean if item not in current_set]
+    previous_label_list = [_change_item_label(item).lower() for item in previous_clean]
+    current_label_list = [_change_item_label(item).lower() for item in current_clean]
+    previous_labels = set(previous_label_list)
+    current_labels = set(current_label_list)
+    added = [item for item in current_clean if _change_item_label(item).lower() not in previous_labels]
+    removed = [item for item in previous_clean if _change_item_label(item).lower() not in current_labels]
 
     change_bits = []
     if added:
         change_bits.append("New agenda items include {}".format("; ".join(_change_item_label(item) for item in added[:2])))
     if removed:
         change_bits.append("Items no longer listed include {}".format("; ".join(_change_item_label(item) for item in removed[:2])))
-    if not change_bits and current_clean != previous_clean:
+    if not change_bits and current_label_list != previous_label_list:
         change_bits.append("The order or emphasis of agenda items changed")
 
     return ". ".join(change_bits[:2]).strip(". ")
@@ -381,6 +399,48 @@ def _clean_lines(text: str) -> List[str]:
 
 def _normalize_item_text(text: str) -> str:
     return " ".join(str(text or "").replace("\xa0", " ").split())
+
+
+def _clean_agenda_display_item(text: str) -> str:
+    cleaned = _normalize_item_text(text).replace("\uf0b7", " - ")
+    if not cleaned:
+        return ""
+    cleaned = re.sub(
+        r"\s*[-\u2013\u2014]?\s*Any other (?:new )?business not (?:reasonably )?antici\w+.*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\s+[A-Z][A-Za-z.\s]+\s*,?\s*Chair Wareham Historical Commission.*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\bWCTV Bldg\b", "WCTV Building", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bMain St\.?(?=\s|\)|,|$)", "Main Street", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bHistoric District Expansion-Study Committee\b", "Historic District Expansion Study", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bOld Company Store Property\b", "Old Company Store property", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bProposed alterations\b", "proposed alterations", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^Wareham Historical Society:\s*Fearing Tavern$", "Wareham Historical Society: Fearing Tavern restoration", cleaned, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
+
+
+def _is_low_value_agenda_line(text: str) -> bool:
+    lowered = _clean_agenda_display_item(text).lower().strip(" .;:-")
+    if not lowered:
+        return True
+    low_value_prefixes = (
+        "approval of prior meeting minutes",
+        "approval of meeting minutes",
+        "approve minutes",
+        "review and approve minutes",
+        "any other business",
+        "any other new business",
+        "next meeting",
+        "adjourn",
+    )
+    return lowered.startswith(low_value_prefixes)
 
 
 def _looks_truncated(text: str) -> bool:
@@ -1180,8 +1240,8 @@ def _agenda_highlight_blocks(extraction: Dict[str, object]) -> Tuple[str, List[D
             if not isinstance(section, dict):
                 continue
             for raw_item in section.get("items") or []:
-                item = " ".join(str(raw_item).split())
-                if not item or _looks_truncated(item) or item.lower().strip(" .;:-\u2013\u2014") == "discussion and possible vote":
+                item = _clean_agenda_display_item(raw_item)
+                if not item or _looks_truncated(item) or _is_low_value_agenda_line(item) or item.lower().strip(" .;:-\u2013\u2014") == "discussion and possible vote":
                     continue
                 if item not in agenda_items:
                     agenda_items.append(item)
@@ -1192,8 +1252,8 @@ def _agenda_highlight_blocks(extraction: Dict[str, object]) -> Tuple[str, List[D
 
     if not agenda_items and isinstance(highlights, list):
         for raw_item in highlights[:8]:
-            item = " ".join(str(raw_item).split())
-            if not item or _looks_truncated(item) or item.lower().strip(" .;:-\u2013\u2014") == "discussion and possible vote":
+            item = _clean_agenda_display_item(raw_item)
+            if not item or _looks_truncated(item) or _is_low_value_agenda_line(item) or item.lower().strip(" .;:-\u2013\u2014") == "discussion and possible vote":
                 continue
             agenda_items.append(item)
 
