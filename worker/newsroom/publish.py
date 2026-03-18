@@ -56,6 +56,14 @@ EDITORIAL_SIGNAL_RULES = [
     ("historic district expansion", 26, "policy"),
     ("fearing tavern", 34, "land_use"),
     ("restoration", 22, "land_use"),
+    ("mcc fy26 grant decision report", 62, "policy"),
+    ("community input survey", 48, "policy"),
+    ("grant recipient reception", 28, "policy"),
+    ("trex project", 64, "infrastructure"),
+    ("paint and swap", 44, "policy"),
+    ("shed purchase", 36, "contract"),
+    ("volunteer status", 32, "policy"),
+    ("metal collection", 28, "policy"),
     ("early education learning center", 20, "land_use"),
     ("early education head start", 20, "land_use"),
     ("school choice", 82, "policy"),
@@ -422,9 +430,14 @@ def _normalize_item_text(text: str) -> str:
         (r"\bDiscrimin atory\b", "Discriminatory"),
         (r"\bH arassment\b", "Harassment"),
         (r"\bSele ction\b", "Selection"),
+        (r"\bPurchase S\b", "Purchases"),
+        (r"\bVII I\b", "VIII"),
+        (r"\bSECRETARY\s[’']\sS\b", "Secretary's"),
     ]
     for pattern, replacement in repairs:
         normalized = re.sub(pattern, replacement, normalized)
+    normalized = re.sub(r"\s*-\s*", " - ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
     return normalized
 
 
@@ -456,6 +469,16 @@ def _clean_agenda_display_item(text: str) -> str:
     cleaned = re.sub(r"\s+any new business.*$", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+next meeting date.*$", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+sandy slavin,\s*chair.*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^AGENDA\s*\(Amended\)$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^Secretary['’]s Report\s*-\s*Minutes of the Meeting of .+$", "Minutes approval", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^REVIEW AND DISCUSSION OF JANUARY MINUTES: VOTE TO ACCEPT MINUTES OF JANUARY 2026$", "Minutes approval", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^STATUS AND UPDATE ON TREX PROJECT:\s*", "Trex project: ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"RECENT AND CLOSURES", "recent closures", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"SNOW REMOVAL PROBLEMS AND SAFETY", "snow removal problems and safety", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^LOCATION OF [\"“”']*GRANTED[\"“”']* PAINT AND SWAP SHEDS$", "Paint and swap shed locations", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^UPCOMING SHED PURCHASES?$", "Upcoming shed purchases", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^SIZE,\s*REQUIREMENTS AND COST:\s*UPCOMING GRANT APPLICATION.*$", "Upcoming grant application size, requirements, and cost", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^RECOGNITION BY SELECT BOARD VIII \.\s*VOLUNTEER STATUS AND CONCERNS$", "Select Board recognition and volunteer status concerns", cleaned, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
 
 
@@ -470,9 +493,11 @@ def _is_low_value_agenda_line(text: str) -> bool:
     if re.match(r"^\d{1,2}:\d{2}\s*(a\.m\.|p\.m\.|am|pm)\b", lowered, flags=re.IGNORECASE):
         return True
     low_value_prefixes = (
+        "agenda",
         "approve the ",
         "approval of prior meeting minutes",
         "approval of meeting minutes",
+        "minutes approval",
         "approve minutes",
         "review and approve minutes",
         "any other business",
@@ -503,6 +528,12 @@ def _strip_agenda_lead_in(text: str) -> str:
     normalized = _normalize_item_text(text)
     patterns = [
         r"^\d{1,2}:\d{2}\s*(a\.m\.|p\.m\.)\s*",
+        r"^(new|old)\s+business:\s*",
+        r"^secretary['’]s report\s*-\s*",
+        r"^status and update on\s+",
+        r"^read and review\s+",
+        r"^review and discussion of\s+",
+        r"^location of\s+",
         r"^discussion and possible vote regarding\s+",
         r"^discussion and possible vote on\s+",
         r"^discussion and possible vote to\s+",
@@ -591,6 +622,20 @@ def _headline_phrase(text: str) -> str:
         return "Historic District Expansion Study"
     if "fearing tavern" in lowered:
         return "Fearing Tavern Restoration"
+    if "mcc fy26 grant decision report" in lowered:
+        return "FY2026 Grant Decision Report"
+    if "community input survey" in lowered:
+        return "Community Input Survey"
+    if "grant recipient reception" in lowered:
+        return "Grant Recipient Reception Plans"
+    if "trex project" in lowered:
+        return "Trex Project Update"
+    if "paint and swap shed" in lowered:
+        return "Paint and Swap Shed Locations"
+    if "upcoming shed purchases" in lowered:
+        return "Shed Purchases"
+    if "volunteer status" in lowered:
+        return "Volunteer Status Concerns"
     if "early education learning center" in lowered:
         return "Early Education Learning Center"
     if "early education head start" in lowered:
@@ -659,6 +704,8 @@ def _headline_action(text: str) -> str:
     if "public hearing" in lowered or "hearing" in lowered:
         return "to Hear"
     if "violation" in lowered:
+        return "to Discuss"
+    if "status and update" in lowered or "future of the committee" in lowered:
         return "to Discuss"
     if "discussion" in lowered:
         return "to Discuss"
@@ -833,6 +880,13 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"59 main street.*proposed alterations", "59 Main Street alterations"),
         (r"historic district expansion", "Historic District expansion study"),
         (r"fearing tavern.*restoration", "Fearing Tavern restoration"),
+        (r"mcc fy26 grant decision report", "FY2026 grant decision report"),
+        (r"community input survey", "community input survey"),
+        (r"grant recipient reception", "grant recipient reception plans"),
+        (r"trex project", "Trex project update"),
+        (r"paint and swap shed", "paint and swap shed locations"),
+        (r"upcoming shed purchases", "shed purchases"),
+        (r"volunteer status", "volunteer status concerns"),
         (r"early education learning center", "Early Education Learning Center"),
         (r"early education head start", "Early Education Head Start"),
         (r"course update", "course update"),
@@ -981,7 +1035,12 @@ def _is_low_value_focus_line(text: str) -> bool:
         token in lowered
         for token in (
             "review and discussion of november minutes",
+            "review and discussion of january minutes",
             "vote to accept minutes",
+            "minutes approval",
+            "minutes of the meeting of",
+            "secretary's report - minutes of the meeting of",
+            "secretary’s report-minutes of the meeting of",
             "approval of prior meeting minutes",
             "approve the ",
             "reorganization: nomination and vote for chair",

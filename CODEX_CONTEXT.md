@@ -296,8 +296,17 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Board of Health January 21, 2026 now strips Zoom-invite text out of the location field, summarizes around `1B Emma Lane public hearing`, and falls back to `a variance request` instead of the broken `variance request at Request`
 - Road Commission February 20 and March 19, 2024 now headline and summarize around `Parkwood Beach`, `Indian Neck Road bus stop relocation`, `Littleton Housing Project addresses`, and `Plymouth Avenue truck restrictions` instead of formal notice wording
 - date-only thin-agenda bullets like `November 25, 2025` are now treated as low-value for public agenda rendering
+- A later weak-source repair pass materially improved two previously weak stories:
+- `extract.py` now treats inline `1. / 2. / a. / b.` agenda markers as split points even when a PDF already contains some line breaks, and it stitches heavily fragmented one-word PDF lines back into coherent agenda lines before parsing
+- `extract.py` now has a host-safe DOCX extraction path using the Python standard library XML parser, so Freehostia can extract Wareham `.docx` agenda files instead of treating them as binary junk
+- `meetings.py` now gives explicit source metadata precedence over full-document text when determining governing body names, preventing incidental mentions like `Select Board` inside another committee's agenda from relabeling the meeting
+- `modeling.py` now includes missing body-name mappings like `Recycling Committee`, `Cultural Council`, `Historic District Commission`, `Open Space Committee`, and `Road Commission`
+- `publish.py` now has targeted cleanup and editorial mappings for Cultural Council and Recycling Committee agendas, including `FY2026 Grant Decision Report`, `community input survey`, `Trex project update`, and `paint and swap shed locations`
+- Live proof points after the rebuild:
+- `Cultural Council to Meet and Consider FY2026 Grant Decision Report`
+- `Recycling Committee to Discuss Trex Project Update`
 - Latest successful production run:
-- `run_id`: `61`
+- `run_id`: `64`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -361,8 +370,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 
 ## Next priority tasks
 - Continue extending the same committee-agenda cleanup to other simple bodies whose public raw agenda lists still surface low-value or fused items.
-- Continue extending the thin-agenda dual-point treatment to other simple committee agendas when the source exposes two clear substantive items.
+- Continue extending the DOCX-aware extraction path and host-safe format detection to any other Wareham agendas that are distributed as Office documents rather than PDFs.
 - Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.
+- Audit other committees whose governing body is not in `BODY_NAME_MAP` to make sure incidental mentions inside the agenda cannot relabel the canonical meeting.
 - Improve handling of amended, revised, cancelled, and postponed agenda items, especially more precise amendment/change summaries and better event sync metrics so routine updates are distinguishable from newly created events.
 - Improve low-confidence PDF extraction handling and related publish rules.
 - Evaluate the next live extraction run to confirm the new PDF quarantine flags catch the right Wareham edge cases without over-quarantining useful documents.

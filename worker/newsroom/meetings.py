@@ -181,8 +181,8 @@ def _candidate_from_source(
     governing_body = _coalesce(
         normalize_body_name(str(meta.get("governing_body") or "")),
         normalize_body_name(str(meta.get("entry_title") or "")),
-        normalize_body_name(combined_text),
         str(meta.get("governing_body") or None),
+        normalize_body_name(combined_text),
     )
     meeting_date = _coalesce(
         meta.get("meeting_date"),

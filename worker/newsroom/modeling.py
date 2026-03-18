@@ -28,6 +28,11 @@ BODY_NAME_MAP = {
     "affordable housing trust": "Affordable Housing Trust",
     "bylaw review committee": "Bylaw Review Committee",
     "by-law review committee": "Bylaw Review Committee",
+    "recycling committee": "Recycling Committee",
+    "cultural council": "Cultural Council",
+    "historic district commission": "Historic District Commission",
+    "open space committee": "Open Space Committee",
+    "road commission": "Road Commission",
 }
 
 

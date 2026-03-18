@@ -3,6 +3,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from xml.etree import ElementTree as ET
+from zipfile import ZipFile
 
 from bs4 import BeautifulSoup
 from pypdf import PdfReader
@@ -72,14 +74,70 @@ def _clean_pdf_lines(body_text: str) -> List[str]:
         expanded = re.sub(r"\s+(Zoom Meeting Information:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
         expanded = re.sub(r"\s+(Meeting ID:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
         expanded = re.sub(r"\s+(Passcode:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
-        expanded = re.sub(r"\s+([IVXLCDM]+[\.\)])\s+", r"\n\1 ", expanded)
-        expanded = re.sub(r"\s+(\d+[\.\)])\s+", r"\n\1 ", expanded)
-        expanded = re.sub(r"\s+([a-z][\.\)])\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
-    return [
+    expanded = re.sub(r"\s+([IVXLCDM]+[\.\)])\s+", r"\n\1 ", expanded)
+    expanded = re.sub(r"\s+(\d+[\.\)])\s+", r"\n\1 ", expanded)
+    expanded = re.sub(r"\s+([a-z][\.\)])\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
+    lines = [
         line
         for line in (_normalize_line(line) for line in expanded.splitlines())
         if line and not _is_pdf_noise_line(line)
     ]
+    return _stitch_fragmented_pdf_lines(lines)
+
+
+def _stitch_fragmented_pdf_lines(lines: List[str]) -> List[str]:
+    if not lines:
+        return []
+
+    short_line_count = sum(1 for line in lines if len(line) <= 14 and len(line.split()) <= 2)
+    if short_line_count < max(12, len(lines) // 3):
+        return lines
+
+    stitched = []  # type: List[str]
+    buffer = []  # type: List[str]
+    flush_tokens = {
+        "agenda",
+        "(amended)",
+        "old business",
+        "new business",
+        "adjournment",
+        "treasurer’s report",
+        "treasurer's report",
+        "secretary’s report",
+        "secretary's report",
+    }
+
+    def flush() -> None:
+        if not buffer:
+            return
+        stitched.append(" ".join(buffer).strip())
+        buffer[:] = []
+
+    for line in lines:
+        normalized = _normalize_line(line)
+        lowered = normalized.lower().strip()
+        is_marker = bool(
+            _looks_like_agenda_item(normalized)
+            or re.fullmatch(r"[ivxlcdm]+[\.\)]", lowered, flags=re.IGNORECASE)
+            or re.fullmatch(r"[a-z][\.\)]", lowered, flags=re.IGNORECASE)
+            or lowered in flush_tokens
+            or lowered.startswith("date and time:")
+            or lowered.startswith("location:")
+            or lowered.startswith("join zoom meeting")
+            or lowered.startswith("meeting id:")
+            or lowered.startswith("passcode:")
+        )
+        if is_marker:
+            flush()
+            stitched.append(normalized)
+            continue
+        if buffer and len(normalized.split()) >= 4 and normalized.endswith(":"):
+            flush()
+            stitched.append(normalized)
+            continue
+        buffer.append(normalized)
+    flush()
+    return stitched
 
 
 def _append_item_text(section: Dict[str, object], text: str) -> None:
@@ -593,7 +651,7 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
     current_heading = ""
     for line in lines[agenda_start_index:]:
         inline_section_title, inline_section_tail = _inline_section_heading(line)
-        heading_match = re.match(r"^([IVXLCDM]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
+        heading_match = re.match(r"^([IVXLCDM]+)[\.\)]\s+(.+)$", line)
         section_match = re.match(r"^(\d+)[\.\)]\s+(.+)$", line)
         subitem_match = re.match(r"^([a-z]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
         nested_match = re.match(r"^\((\d+)\)\s+(.+)$", line)
@@ -796,6 +854,52 @@ def _extract_html(path: Path) -> Tuple[str, str, float, List[str]]:
     return title[:512], body_text, confidence, warnings
 
 
+def _extract_docx(path: Path) -> Tuple[str, str, float, List[str], Dict[str, object]]:
+    warnings = []  # type: List[str]
+    lines = []  # type: List[str]
+    title = path.stem.replace("_", " ")
+    try:
+        with ZipFile(str(path)) as archive:
+            if "docProps/core.xml" in archive.namelist():
+                try:
+                    core_root = ET.fromstring(archive.read("docProps/core.xml"))
+                    for node in core_root.iter():
+                        if node.tag.endswith("}title") and (node.text or "").strip():
+                            title = " ".join((node.text or "").split())
+                            break
+                except ET.ParseError:
+                    warnings.append("DOCX core metadata could not be parsed.")
+
+            for name in ("word/header1.xml", "word/document.xml", "word/footer1.xml"):
+                if name not in archive.namelist():
+                    continue
+                try:
+                    root = ET.fromstring(archive.read(name))
+                except ET.ParseError:
+                    warnings.append("DOCX part {} could not be parsed.".format(name))
+                    continue
+                for paragraph in root.iter():
+                    if not paragraph.tag.endswith("}p"):
+                        continue
+                    chunks = []  # type: List[str]
+                    for node in paragraph.iter():
+                        if node.tag.endswith("}t") and (node.text or "").strip():
+                            chunks.append(node.text or "")
+                    normalized = _normalize_line(" ".join(chunks))
+                    if normalized:
+                        lines.append(normalized)
+    except Exception as exc:
+        warnings.append("DOCX extraction failed: {}".format(exc))
+        return title[:512], "", 0.15, warnings, {}
+
+    body_text = "\n".join(lines)
+    confidence = 0.82 if body_text else 0.2
+    if not body_text:
+        warnings.append("DOCX extraction produced empty text.")
+    structured = _parse_agenda_pdf(body_text) if body_text else {}
+    return title[:512], body_text, confidence, warnings, structured
+
+
 def _extract_pdf(path: Path) -> Tuple[str, str, float, List[str], Dict[str, object]]:
     reader = PdfReader(str(path))
     pages = []  # type: List[str]
@@ -837,7 +941,20 @@ def extract_documents(config: WorkerConfig, connection: Connection, documents: L
             if review_flags:
                 extra_structured["review_flags"] = review_flags
         else:
-            title, body_text, confidence_score, warnings = _extract_html(storage_path)
+            source_url = str(source_meta.get("resolved_document_url") or source_meta.get("canonical_url") or "").lower()
+            artifact_label = str(source_meta.get("resolved_document_label") or source_meta.get("artifact_label") or "").lower()
+            is_docx_like = (
+                document.storage_path.lower().endswith((".docx", ".docm"))
+                or source_url.endswith((".docx", ".docm"))
+                or artifact_label.endswith((".docx", ".docm"))
+                or storage_path.suffix.lower() == ".bin"
+                and storage_path.exists()
+                and storage_path.read_bytes()[:2] == b"PK"
+            )
+            if is_docx_like:
+                title, body_text, confidence_score, warnings, extra_structured = _extract_docx(storage_path)
+            else:
+                title, body_text, confidence_score, warnings = _extract_html(storage_path)
 
         extracted_source_meta = extra_structured.pop("source_meta", {})
         if isinstance(extracted_source_meta, dict):
