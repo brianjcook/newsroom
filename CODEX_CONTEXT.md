@@ -264,8 +264,13 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Historic District Commission January 6 and February 10, 2026 now publish around `59 Main Street Alterations` and `Historic District expansion study` instead of dumping header metadata into the headline
 - Historical Commission January 7 and February 4, 2026 now publish around `Early Education Learning Center` / `Early Education Head Start` instead of generic `to Meet` copy
 - Little Harbor Golf Course Advisory Committee September 24, October 2, and November 12, 2025 now publish around real course issues like golf cart fleet needs, tractor situation, course update, and winter schedule instead of the placeholder `Discussion and possible vote` line
+- A later preservation cleanup pass tightened the raw agenda lists for those Historic District and Historical Commission previews:
+- procedural leftovers like `Approval of prior Meeting Minutes` and `Any other new business not reasonably anticipated 48 hours in advance` are no longer shown publicly
+- fused historical-commission tails like `Wareham Historical Society: Fearing Tavern ... Chair Wareham Historical Commission` are now trimmed to the real item, `Wareham Historical Society: Fearing Tavern restoration`
+- Historic District raw items now read more cleanly as `WCTV Building (Main Street Old Town Hall)`, `Old Company Store property (Parker Mills)`, and `Historic District Expansion Study`
+- the amendment/change-summary layer now compares cleaned agenda labels instead of raw OCR strings, so cosmetic cleanup passes no longer create noisy `item added / item removed` update banners
 - Latest successful production run:
-- `run_id`: `46`
+- `run_id`: `49`
 - `items_discovered`: `374`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -278,6 +283,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `c32180c` - `Clean preservation raw agenda output`
+- `53f9309` - `Split zoning hearing rows into cleaner agenda items`
+- `13aeab6` - `Clean up zoning raw agenda rows`
+- `4ef6850` - `Update context after golf cleanup`
 - `a916125` - `Fix golf agenda placeholder items`
 - `40b34a8` - `Improve preservation and club agenda framing`
 - `e025a11` - `Improve simple committee agenda framing`
@@ -313,12 +322,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `4a0dca0` - `Polish story signals and summary presentation`
 - `06ccc95` - `Extract richer agenda details from municipal PDFs`
 - `790100a` - `Improve complex agenda extraction and ranking`
-- `d5a5c2e` - `Summarize agenda changes in update notes`
 
 ## Next priority tasks
-- Continue extending the same committee-agenda cleanup to other simple bodies like Historical Commission, Historic District Commission, and Little Harbor Golf Course Advisory Committee when their source agendas expose substantive agenda pairs.
-- Continue extending the same thin-agenda dual-point treatment to other simple committee agendas when the source exposes two clear substantive items.
-- Keep improving thin-agenda committees like Alternative Energy so simple agenda items can promote more than one substantive point when the source supports it, instead of only a single focus sentence.
+- Continue extending the same committee-agenda cleanup to other simple bodies whose public raw agenda lists still surface low-value or fused items.
+- Continue extending the thin-agenda dual-point treatment to other simple committee agendas when the source exposes two clear substantive items.
 - Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.
 - Improve handling of amended, revised, cancelled, and postponed agenda items, especially more precise amendment/change summaries and better event sync metrics so routine updates are distinguishable from newly created events.
 - Improve low-confidence PDF extraction handling and related publish rules.
@@ -327,13 +334,6 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Normalize location casing and other presentation details that still leak through from raw extraction, such as `TOWN HALL` and similar all-caps venue strings.
 - Improve long/hearing agenda item condensation so very long public-hearing bullets read more like edited summaries and less like raw legal text.
 - Continue refining the new condensation layer so school-policy, land-use hearing, and Board of Health items read like edited civic copy instead of only shortened agenda language.
-- Verify the newest sentence-style story-body pass on live pages once Freehostia accepts a stable follow-up SSH/HTTP inspection session.
-- Verify the newest issue-specific copy pass on live pages once Freehostia accepts a stable follow-up SSH/HTTP inspection session.
-- Continue improving raw agenda-list extraction for School Committee-style agendas so `What is on the agenda` also splits policy bundles and report blocks more cleanly, not just the editorial surface.
-- Continue improving raw agenda-list extraction so policy-review bundles can break into multiple cleaner bullets instead of still appearing as one long `Policy Review-VOTE ...` line.
-- Continue improving report-heavy raw agenda extraction so items like `Superintendent's Report ... District Calendar 2025-26 Update (possible vote)` can also split into cleaner source-faithful bullets.
-- Next likely raw-agenda extraction target is the `School Choice 2026 -27-VOTE 7:15 p.m.` pattern, which could still be normalized into a cleaner source-faithful bullet without losing the vote signal.
-- The next likely raw-agenda extraction target is broader cleanup of remaining source-faithful but still awkward punctuation in report items, such as whether `Bill and Payroll Warrants` or other paired municipal terms should be rendered with slightly cleaner punctuation while preserving source meaning.
 - The next likely extraction target is the remaining ZBA raw agenda-list cleanup: the live ZBA story still begins its source-faithful list with `PRELIMINARY BUSINESS:` and could use one more pass to separate preliminary items from hearing rows more cleanly.
 - Continue improving low-signal fallback stories like Alternative Energy Committee so thin agendas can still produce cleaner issue-led headlines and summaries instead of only factual fallback copy.
 - Keep tightening weak-agenda suppression so bodies like Recycling Committee and Cultural Council continue to fail closed on low-quality extraction without losing legitimately useful simple agenda bullets.
