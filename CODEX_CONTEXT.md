@@ -259,6 +259,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `b14fd85` - `Promote multiple points in thin agendas`
 - `aadaa78` - `Improve thin agenda story framing`
 - `076407d` - `Update context after weak fallback cleanup`
 - `841d8b6` - `Clean up weak agenda fallback stories`
