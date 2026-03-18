@@ -143,6 +143,7 @@ def _is_procedural_item(text: str) -> bool:
     lowered = _normalize_line(text).lower().strip(" .;:-")
     procedural_starts = (
         "call to order",
+        "call public meeting to order",
         "roll call",
         "announcements",
         "adjournment",
@@ -220,7 +221,7 @@ def _split_school_style_item(text: str) -> List[str]:
             return ["Policy Review: {}".format(part) for part in policy_parts]
 
     marker_pattern = re.compile(
-        r"(?=(Superintendent[’']?s Report|Director of Finance|Financial Report|Grants Report|School Choice Vote|Policy Review(?:-?VOTE)?))",
+        r"(?=(School Committee Report|Superintendent[’']?s Report|Director of Finance|Financial Report|Grants Report|School Choice Vote|Policy Review(?:-?VOTE)?))",
         flags=re.IGNORECASE,
     )
     matches = list(marker_pattern.finditer(normalized))

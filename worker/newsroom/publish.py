@@ -949,18 +949,38 @@ def _agenda_details(extraction: Dict[str, object]) -> Dict[str, object]:
 
 def _agenda_highlight_blocks(extraction: Dict[str, object]) -> Tuple[str, List[Dict[str, str]]]:
     structured = _agenda_details(extraction)
+    sections = structured.get("agenda_sections") or []
     highlights = structured.get("agenda_highlights") or []
-    if not isinstance(highlights, list):
+
+    agenda_items = []  # type: List[str]
+    if isinstance(sections, list):
+        for section in sections:
+            if not isinstance(section, dict):
+                continue
+            for raw_item in section.get("items") or []:
+                item = " ".join(str(raw_item).split())
+                if not item or _looks_truncated(item):
+                    continue
+                if item not in agenda_items:
+                    agenda_items.append(item)
+                if len(agenda_items) >= 8:
+                    break
+            if len(agenda_items) >= 8:
+                break
+
+    if not agenda_items and isinstance(highlights, list):
+        for raw_item in highlights[:8]:
+            item = " ".join(str(raw_item).split())
+            if not item or _looks_truncated(item):
+                continue
+            agenda_items.append(item)
+
+    if not agenda_items:
         return "", []
 
     bullets = []
     explainers = []
-    for raw_item in highlights[:6]:
-        item = " ".join(str(raw_item).split())
-        if not item:
-            continue
-        if _looks_truncated(item):
-            continue
+    for item in agenda_items[:8]:
         bullet = "<li>{}</li>".format(html.escape(item))
         lowered = item.lower()
         for key, explainer in AGENDA_EXPLAINERS.items():
