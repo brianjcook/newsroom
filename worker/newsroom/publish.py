@@ -875,9 +875,10 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
     deduped = []
     seen = set()
     for item in focus:
-        if item["text"] in seen:
+        display_key = (_focus_summary_phrase(str(item["text"])) or str(item["text"])).lower()
+        if display_key in seen:
             continue
-        seen.add(str(item["text"]))
+        seen.add(display_key)
         deduped.append(item)
         if len(deduped) >= limit:
             break
@@ -903,9 +904,10 @@ def _minutes_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[
     deduped = []
     seen = set()
     for item in focus:
-        if item["text"] in seen:
+        display_key = (_focus_summary_phrase(str(item["text"])) or str(item["text"])).lower()
+        if display_key in seen:
             continue
-        seen.add(str(item["text"]))
+        seen.add(display_key)
         deduped.append(item)
         if len(deduped) >= limit:
             break

@@ -171,7 +171,12 @@ def _split_compound_item(text: str) -> List[str]:
         split_segments = [segment.strip(" ,.;:-") for segment in normalized.split(";") if segment.strip(" ,.;:-")]
     expanded = []  # type: List[str]
     for segment in split_segments:
-        expanded.extend(_split_school_style_item(segment))
+        second_pass = _split_school_style_item(segment)
+        if len(second_pass) > 1:
+            for child in second_pass:
+                expanded.extend(_split_school_style_item(child))
+        else:
+            expanded.extend(second_pass)
 
     if len(expanded) < 2:
         return [normalized]
