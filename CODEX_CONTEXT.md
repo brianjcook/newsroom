@@ -138,6 +138,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Added a thin-agenda follow-up in `worker/newsroom/publish.py`:
 - short but meaningful items like `Next steps` are no longer discarded as truncated
 - thin-agenda summaries can now carry two substantive points instead of collapsing to a single issue line
+- Added a follow-up committee-agenda cleanup pass across `worker/newsroom/extract.py` and `worker/newsroom/publish.py`:
+- finance-style agenda rows beginning with `Article #` are now preserved and split more cleanly instead of collapsing several budget articles into one fused item
+- OCR/typing artifacts like `T0WN` and `Artiles` are normalized during extraction
+- procedural leftovers like `CALL THE MEETING TO ORDER` and `Approve Minutes` are filtered more aggressively from public editorial surfaces
+- additional phrase mapping now helps simple committees like Finance and Open Space publish cleaner issue-led headlines and dual-point summaries
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -245,14 +250,17 @@ Build a local-news publishing system that ingests municipal and other local cont
 - A later sync improved that same thin-agenda story again:
 - Alternative Energy Committee March 24, 2026 now summarizes as `The posted agenda centers on the committee's future and next steps.`
 - the `What matters most` and `What is on the agenda` sections now carry both `Considerations for future of the committee` and `Next steps`
+- A later rebuild improved the next simple committee previews:
+- Finance Committee March 23, 2026 now publishes as `Finance Committee to Consider Town Meeting Articles Vote` and summarizes around Town Meeting article votes and budget articles instead of a generic `to Meet` framing
+- Open Space Committee February 9, 2026 now publishes as `Open Space Committee to Consider Bryant Farm Management Plan` and summarizes around the Bryant Farm plan and a possible Open Space/Minot Forest committee merger
 - Latest successful production run:
-- `run_id`: `40`
+- `run_id`: `42`
 - `items_discovered`: `374`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
 - `meetings_normalized`: `0`
 - `stories_published`: `0`
-- `stories_updated`: `4`
+- `stories_updated`: `0`
 - `events_created`: `0`
 - `events_updated`: `111`
 - `artifacts_synced`: `0`
@@ -294,6 +302,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `d5a5c2e` - `Summarize agenda changes in update notes`
 
 ## Next priority tasks
+- Continue extending the same committee-agenda cleanup to other simple bodies like Historical Commission, Historic District Commission, and Little Harbor Golf Course Advisory Committee when their source agendas expose substantive agenda pairs.
 - Continue extending the same thin-agenda dual-point treatment to other simple committee agendas when the source exposes two clear substantive items.
 - Keep improving thin-agenda committees like Alternative Energy so simple agenda items can promote more than one substantive point when the source supports it, instead of only a single focus sentence.
 - Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.

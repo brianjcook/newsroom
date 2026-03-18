@@ -27,6 +27,7 @@ class ExtractionRecord:
 
 def _normalize_line(value: str) -> str:
     normalized = " ".join(value.replace("\u00a0", " ").split())
+    normalized = normalized.replace("T0WN", "TOWN")
     normalized = re.sub(r"(?<=\w)\s+-\s+(?=\w)", "-", normalized)
     repair_patterns = [
         (r"\bR eport\b", "Report"),
@@ -36,6 +37,7 @@ def _normalize_line(value: str) -> str:
         (r"\bFi nancial\b", "Financial"),
         (r"\bCa lendar\b", "Calendar"),
         (r"\bSchoolh ouse\b", "Schoolhouse"),
+        (r"\bArtiles\b", "Articles"),
     ]
     for pattern, replacement in repair_patterns:
         normalized = re.sub(pattern, replacement, normalized)
@@ -156,6 +158,7 @@ def _is_procedural_item(text: str) -> bool:
     lowered = _normalize_line(text).lower().strip(" .;:-")
     procedural_starts = (
         "call to order",
+        "call the meeting to order",
         "call public meeting to order",
         "roll call",
         "announcements",
@@ -170,6 +173,7 @@ def _is_procedural_item(text: str) -> bool:
         "any other business",
         "signing of documents approved",
         "review and approve minutes",
+        "approve minutes",
     )
     return lowered.startswith(procedural_starts)
 
@@ -178,6 +182,10 @@ def _split_compound_item(text: str) -> List[str]:
     normalized = _normalize_line(text)
     if not normalized:
         return []
+
+    finance_split = _split_finance_article_item(normalized)
+    if len(finance_split) > 1:
+        return finance_split
 
     petition_split = _split_zoning_petition_item(normalized)
     if len(petition_split) > 1:
@@ -329,6 +337,26 @@ def _split_school_style_item(text: str) -> List[str]:
             return cleaned_parts
 
     return [normalized]
+
+
+def _split_finance_article_item(text: str) -> List[str]:
+    normalized = _normalize_line(text)
+    lowered = normalized.lower()
+    if "article #" not in lowered or "budget" not in lowered:
+        return [normalized]
+
+    article_matches = list(re.finditer(r"Article\s*#\s*\d+\s+", normalized, flags=re.IGNORECASE))
+    if len(article_matches) < 2:
+        return [normalized]
+
+    segments = []
+    for index, match in enumerate(article_matches):
+        start = match.start()
+        end = article_matches[index + 1].start() if index + 1 < len(article_matches) else len(normalized)
+        segment = normalized[start:end].strip(" ,.;:-")
+        if segment:
+            segments.append(segment)
+    return segments or [normalized]
 
 
 def _normalize_section_items(section: Dict[str, object]) -> List[str]:
@@ -488,6 +516,11 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
         time_hearing_match = re.match(r"^([0-9:]+\s*[ap]\.?m\.?)\s+(.+)$", line, flags=re.IGNORECASE)
         if time_hearing_match:
             current_section["items"].append("{} {}".format(time_hearing_match.group(1).strip(), time_hearing_match.group(2).strip()))
+            continue
+
+        article_match = re.match(r"^(Article\s*#\s*\d+\s+.+)$", line, flags=re.IGNORECASE)
+        if article_match:
+            current_section["items"].append(article_match.group(1).strip())
             continue
 
         if current_section["items"]:

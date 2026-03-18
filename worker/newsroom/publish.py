@@ -41,6 +41,12 @@ GENERIC_EXTRACTION_TITLES = {
 EDITORIAL_SIGNAL_RULES = [
     ("safe harbor marina", 95, "land_use"),
     ("redevelop", 42, "land_use"),
+    ("town meeting articles", 70, "town_meeting"),
+    ("budget article", 55, "budget"),
+    ("fy 27 budget", 60, "budget"),
+    ("school budget", 46, "budget"),
+    ("enterprise budget", 46, "budget"),
+    ("emergency medical services budget", 46, "budget"),
     ("school choice", 82, "policy"),
     ("policy review", 76, "policy"),
     ("discriminatory harassment", 52, "policy"),
@@ -407,6 +413,14 @@ def _headline_phrase(text: str) -> str:
     if not cleaned:
         return ""
     lowered = cleaned.lower()
+    if "vote on town meeting articles" in lowered:
+        return "Town Meeting Articles Vote"
+    if "fy 27 budget" in lowered or "budget article" in lowered:
+        return "Town Meeting Budget Articles"
+    if "bryant farm management plan" in lowered:
+        return "Bryant Farm Management Plan"
+    if "merge open space and minot forest committees" in lowered:
+        return "Open Space-Minot Forest Committee Merger"
     if "future of the committee" in lowered:
         return "Committee's Future"
     if lowered == "next steps":
@@ -468,6 +482,8 @@ def _headline_action(text: str) -> str:
         return "to Discuss"
     if "presentation" in lowered:
         return "to Review"
+    if "acceptance" in lowered:
+        return "to Consider"
     if "appoint" in lowered or "appointment" in lowered:
         return "to Consider"
     if "vote" in lowered or "consider" in lowered:
@@ -503,6 +519,10 @@ def _normalize_focus_phrase(text: str) -> str:
 
     lowered = cleaned.lower()
     special_patterns = [
+        (r"vote on town meeting articles", "Town Meeting articles vote"),
+        (r"(fy 27 budget|budget article|school budget|enterprise budget|emergency medical services budget)", "Town Meeting budget articles"),
+        (r"bryant farm management plan", "Bryant Farm management plan"),
+        (r"merge open space and minot forest committees", "merging the Open Space and Minot Forest committees"),
         (r"future of the committee", "the committee's future"),
         (r"next steps", "next steps"),
         (r"safe harbor marina.*redevelop", "Safe Harbor Marina redevelopment"),
@@ -643,6 +663,7 @@ def _is_low_value_focus_line(text: str) -> bool:
             "announcements",
             "consent agenda",
             "review and approve minutes",
+            "approve minutes",
         )
     ):
         return True
@@ -935,6 +956,10 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     if "contract" in categories:
         return "The agenda includes {}, which could shape a contract or procurement decision.".format(_with_article(phrase))
     if "town_meeting" in categories:
+        if "vote on town meeting articles" in lowered:
+            return "Members are expected to vote on which articles to recommend for Town Meeting."
+        if "budget" in lowered:
+            return "Members are set to review budget articles headed toward Town Meeting."
         return "Members are expected to discuss {} ahead of Town Meeting.".format(_with_article(phrase))
     if "policy" in categories:
         if "future of the committee" in lowered:
@@ -951,6 +976,8 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     if "permit" in categories:
         return "Members are expected to review {}.".format(_with_article(phrase))
     if "formal_action" in categories:
+        if "bryant farm management plan" in lowered:
+            return "Members are expected to consider the Bryant Farm management plan."
         return "Members could take formal action on {}.".format(_with_article(phrase))
     if "infrastructure" in categories:
         if "wastewater" in lowered or "cwmp" in lowered:
