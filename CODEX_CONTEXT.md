@@ -272,20 +272,24 @@ Build a local-news publishing system that ingests municipal and other local cont
 - A later zoning-normalization pass cleaned up the remaining visible ZBA raw agenda rows:
 - malformed zoning admin lines now render more cleanly as `39-23 Wareham Cranberry Hwy., LLC / Tropical Smoothie - 3020 Cranberry - As-Built Sign Off` and `46-25 / Zone-25-48 William D. Konish, Trustee – Appeal – Candle Paper Lane`
 - `PRELIMINARY BUSINESS` is now treated as procedural and will be filtered if it appears in future raw agenda lists
+- A later zoning-writing pass improved the editorial surfaces for ZBA previews:
+- headlines and summaries now prefer address-first permit phrasing like `17 Atlantic Ave. Permit Request`, `9 Nimrod Way Permit Request`, and `4 West Street Comprehensive Permit` instead of long petition-number/applicant captions
+- summary lines now read in cleaner local-news terms such as `special permit and variance request at 17 Atlantic Ave` instead of repeating the full formal notice caption
 - Latest successful production run:
-- `run_id`: `50`
+- `run_id`: `51`
 - `items_discovered`: `377`
-- `documents_fetched`: `3`
-- `extractions_created`: `3`
-- `meetings_normalized`: `1`
-- `stories_published`: `1`
+- `documents_fetched`: `0`
+- `extractions_created`: `0`
+- `meetings_normalized`: `0`
+- `stories_published`: `0`
 - `stories_updated`: `0`
-- `events_created`: `1`
-- `events_updated`: `111`
-- `artifacts_synced`: `371`
-- `warnings`: `[]`
+- `events_created`: `0`
+- `events_updated`: `112`
+- `artifacts_synced`: `0`
+- `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `6ef5fa7` - `Improve zoning story phrasing`
 - `8669aeb` - `Normalize zoning agenda rows`
 - `0851488` - `Update context after preservation cleanup`
 - `c32180c` - `Clean preservation raw agenda output`
