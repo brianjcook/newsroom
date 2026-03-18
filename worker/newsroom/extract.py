@@ -151,7 +151,8 @@ def _extract_pdf_source_meta(body_text: str) -> Dict[str, object]:
 def _sanitize_location_text(value: str) -> str:
     location = _normalize_line(value)
     location = re.sub(r"^locati\s*on:\s*", "", location, flags=re.IGNORECASE)
-    location = re.split(r"\b(?:To join remotely|Join Zoom Meeting|Meeting ID|Mobile:|The WAREHAM)\b", location, maxsplit=1, flags=re.IGNORECASE)[0]
+    location = re.split(r"\b(?:To join remotely|Join Zoom Meeting|Meeting ID|Mobile:|The WAREHAM|is inviting you to a scheduled Zoom meeting)\b", location, maxsplit=1, flags=re.IGNORECASE)[0]
+    location = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b.*$", "", location)
     location = re.sub(r"\bRoom\s+(\d)\s+(\d{2})\b", r"Room \1\2", location, flags=re.IGNORECASE)
     return location.strip(" ,.;:-")
 

@@ -463,6 +463,8 @@ def _is_low_value_agenda_line(text: str) -> bool:
     lowered = _clean_agenda_display_item(text).lower().strip(" .;:-")
     if not lowered:
         return True
+    if re.fullmatch(r"(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\s*,\s*\d{4}", lowered):
+        return True
     if re.match(r"^\d{1,2}:\d{2}\s*(a\.m\.|p\.m\.|am|pm)\b", lowered, flags=re.IGNORECASE):
         return True
     if re.match(r"^\d{1,2}:\d{2}\s*(a\.m\.|p\.m\.|am|pm)\b", lowered, flags=re.IGNORECASE):
@@ -535,6 +537,14 @@ def _headline_phrase(text: str) -> str:
         return "OML Violation Response"
     if "department heads" in lowered and "budget" in lowered:
         return "FY2027 Budget Presentations"
+    if "parkwood beach" in lowered:
+        return "Parkwood Beach"
+    if "truck restrictions" in lowered and "plymouth ave" in lowered:
+        return "Plymouth Avenue Truck Restrictions"
+    if "littleton housing project" in lowered:
+        return "Littleton Housing Project Addresses"
+    if "relocate bus stop" in lowered:
+        return "Indian Neck Road Bus Stop Relocation"
     if "off site parking" in lowered:
         return "Off-Site Parking Petition"
     if "application of brenda eckstrom" in lowered or "application of bernard pigeon" in lowered:
@@ -788,6 +798,8 @@ def _normalize_focus_phrase(text: str) -> str:
     lowered = cleaned.lower()
     if lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
         return ""
+    if lowered.strip(" .;:-") == "variance request":
+        return "variance request"
     zoning_summary = _zoning_case_summary(cleaned)
     if zoning_summary.get("summary"):
         return str(zoning_summary["summary"])
@@ -796,6 +808,10 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"(fy 27 budget|budget article|school budget|enterprise budget|emergency medical services budget)", "Town Meeting budget articles"),
         (r"oml violation", "OML violation response"),
         (r"department heads.*budget", "FY2027 budget presentations"),
+        (r"parkwood beach", "Parkwood Beach"),
+        (r"plymouth ave.*truck restrictions", "Plymouth Avenue truck restrictions"),
+        (r"littleton housing project", "Littleton Housing Project addresses"),
+        (r"relocate bus stop.*indian neck road", "Indian Neck Road bus stop relocation"),
         (r"off site parking", "off-site parking petition"),
         (r"application of brenda eckstrom|application of bernard pigeon", "Finance Committee appointments"),
         (r"policies to be reviewed|policy review", "policy review"),
@@ -839,6 +855,9 @@ def _normalize_focus_phrase(text: str) -> str:
         if re.search(pattern, lowered, flags=re.IGNORECASE):
             return replacement
 
+    if "1b emma lane" in lowered:
+        return "1B Emma Lane public hearing"
+
     tobacco_match = re.search(r"tobacco violations?\s+(?:for|at)\s+(.+)", cleaned, flags=re.IGNORECASE)
     if tobacco_match:
         subject = _trim_trailing_detail(tobacco_match.group(1))
@@ -851,6 +870,8 @@ def _normalize_focus_phrase(text: str) -> str:
     variance_match = re.search(r"variance requests?\s+(?:for|at)\s+(.+)", cleaned, flags=re.IGNORECASE)
     if variance_match:
         subject = _trim_trailing_detail(variance_match.group(1))
+        if subject.lower() == "request":
+            subject = ""
         return "variance request for {}".format(subject) if subject else "variance request"
 
     cleaned = re.sub(r"^continued\s+", "", cleaned, flags=re.IGNORECASE)
@@ -963,6 +984,8 @@ def _is_low_value_focus_line(text: str) -> bool:
             "vote to accept minutes",
             "approval of prior meeting minutes",
             "approve the ",
+            "reorganization: nomination and vote for chair",
+            "reorganization: nomination and vote for clerk",
             "call to order",
             "roll call",
             "adjournment",
@@ -1269,8 +1292,12 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "The board is expected to review a tobacco-violation case involving Sullivan's Liquors."
         return "The board is expected to review tobacco violations tied to local retailers."
     if "permit" in categories and "variance request" in lowered:
+        if phrase == "variance request" or phrase.lower().endswith("at request") or phrase.lower().endswith("for request"):
+            return "The board is expected to take up a variance request."
         return "The board is expected to take up {}.".format(_with_article(phrase))
     if "public_hearing" in categories:
+        if "1b emma lane" in lowered:
+            return "A public hearing is scheduled on housing-code violations at 1B Emma Lane."
         if zoning_summary.get("sentence"):
             return str(zoning_summary["sentence"]).replace("The board is set to review", "A public hearing is scheduled on")
         if "safe harbor marina" in lowered:
@@ -1357,6 +1384,14 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to discuss the off-site parking citizen petition."
         if "application of brenda eckstrom" in lowered or "application of bernard pigeon" in lowered:
             return "Members are expected to consider appointments to the Finance Committee."
+        if "parkwood beach" in lowered:
+            return "Members are expected to discuss the Parkwood Beach issue."
+        if "littleton housing project" in lowered:
+            return "Members are expected to discuss addressing plans tied to the Littleton Housing Project."
+        if "truck restrictions" in lowered and "plymouth ave" in lowered:
+            return "Members are expected to discuss truck restrictions on Plymouth Avenue."
+        if "relocate bus stop" in lowered:
+            return "Members are expected to discuss relocating the bus stop at Indian Neck Road."
         return "The agenda includes {} as a policy item.".format(_with_article(phrase))
     if "appointment" in categories:
         return "Members are expected to consider {}.".format(_with_article(phrase))
