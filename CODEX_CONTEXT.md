@@ -128,6 +128,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `Schoolh ouse` now normalizes to `Schoolhouse`
 - amendment/update summaries now shorten changed agenda items before rendering them into the public update banner, so a corrected OCR line no longer surfaces as a giant table dump
 - Added a follow-up ZBA raw-list normalization pass in `worker/newsroom/extract.py` so continuation lines that begin with a dash merge back into the previous item instead of appearing as stray bullets.
+- Added a low-signal fallback cleanup pass across `worker/newsroom/extract.py` and `worker/newsroom/publish.py`:
+- roman-numeral headings now open new agenda sections instead of only acting as inline labels for subsequent items
+- when no strong structured agenda block exists, `publish.py` now attempts a tightly filtered generic agenda list from raw body text
+- that generic fallback now fails closed on heading tokens, OCR garbage, and giant raw paragraphs instead of surfacing junk bullets on public stories
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -225,18 +229,22 @@ Build a local-news publishing system that ingests municipal and other local cont
 - A later rebuild cleaned up the ZBA raw agenda list further:
 - the stray standalone `– As-Built Sign Off` bullet is gone and now correctly reads as `39-23 Wareham Cranberry Hwy., LLC / Tropical Smoothie-3020 Cranberry - As-Built Sign Off`
 - the raw list now separates preliminary business from continued/public hearing rows much more cleanly
+- A later rebuild cleaned up the weakest fallback committee stories:
+- Alternative Energy Committee March 24, 2026 no longer drops a whole raw agenda paragraph into the page and now falls back to a short clean agenda list
+- Cultural Council December 2, 2025 no longer surfaces heading-token junk like `MEETING`, `WAREHAM`, or `COUNCIL`
+- Recycling Committee March 18, 2026 no longer surfaces OCR garbage in the public agenda section and now falls back to the direct-agenda note when extraction is too weak
 - Latest successful production run:
-- `run_id`: `37`
-- `items_discovered`: `371`
-- `documents_fetched`: `0`
-- `extractions_created`: `0`
-- `meetings_normalized`: `0`
-- `stories_published`: `0`
-- `stories_updated`: `4`
+- `run_id`: `38`
+- `items_discovered`: `374`
+- `documents_fetched`: `3`
+- `extractions_created`: `3`
+- `meetings_normalized`: `1`
+- `stories_published`: `1`
+- `stories_updated`: `0`
 - `events_created`: `0`
 - `events_updated`: `110`
-- `artifacts_synced`: `0`
-- `warnings`: `["No pending source items were available for fetch/extract."]`
+- `artifacts_synced`: `368`
+- `warnings`: `[]`
 
 ## Recent commits
 - `655a78b` - `Initial newsroom scaffold`
@@ -286,7 +294,8 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Next likely raw-agenda extraction target is the `School Choice 2026 -27-VOTE 7:15 p.m.` pattern, which could still be normalized into a cleaner source-faithful bullet without losing the vote signal.
 - The next likely raw-agenda extraction target is broader cleanup of remaining source-faithful but still awkward punctuation in report items, such as whether `Bill and Payroll Warrants` or other paired municipal terms should be rendered with slightly cleaner punctuation while preserving source meaning.
 - The next likely extraction target is the remaining ZBA raw agenda-list cleanup: the live ZBA story still begins its source-faithful list with `PRELIMINARY BUSINESS:` and could use one more pass to separate preliminary items from hearing rows more cleanly.
-- The next likely extraction target is broader cleanup of low-signal fallback stories like Alternative Energy Committee, Recycling Committee, and Cultural Council, where the site still drops back to near-raw whole-document text or weak summaries.
+- Continue improving low-signal fallback stories like Alternative Energy Committee so thin agendas can still produce cleaner issue-led headlines and summaries instead of only factual fallback copy.
+- Keep tightening weak-agenda suppression so bodies like Recycling Committee and Cultural Council continue to fail closed on low-quality extraction without losing legitimately useful simple agenda bullets.
 - Improve remote-access normalization so partial Zoom metadata like passcode-only records are handled more gracefully in the UI.
 - Improve low-information preview summaries so more meetings can surface a substantive one-line agenda summary rather than only the factual dek.
 - Improve structured extraction for weak agenda PDFs/packets so bodies like Board of Health, Recycling Committee, and School Committee surface stronger issue-led headlines and summaries.

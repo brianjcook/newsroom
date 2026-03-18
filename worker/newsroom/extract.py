@@ -440,7 +440,15 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
         roman_match = re.match(r"^([ivxlcdm]+)[\.\)]\s+(.+)$", line, flags=re.IGNORECASE)
 
         if heading_match:
-            current_heading = heading_match.group(2).strip().rstrip(":")
+            heading_title = heading_match.group(2).strip().rstrip(":")
+            if current_section.get("items"):
+                sections.append(current_section)
+            current_section = {
+                "number": len(sections) + 1,
+                "title": heading_title,
+                "items": [],
+            }
+            current_heading = ""
             continue
 
         if line.endswith(":") and len(line) < 120 and not section_match:
@@ -531,6 +539,20 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
     if scored_highlights:
         scored_highlights.sort(key=lambda pair: (-pair[0], pair[1]))
         structured["agenda_highlights"] = [item for _, item in scored_highlights[:8]]
+    elif sections:
+        fallback_highlights = []
+        for section in sections:
+            for item in section.get("items") or []:
+                normalized = _normalize_line(str(item))
+                if not normalized or _is_procedural_item(normalized):
+                    continue
+                fallback_highlights.append(normalized)
+                if len(fallback_highlights) >= 8:
+                    break
+            if len(fallback_highlights) >= 8:
+                break
+        if fallback_highlights:
+            structured["agenda_highlights"] = fallback_highlights
 
     return structured
 

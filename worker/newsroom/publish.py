@@ -746,6 +746,107 @@ def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
     return filtered
 
 
+def _split_generic_agenda_body(text: str) -> List[str]:
+    body_text = str(text or "")
+    if body_text.count("\n") < 4:
+        body_text = re.sub(r"\s+([IVXLCDM]+[\.\)])\s+", r"\n\1 ", body_text)
+        body_text = re.sub(r"\s+(\d+[\.\)])\s+", r"\n\1 ", body_text)
+        body_text = re.sub(r"\s+([a-z][\.\)])\s+", r"\n\1 ", body_text)
+        body_text = re.sub(r"\s+([A-Z][A-Z /&'-]{6,}:)\s+", r"\n\1 ", body_text)
+    return [segment for segment in body_text.splitlines() if segment.strip()]
+
+
+def _is_heading_token_line(text: str) -> bool:
+    normalized = _normalize_item_text(text)
+    if not normalized:
+        return True
+    words = normalized.split()
+    if len(words) <= 4 and all(word[:1].isupper() for word in words if word):
+        letters = [char for char in normalized if char.isalpha()]
+        if letters and sum(1 for char in letters if char.isupper()) / float(len(letters)) > 0.8:
+            return True
+    return False
+
+
+def _clean_generic_agenda_line(text: str) -> str:
+    line = _normalize_item_text(text)
+    if not line or len(line) < 6:
+        return ""
+
+    line = re.sub(r"^[ivxlcdm]+[\.\)]\s*", "", line, flags=re.IGNORECASE)
+    line = re.sub(r"^\d+[\.\)]\s*", "", line)
+    line = re.sub(r"^[a-z][\.\)]\s*", "", line, flags=re.IGNORECASE)
+    line = _normalize_item_text(line)
+    lowered = line.lower()
+
+    if not line or len(line) < 8:
+        return ""
+    if len(line.split()) < 3:
+        return ""
+    if "http://" in lowered or "https://" in lowered:
+        return ""
+    if _looks_garbled(line) or _looks_truncated(line):
+        return ""
+    if _is_heading_token_line(line):
+        return ""
+
+    if any(
+        lowered.startswith(token)
+        for token in (
+            "town of wareham",
+            "meeting agenda",
+            "day & date",
+            "date and time",
+            "date:",
+            "time:",
+            "place:",
+            "location:",
+            "zoom meeting information",
+            "zoom link",
+            "join zoom meeting",
+            "meeting id:",
+            "passcode:",
+            "call to order",
+            "roll call",
+            "approval of minutes",
+            "adjournment",
+            "meeting",
+            "committee",
+            "council",
+            "next scheduled meeting date",
+            "any other business",
+            "public comment",
+        )
+    ):
+        return ""
+
+    letters = [char for char in line if char.isalpha()]
+    if len(letters) < 6:
+        return ""
+    upper_ratio = sum(1 for char in letters if char.isupper()) / float(len(letters)) if letters else 0.0
+    if upper_ratio > 0.85:
+        return ""
+    weird_chars = sum(1 for char in line if not (char.isalnum() or char.isspace() or char in ".,:;!?&'\"/-()"))
+    if weird_chars > 1:
+        return ""
+    if len(line) > 180 and ":" not in line and ";" not in line:
+        return ""
+    return line.strip(" ,.;:-")
+
+
+def _generic_agenda_lines(extraction: Dict[str, object], limit: int = 5) -> List[str]:
+    lines = []
+    for raw_line in _split_generic_agenda_body(extraction.get("body_text") or ""):
+        line = _clean_generic_agenda_line(raw_line)
+        if not line:
+            continue
+        if line not in lines:
+            lines.append(line)
+        if len(lines) >= limit:
+            break
+    return lines
+
+
 def _score_editorial_line(text: str, context: str = "") -> Tuple[int, List[str]]:
     lowered = " ".join([context, text]).lower()
     score = 0
@@ -1144,6 +1245,14 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
             ) or dek
         intro = _preview_intro(body_name, meeting_date, meeting_time, location, focus_items)
         agenda_block, explainers = _agenda_highlight_blocks(extraction)
+        if not agenda_block:
+            generic_items = _generic_agenda_lines(extraction)
+            if generic_items:
+                agenda_block = "<h3>What is on the agenda</h3><ul>{}</ul>".format(
+                    "".join("<li>{}</li>".format(html.escape(item)) for item in generic_items)
+                )
+                if summary == dek:
+                    summary = _sentence_from_phrases("The posted agenda includes", generic_items[:2]) or dek
         remote_block = _remote_access_block(extraction)
         kicker = (
             f"<p>The public can review the full <a href=\"{html.escape(source_url)}\">posted agenda</a> "
