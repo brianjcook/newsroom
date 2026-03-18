@@ -585,6 +585,25 @@ def _is_low_value_focus_line(text: str) -> bool:
     lowered = _normalize_item_text(text).lower()
     if not lowered:
         return True
+    if re.search(
+        r"\b(superintendent[’']?s report|director of finance|financial report|grants report|school committee report)\b",
+        lowered,
+        flags=re.IGNORECASE,
+    ):
+        if not any(
+            token in lowered
+            for token in (
+                "policy review",
+                "school choice",
+                "tobacco violation",
+                "variance request",
+                "safe harbor marina",
+                "stormwater",
+                "wastewater",
+                "public hearing",
+            )
+        ):
+            return True
     if any(
         token in lowered
         for token in (

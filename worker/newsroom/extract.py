@@ -27,7 +27,17 @@ class ExtractionRecord:
 
 def _normalize_line(value: str) -> str:
     normalized = " ".join(value.replace("\u00a0", " ").split())
-    return re.sub(r"(?<=\w)\s+-\s+(?=\w)", "-", normalized)
+    normalized = re.sub(r"(?<=\w)\s+-\s+(?=\w)", "-", normalized)
+    repair_patterns = [
+        (r"\bR eport\b", "Report"),
+        (r"\bRei mbursements\b", "Reimbursements"),
+        (r"\bDi scriminatory\b", "Discriminatory"),
+        (r"\bHar assment\b", "Harassment"),
+        (r"\bFi nancial\b", "Financial"),
+    ]
+    for pattern, replacement in repair_patterns:
+        normalized = re.sub(pattern, replacement, normalized)
+    return normalized
 
 
 def _is_pdf_noise_line(line: str) -> bool:
@@ -148,6 +158,102 @@ def _is_procedural_item(text: str) -> bool:
         "review and approve minutes",
     )
     return lowered.startswith(procedural_starts)
+
+
+def _split_compound_item(text: str) -> List[str]:
+    normalized = _normalize_line(text)
+    if not normalized:
+        return []
+
+    split_segments = [normalized]
+    if ";" in normalized:
+        split_segments = [segment.strip(" ,.;:-") for segment in normalized.split(";") if segment.strip(" ,.;:-")]
+    expanded = []  # type: List[str]
+    for segment in split_segments:
+        expanded.extend(_split_school_style_item(segment))
+
+    if len(expanded) < 2:
+        return [normalized]
+
+    prefix = ""
+    lead = expanded[0]
+    if ":" in lead:
+        maybe_prefix, maybe_value = lead.split(":", 1)
+        if len(maybe_prefix.strip()) <= 32:
+            prefix = maybe_prefix.strip()
+            expanded[0] = maybe_value.strip(" ,.;:-")
+
+    generic_prefixes = {
+        "reports",
+        "report",
+        "policy review",
+        "old business",
+        "new business",
+        "appointments",
+        "hearings",
+    }
+    if prefix.lower() not in generic_prefixes and not prefix.lower().endswith("report"):
+        prefix = ""
+
+    normalized_segments = []
+    for segment in expanded:
+        cleaned = _normalize_line(segment)
+        if not cleaned:
+            continue
+        if prefix:
+            normalized_segments.append("{}: {}".format(prefix, cleaned))
+        else:
+            normalized_segments.append(cleaned)
+    return normalized_segments or [normalized]
+
+
+def _split_school_style_item(text: str) -> List[str]:
+    normalized = _normalize_line(text)
+    if not normalized:
+        return []
+
+    policy_match = re.match(r"^(Policy Review)(?:-?VOTE)?\s+(.+)$", normalized, flags=re.IGNORECASE)
+    if policy_match:
+        suffix = policy_match.group(2).strip(" ,.;:-")
+        policy_parts = [part.strip(" ,.;:-") for part in re.split(r",\s*", suffix) if part.strip(" ,.;:-")]
+        if len(policy_parts) > 1:
+            return ["Policy Review: {}".format(part) for part in policy_parts]
+
+    marker_pattern = re.compile(
+        r"(?=(Superintendent[’']?s Report|Director of Finance|Financial Report|Grants Report|School Choice Vote|Policy Review(?:-?VOTE)?))",
+        flags=re.IGNORECASE,
+    )
+    matches = list(marker_pattern.finditer(normalized))
+    if len(matches) > 1:
+        segments = []
+        for index, match in enumerate(matches):
+            start = match.start()
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
+            segment = normalized[start:end].strip(" ,.;:-")
+            if segment:
+                segments.append(segment)
+        if segments:
+            return segments
+
+    return [normalized]
+
+
+def _normalize_section_items(section: Dict[str, object]) -> List[str]:
+    cleaned_items = []
+    for item in section.get("items") or []:
+        normalized = _normalize_line(str(item))
+        if not normalized or _is_procedural_item(normalized):
+            continue
+        cleaned_items.extend(_split_compound_item(normalized))
+    deduped = []
+    seen = set()
+    for item in cleaned_items:
+        key = item.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
 
 
 def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
@@ -281,12 +387,7 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
 
     if sections:
         for section in sections:
-            cleaned_items = []
-            for item in section.get("items") or []:
-                normalized = _normalize_line(str(item))
-                if normalized and not _is_procedural_item(normalized):
-                    cleaned_items.append(normalized)
-            section["items"] = cleaned_items
+            section["items"] = _normalize_section_items(section)
         structured["agenda_sections"] = sections
 
     scored_highlights = []
