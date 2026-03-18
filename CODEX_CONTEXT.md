@@ -287,8 +287,13 @@ Build a local-news publishing system that ingests municipal and other local cont
 - A later follow-up cleanup fixed the last obvious March 5 School Committee rough edge:
 - `Class of 2026 Clas s Trip` now normalizes to `Class of 2026 class trip` in the summary and focus layer
 - generic report bullets like `NWEA Report`, `Principal Reports`, and `Important upcoming events` are now treated as low-value focus items instead of surfacing as top agenda items
+- A later low-signal committee pass cleaned up older Finance/Recycling/Open Space stories:
+- Finance Committee January 12, 2026 now centers on `OML Violation Response` instead of a meeting-approval item
+- Finance Committee February 12, 2026 now summarizes cleanly as `FY2027 budget presentations` without dragging a time-table line into the summary
+- Recycling Committee January 14, 2026 now fails closed to a factual meeting headline instead of publishing a minutes-acceptance headline
+- Open Space Committee February 9, 2026 now trims trailing `any new business / next meeting date / chair` text from the public raw agenda item about merging the Open Space and Minot Forest committees
 - Latest successful production run:
-- `run_id`: `55`
+- `run_id`: `58`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -301,6 +306,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `c02bbad` - `Clean low-signal committee framing`
 - `0001cd2` - `Clean school committee OCR phrasing`
 - `d583827` - `Improve older school committee story framing`
 - `900563c` - `Refine March story phrasing`
