@@ -275,8 +275,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - A later zoning-writing pass improved the editorial surfaces for ZBA previews:
 - headlines and summaries now prefer address-first permit phrasing like `17 Atlantic Ave. Permit Request`, `9 Nimrod Way Permit Request`, and `4 West Street Comprehensive Permit` instead of long petition-number/applicant captions
 - summary lines now read in cleaner local-news terms such as `special permit and variance request at 17 Atlantic Ave` instead of repeating the full formal notice caption
+- A later March-story phrasing pass tightened the highest-traffic current stories outside zoning:
+- Board of Health March 18, 2026 now distinguishes the two retailer cases in both the intro and `What matters most`, instead of repeating the same generic tobacco-violation sentence twice
+- Select Board March 17, 2026 now headlines cleanly as `Select Board to Discuss Comprehensive Wastewater Management Plan`, summarizes around the wastewater plan and Town Counsel appointment, and no longer surfaces generic `Any other Town business`, `BOARD'S COMMENT`, or `TOWN ADMINISTRATOR'S REPORT` items in the focus section
 - Latest successful production run:
-- `run_id`: `51`
+- `run_id`: `53`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -289,6 +292,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `900563c` - `Refine March story phrasing`
 - `8d5016d` - `Update context after zoning writing pass`
 - `6ef5fa7` - `Improve zoning story phrasing`
 - `8669aeb` - `Normalize zoning agenda rows`
