@@ -423,6 +423,9 @@ def _clean_agenda_display_item(text: str) -> str:
     cleaned = re.sub(r"\bOld Company Store Property\b", "Old Company Store property", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bProposed alterations\b", "proposed alterations", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^Wareham Historical Society:\s*Fearing Tavern$", "Wareham Historical Society: Fearing Tavern restoration", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r":\s*[\-\u2013\u2014]\s*(As-Built Sign Off)\b", r" - \1", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bTropical Smoothie-(\d)", r"Tropical Smoothie - \1", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bZone\s*-\s*(\d{2}-\d{2})\b", r"Zone-\1", cleaned, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
 
 

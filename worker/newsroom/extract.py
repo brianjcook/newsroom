@@ -29,6 +29,7 @@ def _normalize_line(value: str) -> str:
     normalized = " ".join(value.replace("\u00a0", " ").split())
     normalized = normalized.replace("T0WN", "TOWN")
     normalized = normalized.replace("\uf0b7", " - ")
+    normalized = re.sub(r"\bZone\s+-\s*(\d{2}-\d{2})\b", r"Zone-\1", normalized, flags=re.IGNORECASE)
     normalized = re.sub(r"(?<=\w)\s+-\s+(?=\w)", "-", normalized)
     repair_patterns = [
         (r"\bR eport\b", "Report"),
@@ -168,6 +169,7 @@ def _is_procedural_item(text: str) -> bool:
         "adjourn",
         "good news",
         "public participation",
+        "preliminary business",
         "student representative report",
         "student attending report",
         "report of the conservation agent",
@@ -303,6 +305,9 @@ def _clean_zoning_segment(text: str) -> str:
     cleaned = re.sub(r"^(hearings?|continued hearings?)\s*:?\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^petition#\s*applicant name\s*application type\s*decision deadline\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bthat the chair did not reasonably anticipate.*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r":\s*[\-\u2013\u2014]\s*(As-Built Sign Off)\b", r" - \1", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bTropical Smoothie-(\d)", r"Tropical Smoothie - \1", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bZone-(\d{2}-\d{2})\b", r"Zone-\1", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
     return cleaned
 
