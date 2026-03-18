@@ -540,6 +540,13 @@ def _focus_summary_phrase(text: str) -> str:
     return _headline_phrase(text)
 
 
+def _sentence_case(value: str) -> str:
+    text = " ".join(str(value or "").split())
+    if not text:
+        return ""
+    return text[0].upper() + text[1:]
+
+
 def _display_location(value: str) -> str:
     location = " ".join(str(value or "").split())
     if not location:
@@ -675,12 +682,14 @@ def _preview_intro(body_name: str, meeting_date: str, meeting_time: str, locatio
             f"<p>The Wareham {html.escape(body_name)} will meet on {html.escape(meeting_date)} at "
             f"{html.escape(meeting_time)} at {html.escape(location)}. The posted agenda centers on "
             f"{html.escape(first)} and {html.escape(second)}.</p>"
+            f"<p>{html.escape(_focus_sentence(focus_items[0]))}</p>"
         )
     if first:
         return (
             f"<p>The Wareham {html.escape(body_name)} will meet on {html.escape(meeting_date)} at "
             f"{html.escape(meeting_time)} at {html.escape(location)}. The posted agenda puts "
             f"{html.escape(first)} near the top of the meeting.</p>"
+            f"<p>{html.escape(_focus_sentence(focus_items[0]))}</p>"
         )
     return (
         f"<p>The Wareham {html.escape(body_name)} is scheduled to meet on {html.escape(meeting_date)} "
@@ -742,6 +751,33 @@ def _focus_reason(categories: List[str]) -> str:
     if len(phrases) == 1:
         return phrases[0]
     return "{} and {}".format(", ".join(phrases[:-1]), phrases[-1])
+
+
+def _focus_sentence(item: Dict[str, object]) -> str:
+    phrase = _focus_summary_phrase(str(item.get("text") or "")) or str(item.get("text") or "")
+    categories = list(item.get("reasons") or [])
+
+    if "public_hearing" in categories:
+        return "A public hearing is scheduled on {}.".format(phrase)
+    if "land_use" in categories:
+        return "The agenda includes {} as a development-related item.".format(phrase)
+    if "budget" in categories:
+        return "Members are set to review {} as part of the meeting's fiscal agenda.".format(phrase)
+    if "contract" in categories:
+        return "The agenda includes {}, which could shape a contract or procurement decision.".format(phrase)
+    if "town_meeting" in categories:
+        return "Members are expected to discuss {} ahead of Town Meeting.".format(phrase)
+    if "policy" in categories:
+        return "The agenda includes {} as a policy item.".format(phrase)
+    if "appointment" in categories:
+        return "Members are expected to consider {}.".format(phrase)
+    if "permit" in categories:
+        return "Members are expected to review {}.".format(phrase)
+    if "formal_action" in categories:
+        return "Members could take formal action on {}.".format(phrase)
+    if "infrastructure" in categories:
+        return "The agenda includes {} as an infrastructure-related item.".format(phrase)
+    return "{} is among the main items listed on the agenda.".format(_sentence_case(phrase))
 
 
 def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[Dict[str, object]]:
@@ -832,7 +868,7 @@ def _focus_list_block(items: List[Dict[str, object]], heading: str) -> str:
 
     bullets = []
     for item in items:
-        text = html.escape(_focus_summary_phrase(str(item["text"])) or str(item["text"]))
+        text = html.escape(_focus_sentence(item))
         reason = _focus_reason(list(item.get("reasons") or []))
         if reason:
             bullets.append("<li>{} <span class=\"story-note\">Why it matters: {}.</span></li>".format(text, html.escape(reason)))
