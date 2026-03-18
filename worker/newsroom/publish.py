@@ -489,6 +489,9 @@ def _headline_phrase(text: str) -> str:
     lowered = cleaned.lower()
     if lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
         return ""
+    zoning_summary = _zoning_case_summary(cleaned)
+    if zoning_summary.get("headline"):
+        return str(zoning_summary["headline"])
     if "vote on town meeting articles" in lowered:
         return "Town Meeting Articles Vote"
     if "fy 27 budget" in lowered or "budget article" in lowered:
@@ -604,6 +607,100 @@ def _trim_trailing_detail(text: str) -> str:
     return trimmed
 
 
+def _zoning_case_summary(text: str) -> Dict[str, str]:
+    cleaned = _normalize_item_text(text)
+    if not cleaned:
+        return {}
+    cleaned = cleaned.replace("\u2013", " - ").replace("\u2014", " - ")
+
+    lowered = cleaned.lower()
+    if not any(
+        token in lowered
+        for token in (
+            "special permit",
+            "variance",
+            "site plan review",
+            "comprehensive permit",
+            "minor modification",
+            "record correction",
+            "appeal",
+            "as-built sign off",
+            "sign off",
+        )
+    ):
+        return {}
+
+    core = re.sub(r"^\d{2}-\d{2}\s*/?\s*", "", cleaned)
+    core = re.sub(r"\bzone-\d{2}-\d{2}\b", "", core, flags=re.IGNORECASE)
+    core = re.sub(r"\s+", " ", core).strip(" ,.;:-")
+
+    action_patterns = [
+        (r"\bcomprehensive permit\b", "Comprehensive Permit", "comprehensive permit request"),
+        (r"\bsite plan review\b", "Site Plan Review", "site plan review"),
+        (r"\bminor modification\b", "Minor Modification", "minor modification request"),
+        (r"\brecord correction\b", "Record Correction", "record correction request"),
+        (r"\bappeal\b", "Appeal", "appeal"),
+        (r"\bas-built sign off\b", "As-Built Sign Off", "as-built sign-off request"),
+        (r"\bspecial permit and/or a variance\b", "Permit Request", "special permit and variance request"),
+        (r"\bspecial permit and a variance\b", "Permit Request", "special permit and variance request"),
+        (r"\bspecial permit or variance\b", "Permit Request", "special permit or variance request"),
+        (r"\bspecial permit / variance\(s\)\b", "Permit Request", "special permit and variance request"),
+        (r"\bvariance\(s\)\b", "Variance Request", "variance request"),
+        (r"\bvariance\b", "Variance Request", "variance request"),
+        (r"\bspecial permit\b", "Special Permit", "special permit request"),
+    ]
+
+    match_obj = None
+    action_title = ""
+    action_phrase = ""
+    for pattern, title, phrase in action_patterns:
+        match = re.search(pattern, core, flags=re.IGNORECASE)
+        if match:
+            match_obj = match
+            action_title = title
+            action_phrase = phrase
+            break
+
+    if not match_obj:
+        return {}
+
+    subject = core[: match_obj.start()].strip(" ,.;:-/")
+    tail = core[match_obj.end() :].strip(" ,.;:-/")
+    subject = re.sub(r"^[^A-Za-z0-9]+", "", subject)
+    tail = re.sub(r"^[^A-Za-z0-9]+", "", tail)
+    address = tail
+    if not address:
+        address_match = re.search(
+            r"\b\d+[A-Za-z0-9\s.'-]+(?:Street|St\.?|Avenue|Ave\.?|Road|Rd\.?|Highway|Hwy\.?|Lane|Ln\.?|Boulevard|Blvd\.?|Way)\b",
+            core,
+            flags=re.IGNORECASE,
+        )
+        if address_match:
+            address = address_match.group(0).strip(" ,.;:-")
+
+    address = re.sub(r"\bAve\b\.?$", "Ave.", address, flags=re.IGNORECASE)
+    address = re.sub(r"\bBlvd\b\.?$", "Blvd.", address, flags=re.IGNORECASE)
+    address = re.sub(r"\bHwy\b\.?$", "Hwy.", address, flags=re.IGNORECASE)
+
+    headline = ""
+    summary = ""
+    sentence = ""
+    if address:
+        headline = "{} {}".format(address, action_title)
+        summary = "{} at {}".format(action_phrase, address)
+        sentence = "The board is set to review {} at {}.".format(_with_article(action_phrase), address)
+    elif subject:
+        headline = "{} {}".format(subject, action_title)
+        summary = "{} involving {}".format(action_phrase, subject)
+        sentence = "The board is set to review {} involving {}.".format(_with_article(action_phrase), subject)
+
+    return {
+        "headline": headline.strip(" ,.;:-"),
+        "summary": summary.strip(" ,.;:-"),
+        "sentence": sentence.strip(" ,.;:-"),
+    }
+
+
 def _normalize_focus_phrase(text: str) -> str:
     cleaned = _strip_agenda_lead_in(text)
     if not cleaned:
@@ -612,6 +709,9 @@ def _normalize_focus_phrase(text: str) -> str:
     lowered = cleaned.lower()
     if lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
         return ""
+    zoning_summary = _zoning_case_summary(cleaned)
+    if zoning_summary.get("summary"):
+        return str(zoning_summary["summary"])
     special_patterns = [
         (r"vote on town meeting articles", "Town Meeting articles vote"),
         (r"(fy 27 budget|budget article|school budget|enterprise budget|emergency medical services budget)", "Town Meeting budget articles"),
@@ -1039,18 +1139,23 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     raw_text = _normalize_item_text(str(item.get("text") or ""))
     lowered = raw_text.lower()
     categories = list(item.get("reasons") or [])
+    zoning_summary = _zoning_case_summary(raw_text)
 
     if "permit" in categories and "tobacco violation" in lowered:
         return "The board is expected to review tobacco violations tied to local retailers."
     if "permit" in categories and "variance request" in lowered:
         return "The board is expected to take up {}.".format(_with_article(phrase))
     if "public_hearing" in categories:
+        if zoning_summary.get("sentence"):
+            return str(zoning_summary["sentence"]).replace("The board is set to review", "A public hearing is scheduled on")
         if "safe harbor marina" in lowered:
             return "A public hearing is scheduled on Safe Harbor Marina redevelopment plans."
         if "stormwater" in lowered:
             return "A public hearing is scheduled on stormwater-related work tied to the project."
         return "A public hearing is scheduled on {}.".format(_with_article(phrase))
     if "land_use" in categories:
+        if zoning_summary.get("sentence"):
+            return str(zoning_summary["sentence"])
         if "fearing tavern" in lowered:
             return "Members are expected to discuss restoration work at Fearing Tavern."
         if "early education learning center" in lowered:
