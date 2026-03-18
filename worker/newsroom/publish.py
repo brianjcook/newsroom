@@ -451,7 +451,92 @@ def _headline_action(text: str) -> str:
     return "to Meet and Consider"
 
 
+def _trim_trailing_detail(text: str) -> str:
+    trimmed = text.strip(" ,.;:-")
+    split_patterns = [
+        r"\s+[;-]\s+",
+        r"\s+\((?=map|lot|dep|continued|vote|public hearing)",
+        r",\s+(?=located at|at\s+\d+|wareham, ma|wareham ma)",
+        r"\s+(?=for property located at\b)",
+        r"\s+(?=located at\b)",
+        r"\s+(?=under order of conditions\b)",
+        r"\s+(?=under the wetlands protection act\b)",
+        r"\s+(?=pursuant to\b)",
+        r"\s+(?=file no\.)",
+        r"\s+(?=dep file no\.)",
+    ]
+    for pattern in split_patterns:
+        parts = re.split(pattern, trimmed, maxsplit=1, flags=re.IGNORECASE)
+        if parts and parts[0]:
+            trimmed = parts[0].strip(" ,.;:-")
+    return trimmed
+
+
+def _normalize_focus_phrase(text: str) -> str:
+    cleaned = _strip_agenda_lead_in(text)
+    if not cleaned:
+        return ""
+
+    lowered = cleaned.lower()
+    special_patterns = [
+        (r"safe harbor marina.*redevelop", "Safe Harbor Marina redevelopment"),
+        (r"river hawk.*stormwater", "River Hawk stormwater work"),
+        (r"school choice", "school choice vote"),
+        (r"policy review", "policy review"),
+        (r"comprehensive wastewater management plan|cwmp", "Comprehensive Wastewater Management Plan"),
+        (r"open space and recreation plan", "Open Space and Recreation Plan"),
+        (r"municipal maintenance", "municipal maintenance abatements"),
+    ]
+    for pattern, replacement in special_patterns:
+        if re.search(pattern, lowered, flags=re.IGNORECASE):
+            return replacement
+
+    tobacco_match = re.search(r"tobacco violations?\s+(?:for|at)\s+(.+)", cleaned, flags=re.IGNORECASE)
+    if tobacco_match:
+        subject = _trim_trailing_detail(tobacco_match.group(1))
+        return "tobacco violations at {}".format(subject) if subject else "tobacco violations"
+
+    variance_match = re.search(r"variance requests?\s+(?:for|at)\s+(.+)", cleaned, flags=re.IGNORECASE)
+    if variance_match:
+        subject = _trim_trailing_detail(variance_match.group(1))
+        return "variance request for {}".format(subject) if subject else "variance request"
+
+    cleaned = re.sub(r"^continued\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(public hearing|public hearings|hearing|hearings)\s*:?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^notice of intents? \(noi\)\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^request for determination of applicability \(rda\)\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^abbreviated notice of resource area delineation requests? \(anrad\)\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^discussion and possible vote (regarding|on|to)\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^discussion (regarding|on)\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^possible vote (regarding|on|to)\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^review of\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^report of\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^update on\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bto recommend action on\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\barticles for the spring annual town meeting\b", "Spring Town Meeting articles", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\barticles for the spring annual town\b", "Spring Town Meeting articles", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bregarding\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bpolicy review\s*-\s*", "policy review on ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
+    cleaned = _trim_trailing_detail(cleaned)
+
+    if not cleaned:
+        return ""
+
+    if len(cleaned) > 96:
+        shortened = re.split(r",\s+|\s+and\s+|\s+for\s+", cleaned, maxsplit=1, flags=re.IGNORECASE)[0].strip(" ,.;:-")
+        if len(shortened) >= 24:
+            cleaned = shortened
+
+    if cleaned and cleaned[0].isupper():
+        return cleaned
+    return cleaned[:1].lower() + cleaned[1:] if cleaned else ""
+
+
 def _focus_summary_phrase(text: str) -> str:
+    phrase = _normalize_focus_phrase(text)
+    if phrase:
+        return phrase
     return _headline_phrase(text)
 
 
@@ -747,7 +832,7 @@ def _focus_list_block(items: List[Dict[str, object]], heading: str) -> str:
 
     bullets = []
     for item in items:
-        text = html.escape(str(item["text"]))
+        text = html.escape(_focus_summary_phrase(str(item["text"])) or str(item["text"]))
         reason = _focus_reason(list(item.get("reasons") or []))
         if reason:
             bullets.append("<li>{} <span class=\"story-note\">Why it matters: {}.</span></li>".format(text, html.escape(reason)))
@@ -760,8 +845,10 @@ def _focus_summary(items: List[Dict[str, object]]) -> str:
     if not items:
         return ""
     if len(items) == 1:
-        return str(items[0]["text"])
-    return "{} and {}".format(items[0]["text"], items[1]["text"])
+        return _focus_summary_phrase(str(items[0]["text"])) or str(items[0]["text"])
+    first = _focus_summary_phrase(str(items[0]["text"])) or str(items[0]["text"])
+    second = _focus_summary_phrase(str(items[1]["text"])) or str(items[1]["text"])
+    return "{} and {}".format(first, second)
 
 
 def _agenda_details(extraction: Dict[str, object]) -> Dict[str, object]:
