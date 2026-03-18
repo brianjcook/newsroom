@@ -180,7 +180,7 @@ def _split_compound_item(text: str) -> List[str]:
             expanded.extend(second_pass)
 
     if len(expanded) < 2:
-        return [normalized]
+        return expanded or [normalized]
 
     prefix = ""
     lead = expanded[0]
@@ -221,6 +221,16 @@ def _split_school_style_item(text: str) -> List[str]:
     normalized = _normalize_line(text)
     if not normalized:
         return []
+
+    school_choice_match = re.search(
+        r"school choice\s+(\d{4})\s*-\s*(\d{2}).*vote",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    if school_choice_match:
+        start_year = school_choice_match.group(1)
+        end_year = "{}{}".format(start_year[:2], school_choice_match.group(2))
+        return ["School Choice {}-{} (vote)".format(start_year, end_year)]
 
     policy_match = re.match(r"^(Policy Review)(?:-?VOTE)?\s+(.+)$", normalized, flags=re.IGNORECASE)
     if policy_match:
