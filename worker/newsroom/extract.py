@@ -178,6 +178,21 @@ def _is_procedural_item(text: str) -> bool:
     return lowered.startswith(procedural_starts)
 
 
+def _is_header_metadata_item(text: str) -> bool:
+    lowered = _normalize_line(text).lower()
+    if not lowered:
+        return True
+    header_tokens = (
+        "notice of meeting",
+        "commission members",
+        "fax:",
+        "54 marion road",
+        "wareham, massachusetts",
+        "town of wareham",
+    )
+    return any(token in lowered for token in header_tokens)
+
+
 def _split_compound_item(text: str) -> List[str]:
     normalized = _normalize_line(text)
     if not normalized:
@@ -363,11 +378,13 @@ def _normalize_section_items(section: Dict[str, object]) -> List[str]:
     cleaned_items = []
     for item in section.get("items") or []:
         normalized = _normalize_line(str(item))
-        if not normalized or _is_procedural_item(normalized):
+        if not normalized or _is_procedural_item(normalized) or _is_header_metadata_item(normalized):
             continue
         for candidate in _split_compound_item(normalized):
             cleaned_candidate = _normalize_line(candidate)
             if not cleaned_candidate:
+                continue
+            if cleaned_candidate.lower().strip(" .;:-") == "discussion and possible vote":
                 continue
             if cleaned_items and re.match(r"^[\-\u2013\u2014]\s*", cleaned_candidate):
                 cleaned_items[-1] = "{} {}".format(
@@ -385,6 +402,50 @@ def _normalize_section_items(section: Dict[str, object]) -> List[str]:
         seen.add(key)
         deduped.append(item)
     return deduped
+
+
+def _parse_heading_only_sections(lines: List[str]) -> List[Dict[str, object]]:
+    sections = []
+    current_section = None  # type: Optional[Dict[str, object]]
+    heading_map = {
+        "minutes": "Minutes",
+        "old business": "Old Business",
+        "new business": "New Business",
+    }
+
+    for raw_line in lines:
+        line = _normalize_line(raw_line)
+        lowered = line.lower().strip(" .;:-")
+        if not line or _is_header_metadata_item(line):
+            continue
+
+        matched_heading = None
+        for prefix, title in heading_map.items():
+            if lowered.startswith(prefix):
+                matched_heading = title
+                break
+
+        if matched_heading:
+            if current_section and current_section.get("items"):
+                sections.append(current_section)
+            current_section = {
+                "number": len(sections) + 1,
+                "title": matched_heading,
+                "items": [],
+            }
+            tail = line[len(prefix):].strip(" .;:-")
+            if tail and not _is_procedural_item(tail) and tail.lower().strip(" .;:-") != "discussion and possible vote":
+                current_section["items"].append(tail)
+            continue
+
+        if current_section:
+            if _is_procedural_item(line) or lowered == "discussion and possible vote":
+                continue
+            current_section["items"].append(line)
+
+    if current_section and current_section.get("items"):
+        sections.append(current_section)
+    return sections
 
 
 def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
@@ -528,6 +589,9 @@ def _parse_agenda_pdf(body_text: str) -> Dict[str, object]:
 
     if current_section.get("items"):
         sections.append(current_section)
+
+    if not any(section.get("items") for section in sections):
+        sections = _parse_heading_only_sections(lines)
 
     if sections:
         for section in sections:

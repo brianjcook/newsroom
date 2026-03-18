@@ -47,6 +47,17 @@ EDITORIAL_SIGNAL_RULES = [
     ("school budget", 46, "budget"),
     ("enterprise budget", 46, "budget"),
     ("emergency medical services budget", 46, "budget"),
+    ("course update", 24, "policy"),
+    ("winter schedule", 22, "policy"),
+    ("golf cart fleet", 28, "infrastructure"),
+    ("tractor situation", 26, "infrastructure"),
+    ("equipment status", 18, "infrastructure"),
+    ("proposed alterations", 32, "land_use"),
+    ("historic district expansion", 26, "policy"),
+    ("fearing tavern", 34, "land_use"),
+    ("restoration", 22, "land_use"),
+    ("early education learning center", 20, "land_use"),
+    ("early education head start", 20, "land_use"),
     ("school choice", 82, "policy"),
     ("policy review", 76, "policy"),
     ("discriminatory harassment", 52, "policy"),
@@ -417,6 +428,22 @@ def _headline_phrase(text: str) -> str:
         return "Town Meeting Articles Vote"
     if "fy 27 budget" in lowered or "budget article" in lowered:
         return "Town Meeting Budget Articles"
+    if "proposed alterations" in lowered and "main street" in lowered:
+        return "59 Main Street Alterations"
+    if "historic district expansion" in lowered:
+        return "Historic District Expansion Study"
+    if "fearing tavern" in lowered:
+        return "Fearing Tavern Restoration"
+    if "early education learning center" in lowered:
+        return "Early Education Learning Center"
+    if "early education head start" in lowered:
+        return "Early Education Head Start"
+    if "course update" in lowered:
+        return "Course Update"
+    if "golf cart fleet" in lowered:
+        return "Golf Cart Fleet Needs"
+    if "tractor situation" in lowered:
+        return "Tractor Situation"
     if "bryant farm management plan" in lowered:
         return "Bryant Farm Management Plan"
     if "merge open space and minot forest committees" in lowered:
@@ -521,6 +548,15 @@ def _normalize_focus_phrase(text: str) -> str:
     special_patterns = [
         (r"vote on town meeting articles", "Town Meeting articles vote"),
         (r"(fy 27 budget|budget article|school budget|enterprise budget|emergency medical services budget)", "Town Meeting budget articles"),
+        (r"59 main street.*proposed alterations", "59 Main Street alterations"),
+        (r"historic district expansion", "Historic District expansion study"),
+        (r"fearing tavern.*restoration", "Fearing Tavern restoration"),
+        (r"early education learning center", "Early Education Learning Center"),
+        (r"early education head start", "Early Education Head Start"),
+        (r"course update", "course update"),
+        (r"golf cart fleet", "golf cart fleet needs"),
+        (r"tractor situation", "tractor situation"),
+        (r"winter schedule", "winter schedule"),
         (r"bryant farm management plan", "Bryant Farm management plan"),
         (r"merge open space and minot forest committees", "merging the Open Space and Minot Forest committees"),
         (r"future of the committee", "the committee's future"),
@@ -666,6 +702,8 @@ def _is_low_value_focus_line(text: str) -> bool:
             "approve minutes",
         )
     ):
+        return True
+    if lowered.strip(" .;:-") == "discussion and possible vote":
         return True
     return False
 
@@ -946,6 +984,14 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "A public hearing is scheduled on stormwater-related work tied to the project."
         return "A public hearing is scheduled on {}.".format(_with_article(phrase))
     if "land_use" in categories:
+        if "fearing tavern" in lowered:
+            return "Members are expected to discuss restoration work at Fearing Tavern."
+        if "early education learning center" in lowered:
+            return "Members are expected to discuss the Early Education Learning Center property in East Wareham."
+        if "early education head start" in lowered:
+            return "Members are expected to discuss the Early Education Head Start property."
+        if "proposed alterations" in lowered:
+            return "Commissioners are set to review proposed exterior alterations at 59 Main Street."
         if "safe harbor marina" in lowered:
             return "Commissioners are set to review the Safe Harbor Marina redevelopment proposal."
         if "river hawk" in lowered and "stormwater" in lowered:
@@ -962,6 +1008,12 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are set to review budget articles headed toward Town Meeting."
         return "Members are expected to discuss {} ahead of Town Meeting.".format(_with_article(phrase))
     if "policy" in categories:
+        if "historic district expansion" in lowered:
+            return "Members are expected to discuss the Historic District expansion study."
+        if "course update" in lowered:
+            return "Members are expected to review a course update from management."
+        if "winter schedule" in lowered:
+            return "Members are also expected to discuss the winter schedule and related plans."
         if "future of the committee" in lowered:
             return "Members are set to discuss the future of the committee and where its work goes next."
         if lowered == "next steps":
@@ -980,6 +1032,12 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to consider the Bryant Farm management plan."
         return "Members could take formal action on {}.".format(_with_article(phrase))
     if "infrastructure" in categories:
+        if "tractor situation" in lowered:
+            return "Members are expected to revisit the tractor situation at the course."
+        if "golf cart fleet" in lowered:
+            return "Members are expected to discuss golf cart fleet needs for 2026."
+        if "equipment status" in lowered:
+            return "Members are also expected to review current equipment status."
         if "wastewater" in lowered or "cwmp" in lowered:
             return "The agenda includes discussion of the Comprehensive Wastewater Management Plan."
         if "open space and recreation plan" in lowered:
