@@ -289,6 +289,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `8d5016d` - `Update context after zoning writing pass`
 - `6ef5fa7` - `Improve zoning story phrasing`
 - `8669aeb` - `Normalize zoning agenda rows`
 - `0851488` - `Update context after preservation cleanup`
