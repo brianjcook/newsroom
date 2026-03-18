@@ -342,20 +342,29 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Zoning Board of Appeals previews now use `to Hear 17 Atlantic Ave. Permit Request`, with corrected address casing
 - Historical Commission, Historic District Commission, Cable Advisory Committee, Cultural Council, Bylaw Review Committee, Capital Planning Committee, Finance Committee, Affordable Housing Trust, Sewer Commissioners, and similar bodies now use more specific verbs like `to Review` or `to Discuss` where appropriate
 - Little Harbor Golf previews now use `to Discuss` instead of the stiffer review framing for operating issues
+- A later live summary/body pass moved many preview summaries away from the repetitive `The posted agenda centers on ...` construction:
+- School Committee summaries now read as `The committee is expected to focus on ...`
+- Planning Board, Zoning Board of Appeals, and Finance Committee summaries now read as `The board is expected to focus on ...`
+- Conservation, Historical, and Historic District summaries now read as `The commission is expected to focus on ...`
+- Cable Advisory and similar committee/council bodies now use `The meeting is expected to focus on ...`
+- body-level focus sentences were tightened for Planning Board site-plan items, zoning-bylaw petition items, Comcast renewal items, 801 Main Street funding status, and FY2027 capital plan references
+- focus selection is now stricter on normalized phrases, suppressing more malformed low-value items before they reach `What matters most`
+- later micro-cleanups also suppressed malformed carry-through phrases like `the 16.`, the Planning Board `zoning re-write presentation` artifact, and the worst `Or Special Permit` focus artifact
 - Latest successful production run:
-- `run_id`: `72`
+- `run_id`: `75`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
 - `meetings_normalized`: `0`
 - `stories_published`: `0`
-- `stories_updated`: `5`
+- `stories_updated`: `4`
 - `events_created`: `0`
 - `events_updated`: `112`
 - `artifacts_synced`: `0`
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `6351d52` - `Refine preview headline voice across governing bodies`
 - `e673c97` - `Self-heal stale story slugs and cleanup preview phrasing`
 - `7e189fb` - `Clean remaining fallback summary OCR`
 - `a4e5e9f` - `Improve fallback agenda story extraction`
@@ -440,6 +449,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Improve generated headlines, summaries, and meeting/location normalization against live Wareham examples.
 - Continue refining templated but structurally correct previews, especially Zoning Board of Appeals, Planning Board, Conservation Commission, and older School Committee stories.
 - Continue improving summaries and body copy for structurally correct stories whose headlines are now better but whose secondary lines still read like cleaned agenda text.
+- Keep improving focus-item selection for public-hearing boards so the highest-impact hearings surface first without stray lower-signal petition rows.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 

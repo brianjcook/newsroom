@@ -611,6 +611,12 @@ def _headline_phrase(text: str) -> str:
         return "3031 Cran Hwy. Site Plan Review"
     if "citizen petition" in lowered and "zoning bylaw article 9" in lowered:
         return "Zoning Bylaw Citizen Petition"
+    if "comcast draft renewal license" in lowered:
+        return "Comcast Draft Renewal License"
+    if "discussion with cable attorney" in lowered:
+        return "Cable Counsel Discussion"
+    if "fy 27 capital plan" in lowered or "fy27 capital plan" in lowered:
+        return "FY2027 Capital Plan"
     if "application of brenda eckstrom" in lowered or "application of bernard pigeon" in lowered:
         return "Finance Committee Appointments"
     if "comprehensive wastewater management plan" in lowered or "cwmp" in lowered:
@@ -954,6 +960,9 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"238\s*&\s*240 sandwich road.*site plan review", "Sandwich Road site plan review"),
         (r"3031 cran(?:berry)? hwy.*site plan review", "3031 Cran Hwy. site plan review"),
         (r"citizen petition.*zoning bylaw article 9", "zoning bylaw citizen petition"),
+        (r"comcast draft renewal license", "Comcast draft renewal license"),
+        (r"discussion with cable attorney", "cable counsel discussion"),
+        (r"fy\s*27 capital plan|fy27 capital plan", "FY2027 capital plan"),
         (r"application of brenda eckstrom|application of bernard pigeon", "Finance Committee appointments"),
         (r"policies to be reviewed|policy review", "policy review"),
         (r"district calendar", "district calendar vote"),
@@ -1130,6 +1139,8 @@ def _is_low_value_focus_line(text: str) -> bool:
     lowered = _normalize_item_text(text).lower()
     if not lowered:
         return True
+    if re.match(r"^(the\s+)?\d{1,2}(?:-\d{1,2})?\.?$", lowered):
+        return True
     if re.search(
         r"\b(superintendent[’']?s report|director of finance|financial report|grants report|school committee report)\b",
         lowered,
@@ -1184,10 +1195,20 @@ def _is_low_value_focus_line(text: str) -> bool:
             "nwea report",
             "principal reports",
             "important upcoming events",
+            "appointments, interviews, and reappointments",
+            "workshop - permits - certificates of compliance",
+            "workshop permits certificates of compliance",
+            "certificates of compliance",
+            "zoning re - write presentation",
+            "zoning re write presentation",
+            "business unknown until the previous 48 hours",
+            "election of officers",
             "review and approve minutes",
             "approve minutes",
         )
     ):
+        return True
+    if "or special permit" in lowered and "variance request" in lowered:
         return True
     if lowered.strip(" .;:-") == "discussion and possible vote":
         return True
@@ -1230,6 +1251,23 @@ def _sentence_from_phrases(prefix: str, phrases: List[str]) -> str:
     if len(phrases) == 1:
         return "{} {}.".format(prefix, phrases[0])
     return "{} {} and {}.".format(prefix, phrases[0], phrases[1])
+
+
+def _preview_summary(body_name: str, focus_items: List[Dict[str, object]], dek: str) -> str:
+    phrases = _summary_phrase_list([str(item["text"]) for item in focus_items])
+    if not phrases:
+        return dek
+
+    lowered_body = _normalize_item_text(body_name).lower()
+    if lowered_body == "school committee":
+        return _sentence_from_phrases("The committee is expected to focus on", phrases) or dek
+    if lowered_body in ("planning board", "zoning board of appeals", "finance committee"):
+        return _sentence_from_phrases("The board is expected to focus on", phrases) or dek
+    if lowered_body in ("conservation commission", "historical commission", "historic district commission"):
+        return _sentence_from_phrases("The commission is expected to focus on", phrases) or dek
+    if lowered_body.endswith("committee") or lowered_body.endswith("council"):
+        return _sentence_from_phrases("The meeting is expected to focus on", phrases) or dek
+    return _sentence_from_phrases("The agenda is expected to focus on", phrases) or dek
 
 
 def _headline_focus_phrase(focus_items: List[Dict[str, object]]) -> str:
@@ -1587,6 +1625,12 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     if "land_use" in categories:
         if zoning_summary.get("sentence"):
             return str(zoning_summary["sentence"])
+        if "238 & 240 sandwich road" in lowered and "site plan review" in lowered:
+            return "The board is expected to review a site plan proposal at 238 and 240 Sandwich Road."
+        if ("3031 cran hwy" in lowered or "3031 cranberry hwy" in lowered) and "site plan review" in lowered:
+            return "The board is expected to review a site plan proposal at 3031 Cranberry Highway."
+        if "citizen petition" in lowered and "zoning bylaw article 9" in lowered:
+            return "The board is also expected to review a citizen petition to amend the zoning bylaw's off-site parking rules."
         if "fearing tavern" in lowered:
             return "Members are expected to discuss restoration work at Fearing Tavern."
         if "early education learning center" in lowered:
@@ -1601,8 +1645,12 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Commissioners are also expected to review River Hawk stormwater work."
         return "The agenda includes {} as a development-related item.".format(_with_article(phrase))
     if "budget" in categories:
+        if "801 main street" in lowered and "funding" in lowered:
+            return "Trust members are expected to review funding status for 801 Main Street."
         if "budget update" in lowered:
             return "Members are expected to review a budget update."
+        if "fy 27 capital plan" in lowered or "fy27 capital plan" in lowered:
+            return "Members are set to review the FY2027 capital plan article."
         return "Members are set to review {} as part of the meeting's fiscal agenda.".format(_with_article(phrase))
     if "contract" in categories:
         return "The agenda includes {}, which could shape a contract or procurement decision.".format(_with_article(phrase))
@@ -1629,6 +1677,10 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     if "policy" in categories:
         if "historic district expansion" in lowered:
             return "Members are expected to discuss the Historic District expansion study."
+        if "comcast draft renewal license" in lowered:
+            return "Members are expected to review Comcast's draft cable-license renewal."
+        if "discussion with cable attorney" in lowered:
+            return "Members are also expected to discuss the renewal process with cable counsel."
         if "course update" in lowered:
             return "Members are expected to review a course update from management."
         if "winter schedule" in lowered:
@@ -1710,6 +1762,9 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
                 if _is_low_value_focus_line(item):
                     continue
                 if _looks_truncated(item):
+                    continue
+                phrase = _focus_summary_phrase(item)
+                if phrase and _is_low_value_focus_line(phrase):
                     continue
                 score, reasons = _score_editorial_line(item, section_title)
                 if score <= 0:
@@ -1997,10 +2052,7 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
         dek = _preview_dek(body_name, meeting_date, meeting_time, location, focus_items)
         if focus_items:
             focus_block = _focus_list_block(focus_items, "What matters most on the agenda")
-            summary = _sentence_from_phrases(
-                "The posted agenda centers on",
-                _summary_phrase_list([str(item["text"]) for item in focus_items]),
-            ) or dek
+            summary = _preview_summary(body_name, focus_items, dek)
         else:
             summary = _sentence_from_phrases(
                 "The posted agenda includes",
