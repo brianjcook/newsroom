@@ -753,30 +753,61 @@ def _focus_reason(categories: List[str]) -> str:
     return "{} and {}".format(", ".join(phrases[:-1]), phrases[-1])
 
 
+def _with_article(phrase: str) -> str:
+    text = " ".join(str(phrase or "").split())
+    if not text:
+        return ""
+    if re.match(r"^(the|a|an)\b", text, flags=re.IGNORECASE):
+        return text
+    return "the {}".format(text)
+
+
 def _focus_sentence(item: Dict[str, object]) -> str:
     phrase = _focus_summary_phrase(str(item.get("text") or "")) or str(item.get("text") or "")
+    raw_text = _normalize_item_text(str(item.get("text") or ""))
+    lowered = raw_text.lower()
     categories = list(item.get("reasons") or [])
 
+    if "permit" in categories and "tobacco violation" in lowered:
+        return "The board is expected to review tobacco violations tied to local retailers."
+    if "permit" in categories and "variance request" in lowered:
+        return "The board is expected to take up {}.".format(_with_article(phrase))
     if "public_hearing" in categories:
-        return "A public hearing is scheduled on {}.".format(phrase)
+        if "safe harbor marina" in lowered:
+            return "A public hearing is scheduled on Safe Harbor Marina redevelopment plans."
+        if "stormwater" in lowered:
+            return "A public hearing is scheduled on stormwater-related work tied to the project."
+        return "A public hearing is scheduled on {}.".format(_with_article(phrase))
     if "land_use" in categories:
-        return "The agenda includes {} as a development-related item.".format(phrase)
+        if "safe harbor marina" in lowered:
+            return "Commissioners are set to review the Safe Harbor Marina redevelopment proposal."
+        if "river hawk" in lowered and "stormwater" in lowered:
+            return "Commissioners are also expected to review River Hawk stormwater work."
+        return "The agenda includes {} as a development-related item.".format(_with_article(phrase))
     if "budget" in categories:
-        return "Members are set to review {} as part of the meeting's fiscal agenda.".format(phrase)
+        return "Members are set to review {} as part of the meeting's fiscal agenda.".format(_with_article(phrase))
     if "contract" in categories:
-        return "The agenda includes {}, which could shape a contract or procurement decision.".format(phrase)
+        return "The agenda includes {}, which could shape a contract or procurement decision.".format(_with_article(phrase))
     if "town_meeting" in categories:
-        return "Members are expected to discuss {} ahead of Town Meeting.".format(phrase)
+        return "Members are expected to discuss {} ahead of Town Meeting.".format(_with_article(phrase))
     if "policy" in categories:
-        return "The agenda includes {} as a policy item.".format(phrase)
+        if "policy review" in lowered:
+            return "Committee members are set to review school policy proposals."
+        if "school choice" in lowered:
+            return "The committee is also expected to revisit the district's school choice position."
+        return "The agenda includes {} as a policy item.".format(_with_article(phrase))
     if "appointment" in categories:
-        return "Members are expected to consider {}.".format(phrase)
+        return "Members are expected to consider {}.".format(_with_article(phrase))
     if "permit" in categories:
-        return "Members are expected to review {}.".format(phrase)
+        return "Members are expected to review {}.".format(_with_article(phrase))
     if "formal_action" in categories:
-        return "Members could take formal action on {}.".format(phrase)
+        return "Members could take formal action on {}.".format(_with_article(phrase))
     if "infrastructure" in categories:
-        return "The agenda includes {} as an infrastructure-related item.".format(phrase)
+        if "wastewater" in lowered or "cwmp" in lowered:
+            return "The agenda includes discussion of the Comprehensive Wastewater Management Plan."
+        if "open space and recreation plan" in lowered:
+            return "Members are expected to discuss the Open Space and Recreation Plan."
+        return "The agenda includes {} as an infrastructure-related item.".format(_with_article(phrase))
     return "{} is among the main items listed on the agenda.".format(_sentence_case(phrase))
 
 
