@@ -72,6 +72,8 @@ EDITORIAL_SIGNAL_RULES = [
     ("variance request", 34, "permit"),
     ("license", 22, "permit"),
     ("permit", 20, "permit"),
+    ("future of the committee", 34, "policy"),
+    ("next steps", 18, "policy"),
     ("accept", 14, "formal_action"),
     ("approve", 14, "formal_action"),
     ("adopt", 22, "policy"),
@@ -399,6 +401,10 @@ def _headline_phrase(text: str) -> str:
     if not cleaned:
         return ""
     lowered = cleaned.lower()
+    if "future of the committee" in lowered:
+        return "Committee's Future"
+    if lowered == "next steps":
+        return "Next Steps"
     if "safe harbor marina" in lowered and "redevelop" in lowered:
         return "Safe Harbor Marina Redevelopment"
     if "river hawk" in lowered and "stormwater" in lowered:
@@ -451,6 +457,8 @@ def _headline_action(text: str) -> str:
     if "violation" in lowered:
         return "to Discuss"
     if "discussion" in lowered:
+        return "to Discuss"
+    if "consideration" in lowered or "future of the committee" in lowered or "next steps" in lowered:
         return "to Discuss"
     if "presentation" in lowered:
         return "to Review"
@@ -921,6 +929,10 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     if "town_meeting" in categories:
         return "Members are expected to discuss {} ahead of Town Meeting.".format(_with_article(phrase))
     if "policy" in categories:
+        if "future of the committee" in lowered:
+            return "Members are set to discuss the future of the committee and where its work goes next."
+        if lowered == "next steps":
+            return "Members are also expected to discuss the committee's next steps."
         if "policy review" in lowered:
             return "Committee members are set to review school policy proposals."
         if "school choice" in lowered:

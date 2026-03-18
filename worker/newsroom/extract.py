@@ -60,9 +60,20 @@ def _is_pdf_noise_line(line: str) -> bool:
 
 
 def _clean_pdf_lines(body_text: str) -> List[str]:
+    expanded = str(body_text or "")
+    if expanded.count("\n") < 6:
+        expanded = re.sub(r"\s+(DAY\s*&\s*DATE:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
+        expanded = re.sub(r"\s+(TIME:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
+        expanded = re.sub(r"\s+(PLACE:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
+        expanded = re.sub(r"\s+(Zoom Meeting Information:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
+        expanded = re.sub(r"\s+(Meeting ID:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
+        expanded = re.sub(r"\s+(Passcode:)\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
+        expanded = re.sub(r"\s+([IVXLCDM]+[\.\)])\s+", r"\n\1 ", expanded)
+        expanded = re.sub(r"\s+(\d+[\.\)])\s+", r"\n\1 ", expanded)
+        expanded = re.sub(r"\s+([a-z][\.\)])\s+", r"\n\1 ", expanded, flags=re.IGNORECASE)
     return [
         line
-        for line in (_normalize_line(line) for line in body_text.splitlines())
+        for line in (_normalize_line(line) for line in expanded.splitlines())
         if line and not _is_pdf_noise_line(line)
     ]
 

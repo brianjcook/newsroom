@@ -132,6 +132,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - roman-numeral headings now open new agenda sections instead of only acting as inline labels for subsequent items
 - when no strong structured agenda block exists, `publish.py` now attempts a tightly filtered generic agenda list from raw body text
 - that generic fallback now fails closed on heading tokens, OCR garbage, and giant raw paragraphs instead of surfacing junk bullets on public stories
+- Added a thin-agenda improvement pass across `worker/newsroom/extract.py` and `worker/newsroom/publish.py`:
+- flattened one-page PDF agendas now get extra line expansion around header labels and roman/numbered items before parsing
+- thin committee agendas like Alternative Energy can now surface issue-led headlines and summaries from simple items like `Considerations for future of the committee`
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -233,20 +236,24 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Alternative Energy Committee March 24, 2026 no longer drops a whole raw agenda paragraph into the page and now falls back to a short clean agenda list
 - Cultural Council December 2, 2025 no longer surfaces heading-token junk like `MEETING`, `WAREHAM`, or `COUNCIL`
 - Recycling Committee March 18, 2026 no longer surfaces OCR garbage in the public agenda section and now falls back to the direct-agenda note when extraction is too weak
+- A later rebuild improved thin-agenda committee writing:
+- Alternative Energy Committee March 24, 2026 now publishes as `Alternative Energy Committee to Discuss Committee's Future` instead of a generic `to Meet` headline
+- the story summary now centers on the committee's future instead of falling back to a purely factual dek
 - Latest successful production run:
-- `run_id`: `38`
+- `run_id`: `39`
 - `items_discovered`: `374`
-- `documents_fetched`: `3`
-- `extractions_created`: `3`
-- `meetings_normalized`: `1`
-- `stories_published`: `1`
+- `documents_fetched`: `0`
+- `extractions_created`: `0`
+- `meetings_normalized`: `0`
+- `stories_published`: `0`
 - `stories_updated`: `0`
 - `events_created`: `0`
-- `events_updated`: `110`
-- `artifacts_synced`: `368`
-- `warnings`: `[]`
+- `events_updated`: `111`
+- `artifacts_synced`: `0`
+- `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `076407d` - `Update context after weak fallback cleanup`
 - `841d8b6` - `Clean up weak agenda fallback stories`
 - `655a78b` - `Initial newsroom scaffold`
 - `a0fae08` - `Update project context after scaffold`
@@ -279,6 +286,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `d5a5c2e` - `Summarize agenda changes in update notes`
 
 ## Next priority tasks
+- Keep improving thin-agenda committees like Alternative Energy so simple agenda items can promote more than one substantive point when the source supports it, instead of only a single focus sentence.
 - Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.
 - Improve handling of amended, revised, cancelled, and postponed agenda items, especially more precise amendment/change summaries and better event sync metrics so routine updates are distinguishable from newly created events.
 - Improve low-confidence PDF extraction handling and related publish rules.
