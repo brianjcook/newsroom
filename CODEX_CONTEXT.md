@@ -335,20 +335,28 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Bylaw Review Committee February 18, 2025 now centers on `Warrant Articles for Select Board`
 - Bylaw Review Committee March 17, 2025 now centers on `Town Bylaw Additions and Deletions` and `Earth Removal Regulations`
 - Capital Planning Committee October 20, 2025 now centers on `Five-Year Capital Plan` and `Fall Town Meeting capital items`
+- A later live voice-refinement pass shifted many structurally correct but templated preview headlines away from the fallback `to Meet and Consider` construction:
+- Conservation Commission previews now use `to Hear Safe Harbor Marina Redevelopment`
+- School Committee policy stories now use `to Review School Policy Changes`, and the February 5, 2026 story now uses `to Review Mid-Cycle Goals`
+- Planning Board previews now use cleaner phrases like `to Review Sandwich Road Site Plan` and `to Review 3031 Cran Hwy. Site Plan`
+- Zoning Board of Appeals previews now use `to Hear 17 Atlantic Ave. Permit Request`, with corrected address casing
+- Historical Commission, Historic District Commission, Cable Advisory Committee, Cultural Council, Bylaw Review Committee, Capital Planning Committee, Finance Committee, Affordable Housing Trust, Sewer Commissioners, and similar bodies now use more specific verbs like `to Review` or `to Discuss` where appropriate
+- Little Harbor Golf previews now use `to Discuss` instead of the stiffer review framing for operating issues
 - Latest successful production run:
-- `run_id`: `68`
+- `run_id`: `72`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
 - `meetings_normalized`: `0`
 - `stories_published`: `0`
-- `stories_updated`: `0`
+- `stories_updated`: `5`
 - `events_created`: `0`
 - `events_updated`: `112`
 - `artifacts_synced`: `0`
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `e673c97` - `Self-heal stale story slugs and cleanup preview phrasing`
 - `7e189fb` - `Clean remaining fallback summary OCR`
 - `a4e5e9f` - `Improve fallback agenda story extraction`
 - `7b0b826` - `Improve weak-source extraction and body normalization`
@@ -431,6 +439,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Move public URLs from query-parameter patterns toward descriptive path-based routing.
 - Improve generated headlines, summaries, and meeting/location normalization against live Wareham examples.
 - Continue refining templated but structurally correct previews, especially Zoning Board of Appeals, Planning Board, Conservation Commission, and older School Committee stories.
+- Continue improving summaries and body copy for structurally correct stories whose headlines are now better but whose secondary lines still read like cleaned agenda text.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 

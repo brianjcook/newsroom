@@ -605,6 +605,12 @@ def _headline_phrase(text: str) -> str:
         return "Indian Neck Road Bus Stop Relocation"
     if "off site parking" in lowered:
         return "Off-Site Parking Petition"
+    if "238 & 240 sandwich road" in lowered and "site plan review" in lowered:
+        return "Sandwich Road Site Plan Review"
+    if ("3031 cran hwy" in lowered or "3031 cranberry hwy" in lowered) and "site plan review" in lowered:
+        return "3031 Cran Hwy. Site Plan Review"
+    if "citizen petition" in lowered and "zoning bylaw article 9" in lowered:
+        return "Zoning Bylaw Citizen Petition"
     if "application of brenda eckstrom" in lowered or "application of bernard pigeon" in lowered:
         return "Finance Committee Appointments"
     if "comprehensive wastewater management plan" in lowered or "cwmp" in lowered:
@@ -778,6 +784,8 @@ def _headline_action(text: str) -> str:
     lowered = _normalize_item_text(text).lower()
     if "public hearing" in lowered or "hearing" in lowered:
         return "to Hear"
+    if "site plan review" in lowered or "policy review" in lowered:
+        return "to Review"
     if "violation" in lowered:
         return "to Discuss"
     if "status and update" in lowered or "future of the committee" in lowered:
@@ -889,6 +897,8 @@ def _zoning_case_summary(text: str) -> Dict[str, str]:
         if address_match:
             address = address_match.group(0).strip(" ,.;:-")
 
+    if address:
+        address = address.title()
     address = re.sub(r"\bAve\b\.?$", "Ave.", address, flags=re.IGNORECASE)
     address = re.sub(r"\bBlvd\b\.?$", "Blvd.", address, flags=re.IGNORECASE)
     address = re.sub(r"\bHwy\b\.?$", "Hwy.", address, flags=re.IGNORECASE)
@@ -922,6 +932,12 @@ def _normalize_focus_phrase(text: str) -> str:
         return ""
     if lowered.strip(" .;:-") == "variance request":
         return "variance request"
+    if "238 & 240 sandwich road" in lowered and "site plan review" in lowered:
+        return "Sandwich Road site plan review"
+    if ("3031 cran hwy" in lowered or "3031 cranberry hwy" in lowered) and "site plan review" in lowered:
+        return "3031 Cran Hwy. site plan review"
+    if "citizen petition" in lowered and "zoning bylaw article 9" in lowered:
+        return "zoning bylaw citizen petition"
     zoning_summary = _zoning_case_summary(cleaned)
     if zoning_summary.get("summary"):
         return str(zoning_summary["summary"])
@@ -935,6 +951,9 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"littleton housing project", "Littleton Housing Project addresses"),
         (r"relocate bus stop.*indian neck road", "Indian Neck Road bus stop relocation"),
         (r"off site parking", "off-site parking petition"),
+        (r"238\s*&\s*240 sandwich road.*site plan review", "Sandwich Road site plan review"),
+        (r"3031 cran(?:berry)? hwy.*site plan review", "3031 Cran Hwy. site plan review"),
+        (r"citizen petition.*zoning bylaw article 9", "zoning bylaw citizen petition"),
         (r"application of brenda eckstrom|application of bernard pigeon", "Finance Committee appointments"),
         (r"policies to be reviewed|policy review", "policy review"),
         (r"district calendar", "district calendar vote"),
@@ -1225,13 +1244,101 @@ def _headline_focus_phrase(focus_items: List[Dict[str, object]]) -> str:
     return ""
 
 
+def _preview_headline_phrase(body_name: str, focus_items: List[Dict[str, object]]) -> str:
+    phrase = _headline_focus_phrase(focus_items)
+    if not phrase:
+        return ""
+
+    lowered_body = _normalize_item_text(body_name).lower()
+    lowered_phrase = phrase.lower()
+    first_text = _normalize_item_text(str(focus_items[0].get("text") or "")).lower() if focus_items else ""
+
+    if lowered_body == "school committee" and lowered_phrase == "policy review":
+        return "School Policy Changes"
+    if lowered_body == "school committee" and lowered_phrase == "mid-cycle review of goals":
+        return "Mid-Cycle Goals"
+    if lowered_body == "conservation commission" and "safe harbor marina" in lowered_phrase:
+        return "Safe Harbor Marina Redevelopment"
+    if lowered_body == "planning board":
+        if "238 & 240 sandwich road" in first_text and "site plan review" in first_text:
+            return "Sandwich Road Site Plan"
+        if ("3031 cran hwy" in first_text or "3031 cranberry hwy" in first_text) and "site plan review" in first_text:
+            return "3031 Cran Hwy. Site Plan"
+        if "citizen petition" in first_text and "zoning bylaw article 9" in first_text:
+            return "Zoning Bylaw Citizen Petition"
+        if "site plan review" in lowered_phrase:
+            return phrase.replace("Site Plan Review", "Site Plan").strip()
+    if lowered_body == "zoning board of appeals":
+        zoning_summary = _zoning_case_summary(first_text)
+        if zoning_summary.get("headline"):
+            return str(zoning_summary["headline"])
+    return phrase
+
+
+def _preview_headline_action(body_name: str, focus_item_text: str, phrase: str) -> str:
+    action = _headline_action(focus_item_text)
+    if action != "to Meet and Consider":
+        return action
+
+    lowered_body = _normalize_item_text(body_name).lower()
+    lowered_phrase = _normalize_item_text(phrase).lower()
+
+    if lowered_body in (
+        "school committee",
+        "historical commission",
+        "historic district commission",
+        "planning board",
+        "cable advisory committee",
+        "bylaw review committee",
+        "capital planning committee",
+        "cultural council",
+    ):
+        return "to Review"
+    if lowered_body == "little harbor golf course advisory committee":
+        return "to Discuss"
+
+    if any(
+        token in lowered_phrase
+        for token in (
+            "policy",
+            "plan",
+            "study",
+            "report",
+            "budget",
+            "warrant",
+            "article",
+            "petition",
+            "restoration",
+            "alterations",
+            "license",
+            "funding status",
+            "site plan",
+            "permit request",
+            "insert",
+        )
+    ):
+        return "to Review"
+
+    if any(token in lowered_phrase for token in ("future", "update", "needs", "situation", "survey")):
+        return "to Discuss"
+
+    return action
+
+
 def _preview_headline(body_name: str, meeting_date: str, focus_items: List[Dict[str, object]]) -> str:
     if not focus_items:
         return f"{body_name} to Meet {meeting_date}"
 
-    first = _headline_focus_phrase(focus_items)
+    first = _preview_headline_phrase(body_name, focus_items)
     if first:
-        return f"{body_name} {_headline_action(str(focus_items[0]['text']))} {first}"
+        lowered_body = _normalize_item_text(body_name).lower()
+        if lowered_body == "zoning board of appeals":
+            return f"{body_name} to Hear {first}"
+        if lowered_body == "conservation commission" and "safe harbor marina" in first.lower():
+            return f"{body_name} to Hear {first}"
+        action = _preview_headline_action(body_name, str(focus_items[0]['text']), first)
+        headline_phrase = re.sub(r"^Review\s+", "", first, flags=re.IGNORECASE) if action == "to Review" else first
+        return f"{body_name} {action} {headline_phrase}"
     return f"{body_name} to Meet {meeting_date}"
 
 
