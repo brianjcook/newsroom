@@ -292,8 +292,12 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Finance Committee February 12, 2026 now summarizes cleanly as `FY2027 budget presentations` without dragging a time-table line into the summary
 - Recycling Committee January 14, 2026 now fails closed to a factual meeting headline instead of publishing a minutes-acceptance headline
 - Open Space Committee February 9, 2026 now trims trailing `any new business / next meeting date / chair` text from the public raw agenda item about merging the Open Space and Minot Forest committees
+- A later extraction-quality pass tightened several remaining raw-document edge cases:
+- Board of Health January 21, 2026 now strips Zoom-invite text out of the location field, summarizes around `1B Emma Lane public hearing`, and falls back to `a variance request` instead of the broken `variance request at Request`
+- Road Commission February 20 and March 19, 2024 now headline and summarize around `Parkwood Beach`, `Indian Neck Road bus stop relocation`, `Littleton Housing Project addresses`, and `Plymouth Avenue truck restrictions` instead of formal notice wording
+- date-only thin-agenda bullets like `November 25, 2025` are now treated as low-value for public agenda rendering
 - Latest successful production run:
-- `run_id`: `58`
+- `run_id`: `61`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -306,6 +310,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `5448b44` - `Tighten raw extraction edge cases`
 - `c02bbad` - `Clean low-signal committee framing`
 - `0001cd2` - `Clean school committee OCR phrasing`
 - `d583827` - `Improve older school committee story framing`
