@@ -247,6 +247,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `[]`
 
 ## Recent commits
+- `841d8b6` - `Clean up weak agenda fallback stories`
 - `655a78b` - `Initial newsroom scaffold`
 - `a0fae08` - `Update project context after scaffold`
 - `3b96a0f` - `Record GitHub push status`
