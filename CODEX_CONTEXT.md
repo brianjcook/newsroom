@@ -135,6 +135,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Added a thin-agenda improvement pass across `worker/newsroom/extract.py` and `worker/newsroom/publish.py`:
 - flattened one-page PDF agendas now get extra line expansion around header labels and roman/numbered items before parsing
 - thin committee agendas like Alternative Energy can now surface issue-led headlines and summaries from simple items like `Considerations for future of the committee`
+- Added a thin-agenda follow-up in `worker/newsroom/publish.py`:
+- short but meaningful items like `Next steps` are no longer discarded as truncated
+- thin-agenda summaries can now carry two substantive points instead of collapsing to a single issue line
 - Deployed the PHP site, worker, and protected directories to Freehostia.
 - Installed Python dependencies into a site-local Python user base on Freehostia.
 - Added `.htaccess` rules to force HTTPS and the `www` host.
@@ -239,14 +242,17 @@ Build a local-news publishing system that ingests municipal and other local cont
 - A later rebuild improved thin-agenda committee writing:
 - Alternative Energy Committee March 24, 2026 now publishes as `Alternative Energy Committee to Discuss Committee's Future` instead of a generic `to Meet` headline
 - the story summary now centers on the committee's future instead of falling back to a purely factual dek
+- A later sync improved that same thin-agenda story again:
+- Alternative Energy Committee March 24, 2026 now summarizes as `The posted agenda centers on the committee's future and next steps.`
+- the `What matters most` and `What is on the agenda` sections now carry both `Considerations for future of the committee` and `Next steps`
 - Latest successful production run:
-- `run_id`: `39`
+- `run_id`: `40`
 - `items_discovered`: `374`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
 - `meetings_normalized`: `0`
 - `stories_published`: `0`
-- `stories_updated`: `0`
+- `stories_updated`: `4`
 - `events_created`: `0`
 - `events_updated`: `111`
 - `artifacts_synced`: `0`
@@ -287,6 +293,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `d5a5c2e` - `Summarize agenda changes in update notes`
 
 ## Next priority tasks
+- Continue extending the same thin-agenda dual-point treatment to other simple committee agendas when the source exposes two clear substantive items.
 - Keep improving thin-agenda committees like Alternative Energy so simple agenda items can promote more than one substantive point when the source supports it, instead of only a single focus sentence.
 - Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.
 - Improve handling of amended, revised, cancelled, and postponed agenda items, especially more precise amendment/change summaries and better event sync metrics so routine updates are distinguishable from newly created events.

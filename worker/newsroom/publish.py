@@ -111,6 +111,10 @@ TRUNCATED_ENDINGS = (
     " regarding",
 )
 
+SHORT_MEANINGFUL_PHRASES = {
+    "next steps",
+}
+
 
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
@@ -364,6 +368,8 @@ def _normalize_item_text(text: str) -> str:
 
 def _looks_truncated(text: str) -> bool:
     normalized = _normalize_item_text(text)
+    if normalized.lower() in SHORT_MEANINGFUL_PHRASES:
+        return False
     if len(normalized) < 18:
         return True
     lowered = normalized.lower().rstrip(" .;,:-")
@@ -497,6 +503,8 @@ def _normalize_focus_phrase(text: str) -> str:
 
     lowered = cleaned.lower()
     special_patterns = [
+        (r"future of the committee", "the committee's future"),
+        (r"next steps", "next steps"),
         (r"safe harbor marina.*redevelop", "Safe Harbor Marina redevelopment"),
         (r"river hawk.*stormwater", "River Hawk stormwater work"),
         (r"school choice", "school choice vote"),
