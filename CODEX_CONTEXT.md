@@ -283,6 +283,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `0851488` - `Update context after preservation cleanup`
 - `c32180c` - `Clean preservation raw agenda output`
 - `53f9309` - `Split zoning hearing rows into cleaner agenda items`
 - `13aeab6` - `Clean up zoning raw agenda rows`
