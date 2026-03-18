@@ -321,8 +321,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `Comprehensive Zoning Bylaw Review and Revision Steering Committee to Discuss Zoning Bylaw Policy Issues`
 - `Minot Forest Committee to Discuss Rescinding Article 40`
 - `Sewer Commissioners to Meet and Consider Sewer Bill Insert`
+- A later micro-cleanup pass fixed the remaining dirty secondary summary on the regional-refuse district story:
+- OCR repairs now normalize fragments like `Financ ia l`, `A pprove`, and split years like `202 5`
+- the Carver Marion Wareham Regional Refuse Disposal District Committee story now cleanly centers only on `bill and payroll warrants`
 - Latest successful production run:
-- `run_id`: `65`
+- `run_id`: `66`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`

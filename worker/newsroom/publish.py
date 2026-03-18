@@ -447,9 +447,13 @@ def _normalize_item_text(text: str) -> str:
         (r"\bDiscrimin atory\b", "Discriminatory"),
         (r"\bH arassment\b", "Harassment"),
         (r"\bSele ction\b", "Selection"),
+        (r"\bA pprove\b", "Approve"),
+        (r"\bFinanc ia l\b", "Financial"),
         (r"\bPurchase S\b", "Purchases"),
         (r"\bVII I\b", "VIII"),
         (r"\bSECRETARY\s[’']\sS\b", "Secretary's"),
+        (r"\b202\s+5\b", "2025"),
+        (r"\b202\s+6\b", "2026"),
     ]
     for pattern, replacement in repairs:
         normalized = re.sub(pattern, replacement, normalized)
@@ -669,6 +673,8 @@ def _headline_phrase(text: str) -> str:
         return "Dissolving the CMWRRDD"
     if "selection of attorney" in lowered:
         return "Attorney Selection"
+    if "monthly financial report" in lowered:
+        return "Monthly Financial Report"
     if "community input survey" in lowered:
         return "Community Input Survey"
     if "grant recipient reception" in lowered:
@@ -940,6 +946,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"sewer bill insert", "sewer bill insert"),
         (r"dissolve the cmwrrdd", "dissolving the CMWRRDD"),
         (r"selection of attorney", "attorney selection"),
+        (r"monthly financial report", "monthly financial report"),
         (r"community input survey", "community input survey"),
         (r"grant recipient reception", "grant recipient reception plans"),
         (r"trex project", "Trex project update"),
