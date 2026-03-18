@@ -326,7 +326,17 @@ def _normalize_section_items(section: Dict[str, object]) -> List[str]:
         normalized = _normalize_line(str(item))
         if not normalized or _is_procedural_item(normalized):
             continue
-        cleaned_items.extend(_split_compound_item(normalized))
+        for candidate in _split_compound_item(normalized):
+            cleaned_candidate = _normalize_line(candidate)
+            if not cleaned_candidate:
+                continue
+            if cleaned_items and re.match(r"^[\-\u2013\u2014]\s*", cleaned_candidate):
+                cleaned_items[-1] = "{} {}".format(
+                    str(cleaned_items[-1]).rstrip(" ,.;:-"),
+                    re.sub(r"^[\-\u2013\u2014]\s*", "- ", cleaned_candidate),
+                ).strip()
+                continue
+            cleaned_items.append(cleaned_candidate)
     deduped = []
     seen = set()
     for item in cleaned_items:
