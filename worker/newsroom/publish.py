@@ -453,6 +453,9 @@ def _clean_agenda_display_item(text: str) -> str:
     cleaned = re.sub(r":\s*[\-\u2013\u2014]\s*(As-Built Sign Off)\b", r" - \1", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bTropical Smoothie-(\d)", r"Tropical Smoothie - \1", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bZone\s*-\s*(\d{2}-\d{2})\b", r"Zone-\1", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+any new business.*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+next meeting date.*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+sandy slavin,\s*chair.*$", "", cleaned, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
 
 
@@ -460,7 +463,12 @@ def _is_low_value_agenda_line(text: str) -> bool:
     lowered = _clean_agenda_display_item(text).lower().strip(" .;:-")
     if not lowered:
         return True
+    if re.match(r"^\d{1,2}:\d{2}\s*(a\.m\.|p\.m\.|am|pm)\b", lowered, flags=re.IGNORECASE):
+        return True
+    if re.match(r"^\d{1,2}:\d{2}\s*(a\.m\.|p\.m\.|am|pm)\b", lowered, flags=re.IGNORECASE):
+        return True
     low_value_prefixes = (
+        "approve the ",
         "approval of prior meeting minutes",
         "approval of meeting minutes",
         "approve minutes",
@@ -523,6 +531,14 @@ def _headline_phrase(text: str) -> str:
         return "Town Meeting Articles Vote"
     if "fy 27 budget" in lowered or "budget article" in lowered:
         return "Town Meeting Budget Articles"
+    if "oml violation" in lowered:
+        return "OML Violation Response"
+    if "department heads" in lowered and "budget" in lowered:
+        return "FY2027 Budget Presentations"
+    if "off site parking" in lowered:
+        return "Off-Site Parking Petition"
+    if "application of brenda eckstrom" in lowered or "application of bernard pigeon" in lowered:
+        return "Finance Committee Appointments"
     if "comprehensive wastewater management plan" in lowered or "cwmp" in lowered:
         return "Comprehensive Wastewater Management Plan"
     if "policies to be reviewed" in lowered or "policy review" in lowered:
@@ -778,6 +794,10 @@ def _normalize_focus_phrase(text: str) -> str:
     special_patterns = [
         (r"vote on town meeting articles", "Town Meeting articles vote"),
         (r"(fy 27 budget|budget article|school budget|enterprise budget|emergency medical services budget)", "Town Meeting budget articles"),
+        (r"oml violation", "OML violation response"),
+        (r"department heads.*budget", "FY2027 budget presentations"),
+        (r"off site parking", "off-site parking petition"),
+        (r"application of brenda eckstrom|application of bernard pigeon", "Finance Committee appointments"),
         (r"policies to be reviewed|policy review", "policy review"),
         (r"district calendar", "district calendar vote"),
         (r"course selection", "high school course selection"),
@@ -939,6 +959,10 @@ def _is_low_value_focus_line(text: str) -> bool:
     if any(
         token in lowered
         for token in (
+            "review and discussion of november minutes",
+            "vote to accept minutes",
+            "approval of prior meeting minutes",
+            "approve the ",
             "call to order",
             "roll call",
             "adjournment",
@@ -988,6 +1012,8 @@ def _summary_phrase_list(items: List[str], limit: int = 2) -> List[str]:
     for item in normalized_items:
         phrase = _focus_summary_phrase(item)
         if not phrase or _looks_garbled(phrase) or _is_low_value_focus_line(phrase):
+            continue
+        if re.search(r"\b\d{1,2}:\d{2}\s*(a\.m\.|p\.m\.|am|pm)\b", phrase, flags=re.IGNORECASE):
             continue
         if phrase in seen:
             continue
@@ -1289,6 +1315,8 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Committee members could vote on bill and payroll warrants."
         if "bryant farm management plan" in lowered:
             return "Members are expected to consider the Bryant Farm management plan."
+        if "oml violation" in lowered:
+            return "Members could take formal action on how to respond to the OML violation finding."
         return "Members could take formal action on {}.".format(_with_article(phrase))
     if "policy" in categories:
         if "historic district expansion" in lowered:
@@ -1323,6 +1351,12 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Committee members are expected to review emergency-response policies."
         if "bus transportation" in lowered or "transportation emergency" in lowered:
             return "Committee members are expected to review transportation policies."
+        if "department heads" in lowered and "budget" in lowered:
+            return "Members are expected to hear FY2027 budget presentations from department heads."
+        if "off site parking" in lowered:
+            return "Members are expected to discuss the off-site parking citizen petition."
+        if "application of brenda eckstrom" in lowered or "application of bernard pigeon" in lowered:
+            return "Members are expected to consider appointments to the Finance Committee."
         return "The agenda includes {} as a policy item.".format(_with_article(phrase))
     if "appointment" in categories:
         return "Members are expected to consider {}.".format(_with_article(phrase))
