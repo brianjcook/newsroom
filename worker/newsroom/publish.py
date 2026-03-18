@@ -60,6 +60,23 @@ EDITORIAL_SIGNAL_RULES = [
     ("early education head start", 20, "land_use"),
     ("school choice", 82, "policy"),
     ("policy review", 76, "policy"),
+    ("policies to be reviewed", 76, "policy"),
+    ("district calendar", 52, "policy"),
+    ("course selection", 48, "policy"),
+    ("course of studies", 48, "policy"),
+    ("mid-cycle review of goals", 42, "policy"),
+    ("substitute pay", 36, "policy"),
+    ("class trip", 34, "formal_action"),
+    ("security cameras in schools", 40, "policy"),
+    ("security visitors in school buildings", 40, "policy"),
+    ("emergency closings", 34, "policy"),
+    ("emergency health procedures", 34, "policy"),
+    ("emergency plans", 34, "policy"),
+    ("bullying prevention", 36, "policy"),
+    ("bus transportation", 34, "policy"),
+    ("transportation emergency", 32, "policy"),
+    ("bill and payroll warrants", 34, "formal_action"),
+    ("payroll and bill warrants", 34, "formal_action"),
     ("discriminatory harassment", 52, "policy"),
     ("stormwater", 40, "infrastructure"),
     ("possible vote", 50, "formal_action"),
@@ -498,6 +515,28 @@ def _headline_phrase(text: str) -> str:
         return "Town Meeting Budget Articles"
     if "comprehensive wastewater management plan" in lowered or "cwmp" in lowered:
         return "Comprehensive Wastewater Management Plan"
+    if "policies to be reviewed" in lowered or "policy review" in lowered:
+        return "Policy Review"
+    if "district calendar" in lowered:
+        return "District Calendar 2026-2027"
+    if "course selection" in lowered:
+        return "High School Course Selection"
+    if "course of studies" in lowered:
+        return "Course of Studies Changes"
+    if "mid-cycle review of goals" in lowered:
+        return "Mid-Cycle Review of Goals"
+    if "substitute pay" in lowered:
+        return "Substitute Pay Discussion"
+    if "class trip" in lowered:
+        return "Class of 2026 Class Trip"
+    if "security cameras in schools" in lowered or "security visitors in school buildings" in lowered:
+        return "School Safety Policies"
+    if "emergency closings" in lowered or "emergency health procedures" in lowered or "emergency plans" in lowered:
+        return "Emergency Policies"
+    if "bus transportation" in lowered or "transportation emergency" in lowered:
+        return "Transportation Policies"
+    if "bill and payroll warrants" in lowered or "payroll and bill warrants" in lowered:
+        return "Bill and Payroll Warrants"
     if "appoint town counsel" in lowered:
         return "Town Counsel Appointment"
     if "cdbg fy26 grant" in lowered:
@@ -729,6 +768,17 @@ def _normalize_focus_phrase(text: str) -> str:
     special_patterns = [
         (r"vote on town meeting articles", "Town Meeting articles vote"),
         (r"(fy 27 budget|budget article|school budget|enterprise budget|emergency medical services budget)", "Town Meeting budget articles"),
+        (r"policies to be reviewed|policy review", "policy review"),
+        (r"district calendar", "district calendar vote"),
+        (r"course selection", "high school course selection"),
+        (r"course of studies", "course of studies changes"),
+        (r"mid-cycle review of goals", "mid-cycle review of goals"),
+        (r"substitute pay", "substitute pay discussion"),
+        (r"class trip", "Class of 2026 class trip"),
+        (r"security cameras in schools|security visitors in school buildings", "school safety policies"),
+        (r"emergency closings|emergency health procedures|emergency plans", "emergency policies"),
+        (r"bus transportation|transportation emergency", "transportation policies"),
+        (r"bill and payroll warrants|payroll and bill warrants", "bill and payroll warrants"),
         (r"appoint town counsel", "Town Counsel appointment"),
         (r"cdbg fy26 grant", "CDBG FY26 grant application"),
         (r"senior tax work-off program", "Senior Tax Work-off Program"),
@@ -887,6 +937,7 @@ def _is_low_value_focus_line(text: str) -> bool:
             "signing of documents approved",
             "any other business",
             "any other town business",
+            "any other town or school business",
             "good news",
             "public participation",
             "announcements",
@@ -1220,6 +1271,12 @@ def _focus_sentence(item: Dict[str, object]) -> str:
         if "budget" in lowered:
             return "Members are set to review budget articles headed toward Town Meeting."
         return "Members are expected to discuss {} ahead of Town Meeting.".format(_with_article(phrase))
+    if "formal_action" in categories:
+        if "bill and payroll warrants" in lowered or "payroll and bill warrants" in lowered:
+            return "Committee members could vote on bill and payroll warrants."
+        if "bryant farm management plan" in lowered:
+            return "Members are expected to consider the Bryant Farm management plan."
+        return "Members could take formal action on {}.".format(_with_article(phrase))
     if "policy" in categories:
         if "historic district expansion" in lowered:
             return "Members are expected to discuss the Historic District expansion study."
@@ -1235,15 +1292,29 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Committee members are set to review school policy proposals."
         if "school choice" in lowered:
             return "The committee is also expected to revisit the district's school choice position."
+        if "district calendar" in lowered:
+            return "Committee members are expected to revisit the district calendar for 2026-2027."
+        if "course selection" in lowered:
+            return "Committee members are expected to review high school course-selection plans for 2026-2027."
+        if "course of studies" in lowered:
+            return "Committee members are expected to review proposed changes to the course of studies."
+        if "mid-cycle review of goals" in lowered:
+            return "Committee members are expected to review the district's mid-cycle goals update."
+        if "substitute pay" in lowered:
+            return "Committee members are expected to discuss substitute pay."
+        if "class trip" in lowered:
+            return "Committee members could vote on the Class of 2026 trip plans."
+        if "security cameras in schools" in lowered or "security visitors in school buildings" in lowered:
+            return "Committee members are expected to review school safety policy changes."
+        if "emergency closings" in lowered or "emergency health procedures" in lowered or "emergency plans" in lowered:
+            return "Committee members are expected to review emergency-response policies."
+        if "bus transportation" in lowered or "transportation emergency" in lowered:
+            return "Committee members are expected to review transportation policies."
         return "The agenda includes {} as a policy item.".format(_with_article(phrase))
     if "appointment" in categories:
         return "Members are expected to consider {}.".format(_with_article(phrase))
     if "permit" in categories:
         return "Members are expected to review {}.".format(_with_article(phrase))
-    if "formal_action" in categories:
-        if "bryant farm management plan" in lowered:
-            return "Members are expected to consider the Bryant Farm management plan."
-        return "Members could take formal action on {}.".format(_with_article(phrase))
     if "infrastructure" in categories:
         if "tractor situation" in lowered:
             return "Members are expected to revisit the tractor situation at the course."
