@@ -496,6 +496,20 @@ def _headline_phrase(text: str) -> str:
         return "Town Meeting Articles Vote"
     if "fy 27 budget" in lowered or "budget article" in lowered:
         return "Town Meeting Budget Articles"
+    if "comprehensive wastewater management plan" in lowered or "cwmp" in lowered:
+        return "Comprehensive Wastewater Management Plan"
+    if "appoint town counsel" in lowered:
+        return "Town Counsel Appointment"
+    if "cdbg fy26 grant" in lowered:
+        return "CDBG FY26 Grant Application"
+    if "senior tax work-off program" in lowered:
+        return "Senior Tax Work-off Program"
+    if "municipal maintenance" in lowered and "abatement" in lowered:
+        return "FY2026 Curbside Abatements"
+    if "open space and recreation plan" in lowered:
+        return "Open Space and Recreation Plan"
+    if "pour farm tavern" in lowered and "entertainment license" in lowered:
+        return "Pour Farm Tavern Entertainment License"
     if "proposed alterations" in lowered and "main street" in lowered:
         return "59 Main Street Alterations"
     if "historic district expansion" in lowered:
@@ -715,6 +729,11 @@ def _normalize_focus_phrase(text: str) -> str:
     special_patterns = [
         (r"vote on town meeting articles", "Town Meeting articles vote"),
         (r"(fy 27 budget|budget article|school budget|enterprise budget|emergency medical services budget)", "Town Meeting budget articles"),
+        (r"appoint town counsel", "Town Counsel appointment"),
+        (r"cdbg fy26 grant", "CDBG FY26 grant application"),
+        (r"senior tax work-off program", "Senior Tax Work-off Program"),
+        (r"municipal maintenance.*abatement", "FY2026 curbside abatements"),
+        (r"pour farm tavern.*entertainment license", "Pour Farm Tavern entertainment license"),
         (r"59 main street.*proposed alterations", "59 Main Street alterations"),
         (r"historic district expansion", "Historic District expansion study"),
         (r"fearing tavern.*restoration", "Fearing Tavern restoration"),
@@ -743,6 +762,10 @@ def _normalize_focus_phrase(text: str) -> str:
     tobacco_match = re.search(r"tobacco violations?\s+(?:for|at)\s+(.+)", cleaned, flags=re.IGNORECASE)
     if tobacco_match:
         subject = _trim_trailing_detail(tobacco_match.group(1))
+        return "tobacco violations at {}".format(subject) if subject else "tobacco violations"
+    trailing_tobacco_match = re.search(r"(.+?)\s+tobacco violations?$", cleaned, flags=re.IGNORECASE)
+    if trailing_tobacco_match:
+        subject = _trim_trailing_detail(trailing_tobacco_match.group(1))
         return "tobacco violations at {}".format(subject) if subject else "tobacco violations"
 
     variance_match = re.search(r"variance requests?\s+(?:for|at)\s+(.+)", cleaned, flags=re.IGNORECASE)
@@ -859,12 +882,20 @@ def _is_low_value_focus_line(text: str) -> bool:
             "call to order",
             "roll call",
             "adjournment",
+            "pledge of allegiance",
+            "resident's comments",
             "signing of documents approved",
             "any other business",
+            "any other town business",
             "good news",
             "public participation",
             "announcements",
             "consent agenda",
+            "liaison /initiative",
+            "board’s comment",
+            "board's comment",
+            "town administrator’s report",
+            "town administrator's report",
             "review and approve minutes",
             "approve minutes",
         )
@@ -1142,6 +1173,10 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     zoning_summary = _zoning_case_summary(raw_text)
 
     if "permit" in categories and "tobacco violation" in lowered:
+        if "onset village market" in lowered:
+            return "The board is expected to review a tobacco-violation case involving Onset Village Market."
+        if "sullivan" in lowered:
+            return "The board is expected to review a tobacco-violation case involving Sullivan's Liquors."
         return "The board is expected to review tobacco violations tied to local retailers."
     if "permit" in categories and "variance request" in lowered:
         return "The board is expected to take up {}.".format(_with_article(phrase))
@@ -1174,6 +1209,12 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     if "contract" in categories:
         return "The agenda includes {}, which could shape a contract or procurement decision.".format(_with_article(phrase))
     if "town_meeting" in categories:
+        if "appoint town counsel" in lowered:
+            return "Members are expected to consider appointing Town Counsel."
+        if "municipal maintenance" in lowered and "abatement" in lowered:
+            return "Members are expected to review FY2026 curbside abatements from the Municipal Maintenance Department."
+        if "pour farm tavern" in lowered and "entertainment license" in lowered:
+            return "Members are expected to revisit the Pour Farm Tavern entertainment-license request."
         if "vote on town meeting articles" in lowered:
             return "Members are expected to vote on which articles to recommend for Town Meeting."
         if "budget" in lowered:
