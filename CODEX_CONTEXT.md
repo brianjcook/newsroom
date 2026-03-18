@@ -324,8 +324,19 @@ Build a local-news publishing system that ingests municipal and other local cont
 - A later micro-cleanup pass fixed the remaining dirty secondary summary on the regional-refuse district story:
 - OCR repairs now normalize fragments like `Financ ia l`, `A pprove`, and split years like `202 5`
 - the Carver Marion Wareham Regional Refuse Disposal District Committee story now cleanly centers only on `bill and payroll warrants`
+- A later live rebuild added slug self-healing during story updates:
+- updated stories now recompute and persist their desired slug instead of keeping a stale slug forever
+- unchanged stories only skip rewriting when both the content signature and slug already match the current desired state
+- this repaired a stale production record where a Little Harbor Golf story was incorrectly still published under `select-board-meeting-preview-2025-06-11-1530`
+- the corrected public slug is now `little-harbor-golf-course-advisory-committee-meeting-preview-2025-06-11-1530`
+- The same rebuild also cleaned several remaining rough preview stories:
+- Affordable Housing Trust February 10, 2026 now centers on `801 Main Street funding status` and `budget update`
+- School Committee February 5, 2026 now centers on `Mid-Cycle Review of Goals`
+- Bylaw Review Committee February 18, 2025 now centers on `Warrant Articles for Select Board`
+- Bylaw Review Committee March 17, 2025 now centers on `Town Bylaw Additions and Deletions` and `Earth Removal Regulations`
+- Capital Planning Committee October 20, 2025 now centers on `Five-Year Capital Plan` and `Fall Town Meeting capital items`
 - Latest successful production run:
-- `run_id`: `66`
+- `run_id`: `68`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -338,6 +349,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `7e189fb` - `Clean remaining fallback summary OCR`
 - `a4e5e9f` - `Improve fallback agenda story extraction`
 - `7b0b826` - `Improve weak-source extraction and body normalization`
 - `5448b44` - `Tighten raw extraction edge cases`
@@ -418,6 +430,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Decide on and implement a repeatable on-host trigger, preferably cron-based rather than ad hoc admin endpoints.
 - Move public URLs from query-parameter patterns toward descriptive path-based routing.
 - Improve generated headlines, summaries, and meeting/location normalization against live Wareham examples.
+- Continue refining templated but structurally correct previews, especially Zoning Board of Appeals, Planning Board, Conservation Commission, and older School Committee stories.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 

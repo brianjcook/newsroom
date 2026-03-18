@@ -180,7 +180,7 @@ def _slugify(value: str) -> str:
     return slug[:180] or "story"
 
 
-def _story_slug(connection: Connection, meeting: Dict[str, object], story_type: str) -> str:
+def _story_slug(connection: Connection, meeting: Dict[str, object], story_type: str, existing_story_id: Optional[int] = None) -> str:
     parts = [
         meeting["governing_body"] or "wareham",
         story_type,
@@ -196,7 +196,8 @@ def _story_slug(connection: Connection, meeting: Dict[str, object], story_type: 
     with connection.cursor() as cursor:
         while True:
             cursor.execute("SELECT id FROM stories WHERE slug = %s LIMIT 1", (slug,))
-            if not cursor.fetchone():
+            row = cursor.fetchone()
+            if not row or (existing_story_id and int(row["id"]) == int(existing_story_id)):
                 return slug
             slug = "{}-{}".format(base_slug, suffix)
             suffix += 1
@@ -449,6 +450,11 @@ def _normalize_item_text(text: str) -> str:
         (r"\bSele ction\b", "Selection"),
         (r"\bA pprove\b", "Approve"),
         (r"\bFinanc ia l\b", "Financial"),
+        (r"\bu pdate\b", "update"),
+        (r"\bMid\s*-\s*Cycle\b", "Mid-Cycle"),
+        (r"\b5\s*-\s*year\b", "5-year"),
+        (r"\bWarrant articles\s+to\b", "Warrant articles to"),
+        (r"\bR eview\b", "Review"),
         (r"\bPurchase S\b", "Purchases"),
         (r"\bVII I\b", "VIII"),
         (r"\bSECRETARY\s[’']\sS\b", "Secretary's"),
@@ -649,6 +655,12 @@ def _headline_phrase(text: str) -> str:
         return "Town-Owned Property for Affordable Housing"
     if "what cpa funds" in lowered or ("801 main street" in lowered and "funding" in lowered):
         return "WHAT/CPA Funding"
+    if "budget update" in lowered and "sandy" in lowered:
+        return "Budget Update"
+    if "mid-cycle review of goals" in lowered or "mid cycle review of goals" in lowered:
+        return "Mid-Cycle Review of Goals"
+    if "the superintendent 8:00 p.m." in lowered and "mid" in lowered:
+        return "Mid-Cycle Review of Goals"
     if "801 main street" in lowered and "committed funds" in lowered:
         return "801 Main Street Funding Status"
     if "final warrant articles" in lowered:
@@ -659,6 +671,18 @@ def _headline_phrase(text: str) -> str:
         return "Zoning Bylaw Policy Issues"
     if "rescind article 40" in lowered:
         return "Rescinding Article 40"
+    if "review warrant articles to be filed with select board" in lowered:
+        return "Warrant Articles for Select Board"
+    if "list of deletions" in lowered and "list of additions" in lowered:
+        return "Town Bylaw Additions and Deletions"
+    if "earth removal regulations" in lowered:
+        return "Earth Removal Regulations"
+    if "5-year capital plan" in lowered:
+        return "Five-Year Capital Plan"
+    if "review and approved 5" in lowered and "capital plan" in lowered:
+        return "Five-Year Capital Plan"
+    if "capital items" in lowered and "fall town meeting" in lowered:
+        return "Fall Town Meeting Capital Items"
     if "merge with open space" in lowered:
         return "Open Space Merger Recommendation"
     if "trail improvements" in lowered:
@@ -934,8 +958,17 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"mcc fy26 grant decision report", "FY2026 grant decision report"),
         (r"town owned property.*affordable housing", "town-owned property for affordable housing"),
         (r"what cpa funds|801 main street.*funding", "WHAT/CPA funding"),
+        (r"budget update.*sandy", "budget update"),
+        (r"mid-?cycle review of goals", "Mid-Cycle Review of Goals"),
+        (r"the superintendent.*mid", "Mid-Cycle Review of Goals"),
         (r"801 main street.*committed funds|committed funds.*801 main street", "801 Main Street funding status"),
         (r"final warrant articles", "final warrant articles"),
+        (r"review warrant articles to be filed with select board", "warrant articles for Select Board"),
+        (r"list of deletions.*list of additions", "town bylaw additions and deletions"),
+        (r"earth removal regulations", "Earth Removal Regulations"),
+        (r"5-year capital plan", "five-year capital plan"),
+        (r"review and approved 5.*capital plan", "five-year capital plan"),
+        (r"capital items.*fall town meeting", "Fall Town Meeting capital items"),
         (r"draft zoning bylaw recodification memorandum", "draft zoning bylaw recodification issues"),
         (r"policy issues identified in draft zoning", "zoning bylaw policy issues"),
         (r"rescind article 40", "rescinding Article 40"),
@@ -1461,6 +1494,8 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Commissioners are also expected to review River Hawk stormwater work."
         return "The agenda includes {} as a development-related item.".format(_with_article(phrase))
     if "budget" in categories:
+        if "budget update" in lowered:
+            return "Members are expected to review a budget update."
         return "Members are set to review {} as part of the meeting's fiscal agenda.".format(_with_article(phrase))
     if "contract" in categories:
         return "The agenda includes {}, which could shape a contract or procurement decision.".format(_with_article(phrase))
@@ -2044,6 +2079,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 (meeting["id"], story_type),
             )
             existing_story = cursor.fetchone()
+        desired_existing_slug = _story_slug(connection, meeting, story_type, int(existing_story["id"])) if existing_story else None
         previous_basis = _parse_story_basis(existing_story["source_basis_json"]) if existing_story else {}
         basis_json = _story_basis_json(
             source_item,
@@ -2083,12 +2119,14 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 previous_signature == content_signature
                 and basis_matches
                 and existing_story.get("publish_status") == "published"
+                and existing_story.get("slug") == desired_existing_slug
             ):
                 continue
 
         story_id = None
         if existing_story:
             story_id = int(existing_story["id"])
+            desired_slug = desired_existing_slug or _story_slug(connection, meeting, story_type, story_id)
             existing_published_at = existing_story["published_at"].strftime("%Y-%m-%d %H:%M:%S") if existing_story.get("published_at") else published_at
             story_body_html = body_html
             story_body_text = body_text
@@ -2109,6 +2147,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                     """
                     UPDATE stories
                     SET governing_body_id = %s,
+                        slug = %s,
                         headline = %s,
                         dek = %s,
                         summary = %s,
@@ -2123,6 +2162,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                     """,
                     (
                         meeting["governing_body_id"],
+                        desired_slug,
                         headline,
                         dek,
                         summary,
