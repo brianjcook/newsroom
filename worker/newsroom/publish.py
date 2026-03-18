@@ -415,7 +415,17 @@ def _clean_lines(text: str) -> List[str]:
 
 
 def _normalize_item_text(text: str) -> str:
-    return " ".join(str(text or "").replace("\xa0", " ").split())
+    normalized = " ".join(str(text or "").replace("\xa0", " ").split())
+    repairs = [
+        (r"\bClas s\b", "Class"),
+        (r"\bSc hool\b", "School"),
+        (r"\bDiscrimin atory\b", "Discriminatory"),
+        (r"\bH arassment\b", "Harassment"),
+        (r"\bSele ction\b", "Selection"),
+    ]
+    for pattern, replacement in repairs:
+        normalized = re.sub(pattern, replacement, normalized)
+    return normalized
 
 
 def _clean_agenda_display_item(text: str) -> str:
@@ -947,6 +957,9 @@ def _is_low_value_focus_line(text: str) -> bool:
             "board's comment",
             "town administrator’s report",
             "town administrator's report",
+            "nwea report",
+            "principal reports",
+            "important upcoming events",
             "review and approve minutes",
             "approve minutes",
         )
