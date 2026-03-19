@@ -640,6 +640,12 @@ def _headline_phrase(text: str) -> str:
         return "Emergency Declaration Authority"
     if "appointments/reappointments/interviews" in lowered or "appointments reappointments interviews" in lowered:
         return "Board and Committee Appointments"
+    if "interview, discussion and possible vote to appoint" in lowered:
+        return "Board and Committee Appointments"
+    if "representative to the capital planning committee" in lowered:
+        return "Capital Planning Appointment"
+    if "to fill one position for the wareham finance committee" in lowered:
+        return "Finance Committee Appointments"
     if "spring town meeting articles" in lowered and "grant agreements" in lowered:
         return "Spring Town Meeting Funding Articles"
     if (
@@ -657,6 +663,10 @@ def _headline_phrase(text: str) -> str:
         return "Meeting Minutes Approval"
     if "fy2026 budget" in lowered or ("fee accountant" in lowered and "budget" in lowered):
         return "FY2026 Budget Review"
+    if "planning director" in lowered and "amend existing contracts" in lowered:
+        return "Planning Director Contract Authority"
+    if "boston red sox official 2026 yearbook" in lowered:
+        return "Red Sox Yearbook Advertising"
     if "transfer of recording/transcribing minutes" in lowered:
         return "Minutes and Agenda Clerk Transfer"
     if "wpcf director report" in lowered:
@@ -669,6 +679,18 @@ def _headline_phrase(text: str) -> str:
         return "Existing Grant Agreements"
     if "accept a donation" in lowered and "council on aging" in lowered:
         return "Council on Aging Donation"
+    if "aarp friendly community" in lowered:
+        return "AARP Friendly Community Update"
+    if "status of new applicants" in lowered:
+        return "New Applicant Review"
+    if "open meeting law" in lowered:
+        return "Open Meeting Law Discussion"
+    if "waterline update" in lowered:
+        return "Waterline Update"
+    if "loan forgiveness" in lowered and "clean water trust" in lowered:
+        return "Clean Water Trust Loan Forgiveness"
+    if "capital stabilization fund" in lowered:
+        return "Capital Stabilization Transfer"
     if "review and compare fy2025 final budgets" in lowered:
         return "FY2026 Budget Review"
     if "licenses, markers and monuments" in lowered:
@@ -677,6 +699,8 @@ def _headline_phrase(text: str) -> str:
         return "Cemetery Grass Purchase"
     if "executive director" in lowered and "cd" in lowered and "rate" in lowered:
         return "CD Rate Review"
+    if "dissolution of current committee" in lowered:
+        return "Bylaw Committee Reorganization"
     if "interview and possible vote to appoint" in lowered or "consider application of" in lowered:
         return "Board Appointments"
     if "spring special town meeting warrant" in lowered:
@@ -687,6 +711,10 @@ def _headline_phrase(text: str) -> str:
         return "Bylaw Hearing Schedule"
     if "7th member" in lowered and ("capital planning" in lowered or "carey" in lowered):
         return "Capital Planning Member Appointment"
+    if "updated 5 year capital plan" in lowered or "updated 5-year capital plan" in lowered:
+        return "Updated Five-Year Capital Plan"
+    if "impact on capital plan" in lowered and "articles are approved" in lowered:
+        return "Capital Plan Impacts"
     if "licenses" in lowered and "markers" in lowered and "monuments" in lowered:
         return "Licenses, Markers, and Monuments"
     if "application of brenda eckstrom" in lowered or "application of bernard pigeon" in lowered:
@@ -1046,6 +1074,9 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"memorial day.*veterans day", "Memorial Day and Veterans Day planning"),
         (r"state of emergency", "emergency declaration authority"),
         (r"appointments/?reappointments/?interviews", "board and committee appointments"),
+        (r"interview,\s*discussion and possible vote to appoint", "board and committee appointments"),
+        (r"representative to the capital planning committee", "Capital Planning appointment"),
+        (r"to fill one position for the wareham finance committee", "Finance Committee appointments"),
         (r"spring town meeting articles.*grant agreements", "spring Town Meeting funding articles"),
         (r"town meeting article.*(grant agreement|cranberry manor|beaverdam|sawyer property|little harbor golf)", "Spring Town Meeting funding articles"),
         (r"include 2026 annual spring town meeting articles|spring town meeting articles", "Spring Town Meeting articles"),
@@ -1053,21 +1084,32 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"contracts.*discussion.*vote", "contract votes"),
         (r"acceptance of meeting minutes", "meeting minutes approval"),
         (r"fy2026 budget|fee accountant.*budget", "FY2026 budget review"),
+        (r"planning director.*amend existing contracts", "Planning Director contract authority"),
+        (r"boston red sox official 2026 yearbook", "Red Sox Yearbook advertising"),
         (r"transfer of recording/transcribing minutes", "minutes and agenda clerk transfer"),
         (r"wpcf director report", "WPCF Director report"),
         (r"sewer commission business", "sewer commission business"),
         (r"friends of the wareham council on aging.*donation", "Council on Aging donation"),
         (r"grant agreement", "existing grant agreements"),
         (r"accept a donation.*council on aging", "Council on Aging donation"),
+        (r"aarp friendly community", "AARP Friendly Community update"),
+        (r"status of new applicants", "new applicant review"),
+        (r"open meeting law", "open meeting law discussion"),
+        (r"waterline update", "Waterline update"),
+        (r"loan forgiveness.*clean water trust|clean water trust.*loan forgiveness", "Clean Water Trust loan forgiveness"),
+        (r"capital stabilization fund", "capital stabilization transfer"),
         (r"review and compare fy2025 final budgets", "FY2026 budget review"),
         (r"licenses,\s*markers and monuments", "licenses, markers, and monuments"),
         (r"cemetery grasses purchase", "cemetery grass purchase"),
         (r"executive director.*cd.*rate", "CD rate review"),
+        (r"dissolution of current committee", "bylaw committee reorganization"),
         (r"interview and possible vote to appoint|consider application of", "board appointments"),
         (r"spring special town meeting warrant", "Spring Special Town Meeting articles"),
         (r"scheduling of february public hearing", "bylaw hearing schedule"),
         (r"public hearing on by-?law changes|possible public hearing on tuesday", "bylaw hearing schedule"),
         (r"7th member.*(capital planning|carey)", "Capital Planning member appointment"),
+        (r"updated 5[\s-]*year capital plan", "Updated five-year capital plan"),
+        (r"impact on capital plan.*articles are approved", "capital plan impacts"),
         (r"licenses.*markers.*monuments", "licenses, markers, and monuments"),
         (r"application of brenda eckstrom|application of bernard pigeon", "Finance Committee appointments"),
         (r"policies to be reviewed|policy review", "policy review"),
@@ -1818,10 +1860,18 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to review community-preservation funding requests headed to the Spring Town Meeting."
         if "town meeting timing debate" in lowered or "october town meeting" in lowered:
             return "Members are expected to discuss whether the article should move to the October Town Meeting."
+        if "bylaw committee reorganization" in lowered:
+            return "Members are expected to discuss reorganizing the Bylaw Review Committee."
+        if "aarp friendly community update" in lowered:
+            return "Members are expected to discuss Wareham's AARP Friendly Community effort."
         if "storefront renovation grant program" in lowered:
             return "Members are expected to discuss the new Storefront Renovation Grant Program."
         if "downtown dollars program" in lowered:
             return "Members are expected to review the Downtown Dollars program."
+        if "planning director contract authority" in lowered:
+            return "Members are expected to consider expanding the Planning Director's contract authority."
+        if "red sox yearbook advertising" in lowered:
+            return "Members are expected to discuss a proposed Wareham economic-development placement in the Red Sox yearbook."
         if "spring special town meeting articles" in lowered:
             return "Members are expected to review proposed articles for the Spring Special Town Meeting."
         if "bylaw hearing schedule" in lowered:
@@ -1836,6 +1886,8 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to discuss whether to delegate emergency declaration authority to the Town Administrator."
         if "board and committee appointments" in lowered:
             return "Members are expected to review board and committee appointments."
+        if "capital planning appointment" in lowered:
+            return "Members are expected to review an appointment to the Capital Planning Committee."
         if "council on aging donation" in lowered:
             return "Members are expected to consider a donation for the Council on Aging."
         if "historic district expansion" in lowered:
@@ -1904,10 +1956,16 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to discuss a possible real-estate matter."
         if "contract votes" in lowered:
             return "Members are expected to review contract items that could come to a vote."
+        if "clean water trust loan forgiveness" in lowered:
+            return "Members are expected to discuss possible Clean Water Trust loan forgiveness."
+        if "capital stabilization transfer" in lowered:
+            return "Members are expected to discuss a transfer into capital stabilization."
         if "cd rate review" in lowered:
             return "Members are expected to review certificate-of-deposit rates and related investment planning."
         if "capital planning member appointment" in lowered:
             return "Members are expected to discuss appointing a new at-large member to Capital Planning."
+        if "updated five-year capital plan" in lowered:
+            return "Members are expected to review an updated five-year capital plan."
         if "licenses, markers, and monuments" in lowered:
             return "Members are expected to review license, marker, and monument requests."
         if "cemetery grass purchase" in lowered:

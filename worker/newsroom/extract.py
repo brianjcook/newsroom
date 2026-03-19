@@ -238,16 +238,30 @@ def _is_procedural_item(text: str) -> bool:
         "report of the conservation agent",
         "administrative approvals",
         "consent agenda",
+        "public hearing",
+        "public hearings",
+        "continued public hearings",
         "any other business",
         "signing of documents approved",
         "review and approve minutes",
         "approval of prior meeting minutes",
         "approval of meeting minutes",
         "approve minutes",
+        "acceptance of past meeting minutes",
+        "acceptance of meeting minutes",
+        "guests: acceptance of past meeting minutes",
+        "guests: acceptance of meeting minutes",
         "next meeting",
         "any other business not anticipated",
         "any other business not reasonably anticipated",
         "any business unanticipated",
+        "community members are welcome to share comments",
+        "please note that",
+        "thank you for helping us maintain",
+        "resident's comments",
+        "residents comments",
+        "guest",
+        "guests",
     )
     return lowered.startswith(procedural_starts)
 
@@ -263,6 +277,9 @@ def _is_header_metadata_item(text: str) -> bool:
         "54 marion road",
         "wareham, massachusetts",
         "town of wareham",
+        "please note that",
+        "community members are welcome to share comments",
+        "thank you for helping us maintain",
     )
     return any(token in lowered for token in header_tokens)
 

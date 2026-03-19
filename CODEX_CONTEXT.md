@@ -368,20 +368,46 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Bylaw Review legacy stories now normalize to `Bylaw Hearing Schedule` or `Spring Special Town Meeting Articles`
 - Cemetery Commissioners now centers on `Licenses, Markers, and Monuments`
 - the remaining weak outputs are now concentrated less in headline phrasing and more in messy raw agenda lists, appointment-heavy items, and long explanatory blocks that need extraction/ranking refinement rather than more simple phrase mapping
+- Added another cross-body cleanup pass in `publish.py` so older weak stories can normalize appointment-heavy and governance-heavy items more cleanly:
+- `interview, discussion and possible vote to appoint ...` now collapses to `Board and Committee Appointments`
+- `representative to the Capital Planning Committee` now collapses to `Capital Planning Appointment`
+- `to fill one position for the Wareham Finance Committee` now collapses to `Finance Committee Appointments`
+- `planning director ... amend existing contracts` now collapses to `Planning Director Contract Authority`
+- `Boston Red Sox Official 2026 Yearbook` now collapses to `Red Sox Yearbook Advertising`
+- `AARP Friendly Community` now collapses to `AARP Friendly Community Update`
+- `open meeting law` now collapses to `Open Meeting Law Discussion`
+- `waterline update` now collapses to `Waterline Update`
+- `Clean Water Trust loan forgiveness` now collapses to `Clean Water Trust Loan Forgiveness`
+- `capital stabilization fund` now collapses to `Capital Stabilization Transfer`
+- `status of new applicants` now collapses to `New Applicant Review`
+- `dissolution of current committee` now collapses to `Bylaw Committee Reorganization`
+- `updated 5-year capital plan` now collapses to `Updated Five-Year Capital Plan`
+- `impact on capital plan if articles are approved` now collapses to `Capital Plan Impacts`
+- Expanded `_focus_sentence()` so those normalized labels now render with cleaner sentence-level civic framing instead of falling back to raw agenda wording.
+- Expanded `extract.py` procedural/header filtering so public-comment boilerplate and guest/comment-note blocks are less likely to leak into structured agenda sections:
+- `public hearing` / `public hearings` / `continued public hearings`
+- `acceptance of past meeting minutes`
+- `guests: acceptance of meeting minutes`
+- `community members are welcome to share comments`
+- `please note that`
+- `thank you for helping us maintain`
+- `resident's comments`
+- `guest` / `guests`
 - Latest successful production run:
-- `run_id`: `83`
-- `items_discovered`: `377`
+- `run_id`: `85`
+- `items_discovered`: `380`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
 - `meetings_normalized`: `0`
 - `stories_published`: `0`
-- `stories_updated`: `2`
+- `stories_updated`: `1`
 - `events_created`: `0`
-- `events_updated`: `112`
+- `events_updated`: `113`
 - `artifacts_synced`: `0`
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `566c570` - `Clean governance and appointment phrasing`
 - `3197a42` - `Broaden agenda phrase cleanup across weaker bodies`
 - `87b366b` - `Sharpen preview summaries and focus selection`
 - `6351d52` - `Refine preview headline voice across governing bodies`
@@ -471,6 +497,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Continue improving summaries and body copy for structurally correct stories whose headlines are now better but whose secondary lines still read like cleaned agenda text.
 - Keep improving focus-item selection for public-hearing boards so the highest-impact hearings surface first without stray lower-signal petition rows.
 - Shift more of the remaining weak-output work from phrase normalization into extraction/ranking fixes for messy agendas, especially where entire agenda notes or explanatory blocks still leak into public raw agenda lists.
+- Improve messy governance/appointment agendas further so ancillary items like yearbook ads, AARP updates, capital-plan effects, and finance appointments rank and summarize cleanly without requiring one-off phrase patches.
 - Target the next extraction pass at bodies like Community Events, Council on Aging, Select Board appointment-heavy agendas, and remaining authority/committee agendas where explanatory notes and procedural blocks still bleed into `What matters most` or raw agenda sections.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
