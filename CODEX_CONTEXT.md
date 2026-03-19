@@ -427,7 +427,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
-- `2757423` - `Normalize planning board ANR summaries`
+- `36a8722` - `Normalize planning board ANR summaries`
 - `51d81bd` - `Improve appointment and hearing ranking`
 - `deaf020` - `Polish remaining weak story phrasing`
 - `566c570` - `Clean governance and appointment phrasing`
