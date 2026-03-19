@@ -73,12 +73,12 @@ http_response_code($story ? 200 : 404);
                 <div class="story-information">
                     <div class="story-information__row">
                         <span class="story-information__label">Date &amp; Time</span>
-                        <span><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
+                        <span class="story-information__value"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
                     </div>
                     <?php if (!empty($story['meta']['location_name'])): ?>
                         <div class="story-information__row">
                             <span class="story-information__label">Location</span>
-                            <span>
+                            <span class="story-information__value">
                                 <?php if (!empty($story['meta']['location_map_url'])): ?>
                                     <a href="<?= htmlspecialchars((string) $story['meta']['location_map_url']) ?>"><?= htmlspecialchars((string) $story['meta']['location_name']) ?></a>
                                 <?php else: ?>
@@ -95,13 +95,13 @@ http_response_code($story ? 200 : 404);
                                     <a href="<?= htmlspecialchars((string) $story['meta']['remote']['join_url']) ?>">Join via Zoom</a>
                                 <?php endif; ?>
                                 <?php if (!empty($story['meta']['remote']['webinar_id'])): ?>
-                                    <span>ID <?= htmlspecialchars((string) $story['meta']['remote']['webinar_id']) ?></span>
+                                    <span>Meeting ID <?= htmlspecialchars((string) $story['meta']['remote']['webinar_id']) ?></span>
                                 <?php endif; ?>
                                 <?php if (!empty($story['meta']['remote']['passcode'])): ?>
                                     <span>Passcode <?= htmlspecialchars((string) $story['meta']['remote']['passcode']) ?></span>
                                 <?php endif; ?>
                                 <?php foreach ($story['meta']['remote']['phones'] ?? [] as $phone): ?>
-                                    <a href="tel:<?= htmlspecialchars((string) $phone) ?>"><?= htmlspecialchars((string) $phone) ?></a>
+                                    <a href="tel:<?= htmlspecialchars((string) $phone) ?>">Dial <?= htmlspecialchars((string) $phone) ?></a>
                                 <?php endforeach; ?>
                             </span>
                         </div>
@@ -109,19 +109,19 @@ http_response_code($story ? 200 : 404);
                     <?php if ($story['story_type'] === 'meeting_preview' && !empty($story['meta']['agenda_url'])): ?>
                         <div class="story-information__row">
                             <span class="story-information__label">Agenda</span>
-                            <span><a href="<?= htmlspecialchars((string) $story['meta']['agenda_url']) ?>" target="_blank" rel="noopener noreferrer">View official agenda</a></span>
+                            <span class="story-information__value"><a href="<?= htmlspecialchars((string) $story['meta']['agenda_url']) ?>" target="_blank" rel="noopener noreferrer">View official agenda</a></span>
                         </div>
                     <?php endif; ?>
                     <?php if ($story['story_type'] === 'minutes_recap' && !empty($story['meta']['minutes_url'])): ?>
                         <div class="story-information__row">
                             <span class="story-information__label">Minutes</span>
-                            <span><a href="<?= htmlspecialchars((string) $story['meta']['minutes_url']) ?>" target="_blank" rel="noopener noreferrer">View posted minutes</a></span>
+                            <span class="story-information__value"><a href="<?= htmlspecialchars((string) $story['meta']['minutes_url']) ?>" target="_blank" rel="noopener noreferrer">View posted minutes</a></span>
                         </div>
                     <?php endif; ?>
                     <?php if (!empty($story['meta']['summary_text'])): ?>
                         <div class="story-information__row">
                             <span class="story-information__label">Summary</span>
-                            <span><?= htmlspecialchars((string) $story['meta']['summary_text']) ?></span>
+                            <span class="story-information__value"><?= htmlspecialchars((string) $story['meta']['summary_text']) ?></span>
                         </div>
                     <?php endif; ?>
                 </div>

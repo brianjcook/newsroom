@@ -360,7 +360,7 @@ a:hover {
 
 .story-information {
     margin: 0 0 24px;
-    padding: 14px 0;
+    padding: 0;
     border-top: 1px solid var(--rule);
     border-bottom: 1px solid var(--rule);
 }
@@ -370,7 +370,7 @@ a:hover {
     grid-template-columns: 92px minmax(0, 1fr);
     gap: 12px;
     align-items: start;
-    padding: 10px 0;
+    padding: 15px 0;
     border-top: 1px solid rgba(198, 183, 166, 0.5);
 }
 
@@ -384,14 +384,17 @@ a:hover {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--muted);
-    padding: 1px 0;
+    padding: 0;
 }
 
 .story-information__stack {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 1px 0;
+    display: grid;
+    gap: 6px;
+    padding: 0;
+}
+
+.story-information__value {
+    padding: 0;
 }
 
 .story-body > div:last-child {
@@ -431,6 +434,11 @@ a:hover {
 .story-note {
     color: var(--muted);
     font-style: italic;
+}
+
+.story-note--why {
+    display: block;
+    margin-top: 6px;
 }
 
 .empty-state {

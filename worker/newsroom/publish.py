@@ -1349,6 +1349,8 @@ def _is_low_value_focus_line(text: str) -> bool:
     lowered = _normalize_item_text(text).lower()
     if not lowered:
         return True
+    if re.search(r"meeting\s+minutes", lowered, flags=re.IGNORECASE):
+        return True
     if " anr " in " {} ".format(lowered) and "?" in lowered:
         return True
     if re.match(r"^(the\s+)?\d{1,2}(?:-\d{1,2})?\.?$", lowered):
@@ -1380,6 +1382,7 @@ def _is_low_value_focus_line(text: str) -> bool:
             "vote to accept minutes",
             "minutes approval",
             "minutes of the meeting of",
+            "meeting minutes",
             "secretary's report - minutes of the meeting of",
             "secretary’s report-minutes of the meeting of",
             "approval of prior meeting minutes",
@@ -2177,7 +2180,7 @@ def _focus_list_block(items: List[Dict[str, object]], heading: str) -> str:
         text = html.escape(_focus_sentence(item))
         reason = _focus_reason(list(item.get("reasons") or []))
         if reason:
-            bullets.append("<li>{} <span class=\"story-note\">Why it matters: {}.</span></li>".format(text, html.escape(reason)))
+            bullets.append("<li>{}<span class=\"story-note story-note--why\">Why it matters: {}.</span></li>".format(text, html.escape(reason)))
         else:
             bullets.append("<li>{}</li>".format(text))
     return "<h3>{}</h3><ul>{}</ul>".format(html.escape(heading), "".join(bullets))
@@ -2323,18 +2326,22 @@ def _remote_access_block(extraction: Dict[str, object]) -> str:
     join_url = source_meta.get("remote_join_url")
     webinar_id = source_meta.get("remote_webinar_id")
     passcode = source_meta.get("remote_passcode")
-    if not join_url and not webinar_id and not passcode:
+    phones = source_meta.get("remote_phone_numbers") if isinstance(source_meta.get("remote_phone_numbers"), list) else []
+    phones = [str(phone).strip() for phone in phones if str(phone).strip()]
+    if not join_url and not webinar_id and not phones:
         return ""
 
     details = []
     if join_url:
-        details.append('Join link: <a href="{0}">{0}</a>'.format(html.escape(str(join_url))))
+        details.append('Join via Zoom: <a href="{0}">{0}</a>'.format(html.escape(str(join_url))))
     if webinar_id:
-        details.append("Webinar ID: {}".format(html.escape(str(webinar_id))))
-    if passcode:
+        details.append("Meeting ID: {}".format(html.escape(str(webinar_id))))
+    if passcode and (join_url or webinar_id or phones):
         details.append("Passcode: {}".format(html.escape(str(passcode))))
+    for phone in phones:
+        details.append("Dial-in: {}".format(html.escape(phone)))
 
-    return "<p><strong>Remote access:</strong> {}</p>".format(" | ".join(details))
+    return "<p><strong>Remote access:</strong><br>{}</p>".format("<br>".join(details))
 
 
 def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object], extraction: Dict[str, object], story_type: str) -> Tuple[str, str, str, str, str, List[Dict[str, str]]]:
