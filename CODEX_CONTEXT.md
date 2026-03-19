@@ -371,7 +371,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Added another cross-body cleanup pass in `publish.py` so older weak stories can normalize appointment-heavy and governance-heavy items more cleanly:
 - `interview, discussion and possible vote to appoint ...` now collapses to `Board and Committee Appointments`
 - `representative to the Capital Planning Committee` now collapses to `Capital Planning Appointment`
-- `to fill one position for the Wareham Finance Committee` now collapses to `Finance Committee Appointments`
+- `to fill one position for the Wareham Finance Committee` now collapses to `New Member Appointment`
 - `planning director ... amend existing contracts` now collapses to `Planning Director Contract Authority`
 - `Boston Red Sox Official 2026 Yearbook` now collapses to `Red Sox Yearbook Advertising`
 - `AARP Friendly Community` now collapses to `AARP Friendly Community Update`
@@ -393,6 +393,20 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `thank you for helping us maintain`
 - `resident's comments`
 - `guest` / `guests`
+- Added a follow-up headline/presentation polish pass in `publish.py`:
+- preview headlines now strip duplicated action nouns like `Review` / `Discussion` after the body verb, fixing patterns like `to Review FY2026 Budget Review`
+- more committees now default to `to Discuss` instead of lingering on `to Meet and Consider`, including Minot Forest, Open Space, and Affordable Housing Trust
+- all-caps agenda leftovers like `LICENSES AND PERMITS` now normalize into cleaner summary phrasing
+- OCR artifacts like `ar ?cles` and `mee ?ng` now normalize to `articles` and `meeting` in the publisher layer
+- lingering appointment/capital-plan edge cases were cleaned up:
+- `Finance Committee to Consider New Member Appointment`
+- `Capital Planning Committee ... capital plan impacts`
+- `Appointing Authority ... capital planning committee appointment`
+- A fresh production audit for the old leak patterns now returns clean results for:
+- `to Meet and Consider`
+- duplicated `Review` / `Discussion` headline phrasing
+- `posted agenda centers on`
+- obvious `?` OCR leaks in summaries
 - Latest successful production run:
 - `run_id`: `85`
 - `items_discovered`: `380`
@@ -407,6 +421,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `64abef4` - `Polish remaining weak story phrasing`
 - `566c570` - `Clean governance and appointment phrasing`
 - `3197a42` - `Broaden agenda phrase cleanup across weaker bodies`
 - `87b366b` - `Sharpen preview summaries and focus selection`
@@ -498,6 +513,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Keep improving focus-item selection for public-hearing boards so the highest-impact hearings surface first without stray lower-signal petition rows.
 - Shift more of the remaining weak-output work from phrase normalization into extraction/ranking fixes for messy agendas, especially where entire agenda notes or explanatory blocks still leak into public raw agenda lists.
 - Improve messy governance/appointment agendas further so ancillary items like yearbook ads, AARP updates, capital-plan effects, and finance appointments rank and summarize cleanly without requiring one-off phrase patches.
+- Move the next quality pass from obvious copy cleanup into deeper ranking and extraction, especially public-hearing boards and appointment-heavy agendas where the remaining weakness is selection/order rather than OCR phrasing.
 - Target the next extraction pass at bodies like Community Events, Council on Aging, Select Board appointment-heavy agendas, and remaining authority/committee agendas where explanatory notes and procedural blocks still bleed into `What matters most` or raw agenda sections.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.

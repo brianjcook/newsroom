@@ -455,12 +455,15 @@ def _normalize_item_text(text: str) -> str:
         (r"\bMid\s*-\s*Cycle\b", "Mid-Cycle"),
         (r"\b5\s*-\s*year\b", "5-year"),
         (r"\bWarrant articles\s+to\b", "Warrant articles to"),
+        (r"\bar\s*\?\s*cles\b", "articles"),
+        (r"\bmee\s*\?\s*ng\b", "meeting"),
         (r"\bR eview\b", "Review"),
         (r"\bPurchase S\b", "Purchases"),
         (r"\bVII I\b", "VIII"),
         (r"\bSECRETARY\s[’']\sS\b", "Secretary's"),
         (r"\b202\s+5\b", "2025"),
         (r"\b202\s+6\b", "2026"),
+        (r"\bLICENSES AND PERMITS\b", "Licenses and Permits"),
     ]
     for pattern, replacement in repairs:
         normalized = re.sub(pattern, replacement, normalized)
@@ -645,7 +648,7 @@ def _headline_phrase(text: str) -> str:
     if "representative to the capital planning committee" in lowered:
         return "Capital Planning Appointment"
     if "to fill one position for the wareham finance committee" in lowered:
-        return "Finance Committee Appointments"
+        return "New Member Appointment"
     if "spring town meeting articles" in lowered and "grant agreements" in lowered:
         return "Spring Town Meeting Funding Articles"
     if (
@@ -703,6 +706,8 @@ def _headline_phrase(text: str) -> str:
         return "Bylaw Committee Reorganization"
     if "interview and possible vote to appoint" in lowered or "consider application of" in lowered:
         return "Board Appointments"
+    if "licenses and permits" in lowered:
+        return "Licenses and Permits"
     if "spring special town meeting warrant" in lowered:
         return "Spring Special Town Meeting Articles"
     if "scheduling of february public hearing" in lowered:
@@ -713,12 +718,12 @@ def _headline_phrase(text: str) -> str:
         return "Capital Planning Member Appointment"
     if "updated 5 year capital plan" in lowered or "updated 5-year capital plan" in lowered:
         return "Updated Five-Year Capital Plan"
-    if "impact on capital plan" in lowered and "articles are approved" in lowered:
+    if "impact on capital plan" in lowered and "approved" in lowered:
         return "Capital Plan Impacts"
     if "licenses" in lowered and "markers" in lowered and "monuments" in lowered:
         return "Licenses, Markers, and Monuments"
     if "application of brenda eckstrom" in lowered or "application of bernard pigeon" in lowered:
-        return "Finance Committee Appointments"
+        return "New Member Appointment"
     if "comprehensive wastewater management plan" in lowered or "cwmp" in lowered:
         return "Comprehensive Wastewater Management Plan"
     if "policies to be reviewed" in lowered or "policy review" in lowered:
@@ -1075,8 +1080,8 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"state of emergency", "emergency declaration authority"),
         (r"appointments/?reappointments/?interviews", "board and committee appointments"),
         (r"interview,\s*discussion and possible vote to appoint", "board and committee appointments"),
-        (r"representative to the capital planning committee", "Capital Planning appointment"),
-        (r"to fill one position for the wareham finance committee", "Finance Committee appointments"),
+        (r"representative to the capital planning committee", "capital planning committee appointment"),
+        (r"to fill one position for the wareham finance committee", "new member appointment"),
         (r"spring town meeting articles.*grant agreements", "spring Town Meeting funding articles"),
         (r"town meeting article.*(grant agreement|cranberry manor|beaverdam|sawyer property|little harbor golf)", "Spring Town Meeting funding articles"),
         (r"include 2026 annual spring town meeting articles|spring town meeting articles", "Spring Town Meeting articles"),
@@ -1104,14 +1109,15 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"executive director.*cd.*rate", "CD rate review"),
         (r"dissolution of current committee", "bylaw committee reorganization"),
         (r"interview and possible vote to appoint|consider application of", "board appointments"),
+        (r"licenses and permits", "licenses and permits"),
         (r"spring special town meeting warrant", "Spring Special Town Meeting articles"),
         (r"scheduling of february public hearing", "bylaw hearing schedule"),
         (r"public hearing on by-?law changes|possible public hearing on tuesday", "bylaw hearing schedule"),
         (r"7th member.*(capital planning|carey)", "Capital Planning member appointment"),
         (r"updated 5[\s-]*year capital plan", "Updated five-year capital plan"),
-        (r"impact on capital plan.*articles are approved", "capital plan impacts"),
+        (r"impact on capital plan.*approved", "capital plan impacts"),
         (r"licenses.*markers.*monuments", "licenses, markers, and monuments"),
-        (r"application of brenda eckstrom|application of bernard pigeon", "Finance Committee appointments"),
+        (r"application of brenda eckstrom|application of bernard pigeon", "new member appointment"),
         (r"policies to be reviewed|policy review", "policy review"),
         (r"district calendar", "district calendar vote"),
         (r"course selection", "high school course selection"),
@@ -1502,6 +1508,9 @@ def _preview_headline_action(body_name: str, focus_item_text: str, phrase: str) 
         "community preservation committee",
         "select board",
         "cemetery commissioners",
+        "minot forest committee",
+        "open space committee",
+        "affordable housing trust",
     )
 
     if lowered_body in review_bodies and action in ("to Meet and Consider", "to Consider"):
@@ -1541,6 +1550,18 @@ def _preview_headline_action(body_name: str, focus_item_text: str, phrase: str) 
     return action
 
 
+def _headline_phrase_for_action(phrase: str, action: str) -> str:
+    cleaned = phrase.strip()
+    if action == "to Review":
+        cleaned = re.sub(r"^Review\s+", "", cleaned, flags=re.IGNORECASE)
+        if re.search(r"\bReview$", cleaned, flags=re.IGNORECASE) and cleaned.lower() not in ("policy review",):
+            cleaned = re.sub(r"\s+Review$", "", cleaned, flags=re.IGNORECASE)
+    elif action == "to Discuss":
+        if re.search(r"\bDiscussion$", cleaned, flags=re.IGNORECASE):
+            cleaned = re.sub(r"\s+Discussion$", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip(" ,.;:-")
+
+
 def _preview_headline(body_name: str, meeting_date: str, focus_items: List[Dict[str, object]]) -> str:
     if not focus_items:
         return f"{body_name} to Meet {meeting_date}"
@@ -1553,7 +1574,7 @@ def _preview_headline(body_name: str, meeting_date: str, focus_items: List[Dict[
         if lowered_body == "conservation commission" and "safe harbor marina" in first.lower():
             return f"{body_name} to Hear {first}"
         action = _preview_headline_action(body_name, str(focus_items[0]['text']), first)
-        headline_phrase = re.sub(r"^Review\s+", "", first, flags=re.IGNORECASE) if action == "to Review" else first
+        headline_phrase = _headline_phrase_for_action(first, action)
         return f"{body_name} {action} {headline_phrase}"
     return f"{body_name} to Meet {meeting_date}"
 
@@ -1886,8 +1907,10 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to discuss whether to delegate emergency declaration authority to the Town Administrator."
         if "board and committee appointments" in lowered:
             return "Members are expected to review board and committee appointments."
-        if "capital planning appointment" in lowered:
+        if "capital planning appointment" in lowered or "capital planning committee appointment" in lowered:
             return "Members are expected to review an appointment to the Capital Planning Committee."
+        if "licenses and permits" in lowered:
+            return "Members are expected to review licenses and permit items."
         if "council on aging donation" in lowered:
             return "Members are expected to consider a donation for the Council on Aging."
         if "historic district expansion" in lowered:
@@ -1966,6 +1989,8 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to discuss appointing a new at-large member to Capital Planning."
         if "updated five-year capital plan" in lowered:
             return "Members are expected to review an updated five-year capital plan."
+        if "capital plan impacts" in lowered:
+            return "Members are expected to discuss how pending articles could affect the capital plan."
         if "licenses, markers, and monuments" in lowered:
             return "Members are expected to review license, marker, and monument requests."
         if "cemetery grass purchase" in lowered:
