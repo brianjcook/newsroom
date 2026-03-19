@@ -436,6 +436,18 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `full posted minutes`
 - verified live: `board-of-health-meeting-preview-2026-03-18-1700` now stores `render_version = 2026-03-19-render-v2-style`.
 - The current style pass covers deterministic mechanics and tone choices that fit the existing product direction cleanly. Guide rules like honorific handling will matter later when stories quote or attribute named people more often.
+- Added an appointment-focused publisher cleanup pass in `worker/newsroom/publish.py`:
+- stories are now versioned as `2026-03-19-render-v4-appointment-focus`, forcing live republish when appointment-ranking logic changes
+- appointment-heavy agenda items now flow through a shared parser that extracts target body and candidate name once, then reuses that parsed result for headline phrases, focus-summary phrases, and `What matters most` sentences
+- appointing-authority and finance stories now suppress orphan appointment fragments like `appoint him/her` when they lack a target body
+- generic appointment labels like `board appointments` are now suppressed when the same meeting already contains specific target-body appointments
+- appointment summaries can now roll up multiple specific target bodies into one cleaner phrase, such as `Capital Planning Committee and finance committee appointments`
+- `capital planning worksheets` is now treated as low-value focus noise, and lingering `Capital Planning member appointment` wording is normalized toward `Capital Planning Committee appointment`
+- verified live:
+- `appointing-authority-meeting-preview-2025-06-24-1615` now leads with `Appointing Authority to Review Capital Planning Committee Appointment`
+- that same story summary now centers on `Capital Planning Committee and finance committee appointments`
+- `finance-committee-meeting-preview-2025-09-25-1630` now renders as `Finance Committee to Consider Finance Committee Appointment`
+- direct publish-only syncs after this pass updated the live archive without requiring a full re-extraction run
 - Latest successful production run:
 - `run_id`: `85`
 - `items_discovered`: `380`
@@ -450,9 +462,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `8a8cc25` - `Track style guide reference`
 - `1dedd4d` - `Apply style guide mechanics to story copy`
-- `f7f1332` - `Version publisher output for stale-story rewrites`
-- `d7b535b` - `Suppress stale minutes items in story focus`
+- `d672008` - `Version publisher output for stale-story rewrites`
+- `dc8219f` - `Suppress stale minutes items in story focus`
+- `75e7b61` - `Refine appointment story parsing and focus ranking`
 - `5b60edc` - `Polish story remote and note presentation`
 - `36a8722` - `Normalize planning board ANR summaries`
 - `51d81bd` - `Improve appointment and hearing ranking`
@@ -515,6 +529,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
+- Continue tightening appointment-heavy and appointing-authority agendas so named candidates, reappointments, and multi-seat vacancies can surface more naturally in headlines and summaries.
+- Improve lingering appointment/governance edge cases like `Capital Planning Committee appointment` phrasing and any remaining generic `board appointments` fallback labels.
+- Audit live output for other named-person agendas where style-guide rules around first-reference full names and subsequent references could now be applied safely.
 - Continue extending the same committee-agenda cleanup to other simple bodies whose public raw agenda lists still surface low-value or fused items.
 - Continue extending the DOCX-aware extraction path and host-safe format detection to any other Wareham agendas that are distributed as Office documents rather than PDFs.
 - Reduce duplicate/overbroad meeting normalization so canonical meeting counts are cleaner.

@@ -174,7 +174,7 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
-PUBLISHER_RENDER_VERSION = "2026-03-19-render-v2-style"
+PUBLISHER_RENDER_VERSION = "2026-03-19-render-v4-appointment-focus"
 
 
 def _slugify(value: str) -> str:
@@ -598,35 +598,126 @@ def _strip_agenda_lead_in(text: str) -> str:
     return normalized.strip(" .;:-")
 
 
+def _normalize_appointment_target(text: str) -> str:
+    target = _normalize_item_text(text)
+    if not target:
+        return ""
+    target = re.sub(r"^(the\s+)?wareham\s+", "", target, flags=re.IGNORECASE)
+    target = re.sub(r"^(the\s+)", "", target, flags=re.IGNORECASE)
+    target = re.sub(
+        r"\s+(?:and\s+possible(?:ly)?\s+vote.*|for\s+a\s+term.*|term\s+to\s+expire.*|effective\s+.*|with\s+a\s+term.*)$",
+        "",
+        target,
+        flags=re.IGNORECASE,
+    )
+    target = re.sub(r"\s+", " ", target).strip(" ,.;:-")
+    if not target:
+        return ""
+    lowered = target.lower()
+    if lowered in ("member", "committee", "board", "commission", "authority", "council", "trust"):
+        return ""
+    return target.title()
+
+
+def _normalize_candidate_name(text: str) -> str:
+    name = _normalize_item_text(text)
+    if not name:
+        return ""
+    name = re.sub(r"\s+", " ", name).strip(" ,.;:-")
+    return name.title()
+
+
+def _appointment_sentence(target: str, candidate: str = "", kind: str = "") -> str:
+    if candidate and kind == "application":
+        return "Members are expected to consider {} application to the {}.".format(
+            _possessive_name(candidate),
+            target,
+        )
+    if candidate:
+        return "Members are expected to consider appointing {} to the {}.".format(candidate, target)
+    return "Members are expected to consider an appointment to the {}.".format(target)
+
+
+def _parse_appointment_item(text: str) -> Dict[str, str]:
+    cleaned = _normalize_item_text(_strip_agenda_lead_in(text))
+    if not cleaned:
+        return {}
+
+    lowered = cleaned.lower()
+    if not any(token in lowered for token in ("appoint", "appointment", "application of", "reappoint", "reappointment", "interview")):
+        return {}
+
+    if "appointments/reappointments/interviews" in lowered or "appointments reappointments interviews" in lowered:
+        return {
+            "summary": "board and committee appointments",
+            "headline": "Board and Committee Appointments",
+            "sentence": "Members are expected to review board and committee appointments.",
+        }
+
+    target_patterns = [
+        r"application of\s+(?P<candidate>[A-Za-z][A-Za-z.'-]+(?:\s+[A-Za-z][A-Za-z.'-]+)+?)\s+as\s+(?:an?\s+)?(?:member|alternate member|associate member|representative)\s+of\s+(?:the\s+)?(?P<target>[A-Za-z][A-Za-z0-9&'/ .-]+?(?:board of appeals|board|committee|commission|authority|council|trust|trustees))\b",
+        r"application of\s+(?P<candidate>[A-Za-z][A-Za-z.'-]+(?:\s+[A-Za-z][A-Za-z.'-]+)+?)\s+to\s+(?:the\s+)?(?P<target>[A-Za-z][A-Za-z0-9&'/ .-]+?(?:board of appeals|board|committee|commission|authority|council|trust|trustees))\b",
+        r"(?:appoint|reappoint)\s+(?P<candidate>[A-Za-z][A-Za-z.'-]+(?:\s+[A-Za-z][A-Za-z.'-]+)+?)\s+to\s+(?:the\s+)?(?P<target>[A-Za-z][A-Za-z0-9&'/ .-]+?(?:board of appeals|board|committee|commission|authority|council|trust|trustees))\b",
+        r"to\s+fill\s+(?:one\s+)?position\s+for\s+(?:the\s+)?(?P<target>[A-Za-z][A-Za-z0-9&'/ .-]+?(?:board of appeals|board|committee|commission|authority|council|trust|trustees))\b",
+        r"representative\s+to\s+(?:the\s+)?(?P<target>[A-Za-z][A-Za-z0-9&'/ .-]+?(?:board of appeals|board|committee|commission|authority|council|trust|trustees))\b",
+    ]
+
+    for pattern in target_patterns:
+        match = re.search(pattern, cleaned, flags=re.IGNORECASE)
+        if not match:
+            continue
+        target = _normalize_appointment_target(match.groupdict().get("target") or "")
+        candidate = _normalize_candidate_name(match.groupdict().get("candidate") or "")
+        if not target:
+            continue
+        kind = "application" if "application of" in lowered else "appointment"
+        return {
+            "target": target,
+            "candidate": candidate,
+            "summary": "{} appointment".format(target),
+            "headline": "{} Appointment".format(target),
+            "sentence": _appointment_sentence(target, candidate, kind),
+        }
+
+    if "planning board" in lowered and "appoint" in lowered:
+        return {
+            "target": "Planning Board",
+            "summary": "planning board appointment",
+            "headline": "Planning Board Appointment",
+            "sentence": "Members are expected to consider a Planning Board appointment.",
+        }
+    if "capital planning" in lowered and ("appoint" in lowered or "member" in lowered):
+        return {
+            "target": "Capital Planning Committee",
+            "summary": "capital planning committee appointment",
+            "headline": "Capital Planning Committee Appointment",
+            "sentence": "Members are expected to consider an appointment to the Capital Planning Committee.",
+        }
+    if "finance committee" in lowered and ("appoint" in lowered or "application of" in lowered):
+        return {
+            "target": "Finance Committee",
+            "summary": "finance committee appointment",
+            "headline": "Finance Committee Appointment",
+            "sentence": "Members are expected to consider an appointment to the Finance Committee.",
+        }
+
+    return {}
+
+
 def _headline_phrase(text: str) -> str:
     cleaned = _strip_agenda_lead_in(text)
     if not cleaned:
         return ""
     lowered = cleaned.lower()
-    if "application of" in lowered and "planning board" in lowered and "appoint" in lowered:
-        return "Planning Board Appointment"
+    appointment = _parse_appointment_item(cleaned)
+    if appointment.get("headline"):
+        return str(appointment["headline"])
+    if "capital planning member appointment" in lowered:
+        return "Capital Planning Committee Appointment"
     if "public hearings" in lowered and len(cleaned) <= 40:
         return ""
     if re.match(r"^[ivxlcdm]+\.\s*public hearings?\.?$", lowered, flags=re.IGNORECASE):
         return ""
-    appointment_target_match = re.search(
-        r"(?:application of .+? as a member of|to appoint .+? to)\s+the\s+wareham\s+(.+?)(?:\s+and\s+possibly\s+vote|\s+for\s+a\s+term|\s*$)",
-        lowered,
-        flags=re.IGNORECASE,
-    )
-    if appointment_target_match:
-        target = appointment_target_match.group(1).strip(" ,.;:-")
-        if target:
-            return "{} Appointment".format(target.title())
-    generic_appointment_target = re.search(
-        r"(?:application of|appoint).+?(?:member of|to)\s+(?:the\s+)?wareham\s+([a-z][a-z\s&/-]+?(?:board|committee|commission|authority|council|trust))\b",
-        lowered,
-        flags=re.IGNORECASE,
-    )
-    if generic_appointment_target:
-        target = generic_appointment_target.group(1).strip(" ,.;:-")
-        if target:
-            return "{} Appointment".format(target.title())
     if lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
         return ""
     zoning_summary = _zoning_case_summary(cleaned)
@@ -1082,30 +1173,15 @@ def _normalize_focus_phrase(text: str) -> str:
         return ""
 
     lowered = cleaned.lower()
-    if "application of" in lowered and "planning board" in lowered and "appoint" in lowered:
-        return "planning board appointment"
+    appointment = _parse_appointment_item(cleaned)
+    if appointment.get("summary"):
+        return str(appointment["summary"])
+    if "capital planning member appointment" in lowered:
+        return "capital planning committee appointment"
     if "public hearings" in lowered and len(cleaned) <= 40:
         return ""
     if re.match(r"^[ivxlcdm]+\.\s*public hearings?\.?$", lowered, flags=re.IGNORECASE):
         return ""
-    appointment_target_match = re.search(
-        r"(?:application of .+? as a member of|to appoint .+? to)\s+the\s+wareham\s+(.+?)(?:\s+and\s+possibly\s+vote|\s+for\s+a\s+term|\s*$)",
-        lowered,
-        flags=re.IGNORECASE,
-    )
-    if appointment_target_match:
-        target = appointment_target_match.group(1).strip(" ,.;:-")
-        if target:
-            return "{} appointment".format(target)
-    generic_appointment_target = re.search(
-        r"(?:application of|appoint).+?(?:member of|to)\s+(?:the\s+)?wareham\s+([a-z][a-z\s&/-]+?(?:board|committee|commission|authority|council|trust))\b",
-        lowered,
-        flags=re.IGNORECASE,
-    )
-    if generic_appointment_target:
-        target = generic_appointment_target.group(1).strip(" ,.;:-")
-        if target:
-            return "{} appointment".format(target)
     if lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
         return ""
     if lowered.strip(" .;:-") == "variance request":
@@ -1182,7 +1258,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"spring special town meeting warrant", "Spring Special Town Meeting articles"),
         (r"scheduling of february public hearing", "bylaw hearing schedule"),
         (r"public hearing on by-?law changes|possible public hearing on tuesday", "bylaw hearing schedule"),
-        (r"7th member.*(capital planning|carey)", "Capital Planning member appointment"),
+        (r"7th member.*(capital planning|carey)", "Capital Planning Committee appointment"),
         (r"updated 5[\s-]*year capital plan", "Updated five-year capital plan"),
         (r"impact on capital plan.*approved", "capital plan impacts"),
         (r"licenses.*markers.*monuments", "licenses, markers, and monuments"),
@@ -1365,7 +1441,15 @@ def _is_low_value_focus_line(text: str) -> bool:
     lowered = _normalize_item_text(text).lower()
     if not lowered:
         return True
+    if lowered in ("appointments", "appointment", "reappointment", "(reappointment)", "reappointments", "interviews"):
+        return True
     if re.search(r"meeting\s+minutes", lowered, flags=re.IGNORECASE):
+        return True
+    if re.search(r"\bappoint\s+(him|her|them)\b", lowered, flags=re.IGNORECASE) and not re.search(
+        r"\b(board of appeals|board|committee|commission|authority|council|trust|trustees)\b",
+        lowered,
+        flags=re.IGNORECASE,
+    ):
         return True
     if " anr " in " {} ".format(lowered) and "?" in lowered:
         return True
@@ -1453,6 +1537,7 @@ def _is_low_value_focus_line(text: str) -> bool:
             "unanticipated items received in the last 48 hours",
             "review and approve minutes",
             "approve minutes",
+            "capital planning worksheets",
         )
     ):
         return True
@@ -1465,6 +1550,7 @@ def _is_low_value_focus_line(text: str) -> bool:
 
 def _summary_phrase_list(items: List[str], limit: int = 2) -> List[str]:
     normalized_items = [_normalize_item_text(item) for item in items]
+    scan_limit = max(limit, 4)
     if sum(1 for item in normalized_items if "tobacco violation" in item.lower()) >= 2:
         phrases = ["Tobacco Violations"]
         for item in normalized_items:
@@ -1488,8 +1574,29 @@ def _summary_phrase_list(items: List[str], limit: int = 2) -> List[str]:
             continue
         seen.add(phrase)
         phrases.append(phrase)
-        if len(phrases) >= limit:
+        if len(phrases) >= scan_limit:
             break
+
+    generic_appointment_phrases = {"board appointments", "board and committee appointments", "new member appointment"}
+    specific_appointment_targets = []
+    for phrase in phrases:
+        lowered_phrase = phrase.lower()
+        if lowered_phrase.endswith(" appointment") and lowered_phrase not in generic_appointment_phrases:
+            target = re.sub(r"\s+appointment$", "", phrase, flags=re.IGNORECASE).strip()
+            if target and target not in specific_appointment_targets:
+                specific_appointment_targets.append(target)
+
+    filtered_phrases = []
+    for phrase in phrases:
+        lowered_phrase = phrase.lower()
+        if lowered_phrase in generic_appointment_phrases and specific_appointment_targets:
+            continue
+        filtered_phrases.append(phrase)
+
+    if len(specific_appointment_targets) >= 2:
+        return ["{} appointments".format(_oxford_join(specific_appointment_targets[:2]))]
+    if filtered_phrases:
+        return filtered_phrases[:limit]
     return phrases
 
 
@@ -1859,6 +1966,13 @@ def _focus_reason(categories: List[str]) -> str:
     return _oxford_join(phrases)
 
 
+def _possessive_name(name: str) -> str:
+    cleaned = " ".join(str(name or "").split())
+    if not cleaned:
+        return ""
+    return "{}'".format(cleaned) if cleaned.endswith("s") else "{}'s".format(cleaned)
+
+
 def _with_article(phrase: str) -> str:
     text = " ".join(str(phrase or "").split())
     if not text:
@@ -1874,6 +1988,7 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     lowered = raw_text.lower()
     categories = list(item.get("reasons") or [])
     zoning_summary = _zoning_case_summary(raw_text)
+    appointment = _parse_appointment_item(raw_text)
 
     if "permit" in categories and "tobacco violation" in lowered:
         if "onset village market" in lowered:
@@ -2042,6 +2157,8 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to discuss relocating the bus stop at Indian Neck Road."
         return "The agenda includes {} as a policy item.".format(_with_article(phrase))
     if "appointment" in categories:
+        if appointment.get("sentence"):
+            return str(appointment["sentence"])
         return "Members are expected to consider {}.".format(_with_article(phrase))
     if "permit" in categories:
         return "Members are expected to review {}.".format(_with_article(phrase))
@@ -2062,7 +2179,7 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to discuss a transfer into capital stabilization."
         if "cd rate review" in lowered:
             return "Members are expected to review certificate-of-deposit rates and related investment planning."
-        if "capital planning member appointment" in lowered:
+        if "capital planning member appointment" in lowered or "capital planning committee appointment" in lowered:
             return "Members are expected to discuss appointing a new at-large member to Capital Planning."
         if "updated five-year capital plan" in lowered:
             return "Members are expected to review an updated five-year capital plan."
@@ -2142,10 +2259,21 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
             focus.append({"text": item, "score": score, "section": "", "reasons": reasons})
 
     focus.sort(key=lambda entry: (-int(entry["score"]), str(entry["text"])))
+    focus_display_keys = [
+        (_focus_summary_phrase(str(item["text"])) or str(item["text"])).lower()
+        for item in focus
+    ]
+    generic_appointment_phrases = {"board appointments", "board and committee appointments", "new member appointment"}
+    has_specific_appointment = any(
+        key.endswith(" appointment") and key not in generic_appointment_phrases
+        for key in focus_display_keys
+    )
     deduped = []
     seen = set()
     for item in focus:
         display_key = (_focus_summary_phrase(str(item["text"])) or str(item["text"])).lower()
+        if has_specific_appointment and display_key in generic_appointment_phrases:
+            continue
         if display_key in seen:
             continue
         seen.add(display_key)
