@@ -586,6 +586,30 @@ def _headline_phrase(text: str) -> str:
     if not cleaned:
         return ""
     lowered = cleaned.lower()
+    if "application of" in lowered and "planning board" in lowered and "appoint" in lowered:
+        return "Planning Board Appointment"
+    if "public hearings" in lowered and len(cleaned) <= 40:
+        return ""
+    if re.match(r"^[ivxlcdm]+\.\s*public hearings?\.?$", lowered, flags=re.IGNORECASE):
+        return ""
+    appointment_target_match = re.search(
+        r"(?:application of .+? as a member of|to appoint .+? to)\s+the\s+wareham\s+(.+?)(?:\s+and\s+possibly\s+vote|\s+for\s+a\s+term|\s*$)",
+        lowered,
+        flags=re.IGNORECASE,
+    )
+    if appointment_target_match:
+        target = appointment_target_match.group(1).strip(" ,.;:-")
+        if target:
+            return "{} Appointment".format(target.title())
+    generic_appointment_target = re.search(
+        r"(?:application of|appoint).+?(?:member of|to)\s+(?:the\s+)?wareham\s+([a-z][a-z\s&/-]+?(?:board|committee|commission|authority|council|trust))\b",
+        lowered,
+        flags=re.IGNORECASE,
+    )
+    if generic_appointment_target:
+        target = generic_appointment_target.group(1).strip(" ,.;:-")
+        if target:
+            return "{} Appointment".format(target.title())
     if lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
         return ""
     zoning_summary = _zoning_case_summary(cleaned)
@@ -609,6 +633,8 @@ def _headline_phrase(text: str) -> str:
         return "Indian Neck Road Bus Stop Relocation"
     if "off site parking" in lowered:
         return "Off-Site Parking Petition"
+    if "maple springs road" in lowered and "anr" in lowered:
+        return "Maple Springs Road ANR"
     if "238 & 240 sandwich road" in lowered and "site plan review" in lowered:
         return "Sandwich Road Site Plan Review"
     if ("3031 cran hwy" in lowered or "3031 cranberry hwy" in lowered) and "site plan review" in lowered:
@@ -1039,10 +1065,36 @@ def _normalize_focus_phrase(text: str) -> str:
         return ""
 
     lowered = cleaned.lower()
+    if "application of" in lowered and "planning board" in lowered and "appoint" in lowered:
+        return "planning board appointment"
+    if "public hearings" in lowered and len(cleaned) <= 40:
+        return ""
+    if re.match(r"^[ivxlcdm]+\.\s*public hearings?\.?$", lowered, flags=re.IGNORECASE):
+        return ""
+    appointment_target_match = re.search(
+        r"(?:application of .+? as a member of|to appoint .+? to)\s+the\s+wareham\s+(.+?)(?:\s+and\s+possibly\s+vote|\s+for\s+a\s+term|\s*$)",
+        lowered,
+        flags=re.IGNORECASE,
+    )
+    if appointment_target_match:
+        target = appointment_target_match.group(1).strip(" ,.;:-")
+        if target:
+            return "{} appointment".format(target)
+    generic_appointment_target = re.search(
+        r"(?:application of|appoint).+?(?:member of|to)\s+(?:the\s+)?wareham\s+([a-z][a-z\s&/-]+?(?:board|committee|commission|authority|council|trust))\b",
+        lowered,
+        flags=re.IGNORECASE,
+    )
+    if generic_appointment_target:
+        target = generic_appointment_target.group(1).strip(" ,.;:-")
+        if target:
+            return "{} appointment".format(target)
     if lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
         return ""
     if lowered.strip(" .;:-") == "variance request":
         return "variance request"
+    if "maple springs road" in lowered and "anr" in lowered:
+        return "Maple Springs Road ANR"
     if "238 & 240 sandwich road" in lowered and "site plan review" in lowered:
         return "Sandwich Road site plan review"
     if ("3031 cran hwy" in lowered or "3031 cranberry hwy" in lowered) and "site plan review" in lowered:
@@ -1286,12 +1338,17 @@ def _looks_garbled(text: str) -> bool:
         if upper_ratio > 0.88 and len(normalized.split()) > 3:
             return True
 
+    if normalized.count("?") >= 2:
+        return True
+
     return False
 
 
 def _is_low_value_focus_line(text: str) -> bool:
     lowered = _normalize_item_text(text).lower()
     if not lowered:
+        return True
+    if " anr " in " {} ".format(lowered) and "?" in lowered:
         return True
     if re.match(r"^(the\s+)?\d{1,2}(?:-\d{1,2})?\.?$", lowered):
         return True
@@ -1350,6 +1407,9 @@ def _is_low_value_focus_line(text: str) -> bool:
             "principal reports",
             "important upcoming events",
             "appointments, interviews, and reappointments",
+            "public hearings",
+            "continued public hearings",
+            "iv. public hearings",
             "workshop - permits - certificates of compliance",
             "workshop permits certificates of compliance",
             "certificates of compliance",

@@ -407,6 +407,12 @@ Build a local-news publishing system that ingests municipal and other local cont
 - duplicated `Review` / `Discussion` headline phrasing
 - `posted agenda centers on`
 - obvious `?` OCR leaks in summaries
+- Added a follow-up ranking pass for appointment-heavy and hearing-heavy agendas:
+- Appointing Authority application lines can now collapse to target-body appointment phrases instead of surfacing raw `Consider the application of ...` copy in the headline and summary.
+- verified live: `appointing-authority-meeting-preview-2025-08-14-1630` now renders as `Appointing Authority to Review Planning Board Appointment`.
+- bare `PUBLIC HEARINGS` section headings are now treated as low-value focus noise and no longer surface as promoted summary items.
+- verified live: `planning-board-meeting-preview-2026-02-09-1800` no longer promotes `IV. PUBLIC HEARINGS.` as the second summary item.
+- one Planning Board secondary item is still weak after this pass: `Bayside Agricultural Inc. ? ANR ? 0 Maple Springs Road` is still surfacing as the second summary item and needs a more targeted `ANR` normalization/ranking pass.
 - Latest successful production run:
 - `run_id`: `85`
 - `items_discovered`: `380`
@@ -421,6 +427,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `51d81bd` - `Improve appointment and hearing ranking`
 - `deaf020` - `Polish remaining weak story phrasing`
 - `566c570` - `Clean governance and appointment phrasing`
 - `3197a42` - `Broaden agenda phrase cleanup across weaker bodies`
@@ -514,6 +521,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Shift more of the remaining weak-output work from phrase normalization into extraction/ranking fixes for messy agendas, especially where entire agenda notes or explanatory blocks still leak into public raw agenda lists.
 - Improve messy governance/appointment agendas further so ancillary items like yearbook ads, AARP updates, capital-plan effects, and finance appointments rank and summarize cleanly without requiring one-off phrase patches.
 - Move the next quality pass from obvious copy cleanup into deeper ranking and extraction, especially public-hearing boards and appointment-heavy agendas where the remaining weakness is selection/order rather than OCR phrasing.
+- Fix the remaining Planning Board `ANR` secondary-item surfacing so OCR-noisy `ANR` rows either normalize into cleaner place-based labels or fall below stronger site-plan/petition items in summaries and `What matters most`.
 - Target the next extraction pass at bodies like Community Events, Council on Aging, Select Board appointment-heavy agendas, and remaining authority/committee agendas where explanatory notes and procedural blocks still bleed into `What matters most` or raw agenda sections.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
