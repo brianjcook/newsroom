@@ -457,6 +457,7 @@ def _normalize_item_text(text: str) -> str:
         (r"\bWarrant articles\s+to\b", "Warrant articles to"),
         (r"\bar\s*\?\s*cles\b", "articles"),
         (r"\bmee\s*\?\s*ng\b", "meeting"),
+        (r"\s+[?¿]\s*ANR\s*[?¿]\s+", " ANR "),
         (r"\bR eview\b", "Review"),
         (r"\bPurchase S\b", "Purchases"),
         (r"\bVII I\b", "VIII"),
