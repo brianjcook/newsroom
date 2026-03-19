@@ -350,20 +350,32 @@ Build a local-news publishing system that ingests municipal and other local cont
 - body-level focus sentences were tightened for Planning Board site-plan items, zoning-bylaw petition items, Comcast renewal items, 801 Main Street funding status, and FY2027 capital plan references
 - focus selection is now stricter on normalized phrases, suppressing more malformed low-value items before they reach `What matters most`
 - later micro-cleanups also suppressed malformed carry-through phrases like `the 16.`, the Planning Board `zoning re-write presentation` artifact, and the worst `Or Special Permit` focus artifact
+- A later live normalization pass broadened the cleanup beyond the marquee boards:
+- Community Events Committee now publishes as `Community Events Committee to Discuss Community Events Reconfiguration Bylaw`, with a cleaner `Town Meeting timing debate` secondary item
+- Redevelopment Authority now uses cleaner phrases like `Potential Real Estate Transaction`, `Storefront Renovation Grant Program`, and `Downtown Dollars program`
+- Sewer Commissioners now surface issue-led phrases like `FY26 2nd Half Sewer Usage Billing`, `Contract w/Joe Manning`, and other contract-centric items instead of generic `Discussion and Vote`
+- Wareham Housing Authority now uses `FY2026 Budget Review` and `Redwood Phase 3 Window Project`
+- Board of Library Trustees now centers on `Public Display Policy`
+- Council on Aging now centers on `Minutes and Agenda Clerk Transfer` or `Open Meeting law discussion` rather than procedural closing language
+- Community Preservation now centers on `Spring Town Meeting Funding Articles` and `existing grant agreements`
+- Select Board appointment-heavy meetings now surface `Board and Committee Appointments` and `Council on Aging donation` instead of raw interview boilerplate
+- additional historical cleanups now normalize older edge cases like `Bylaw Hearing Schedule`, `Capital Planning Member Appointment`, `Licenses, Markers, and Monuments`, and `CD Rate Review`
+- story intros now reuse the cleaner summary sentence rather than the older `posted agenda centers on ...` wording, so the body copy is more consistent with the improved summaries
 - Latest successful production run:
-- `run_id`: `75`
+- `run_id`: `83`
 - `items_discovered`: `377`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
 - `meetings_normalized`: `0`
 - `stories_published`: `0`
-- `stories_updated`: `4`
+- `stories_updated`: `2`
 - `events_created`: `0`
 - `events_updated`: `112`
 - `artifacts_synced`: `0`
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `87b366b` - `Sharpen preview summaries and focus selection`
 - `6351d52` - `Refine preview headline voice across governing bodies`
 - `e673c97` - `Self-heal stale story slugs and cleanup preview phrasing`
 - `7e189fb` - `Clean remaining fallback summary OCR`
@@ -450,6 +462,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Continue refining templated but structurally correct previews, especially Zoning Board of Appeals, Planning Board, Conservation Commission, and older School Committee stories.
 - Continue improving summaries and body copy for structurally correct stories whose headlines are now better but whose secondary lines still read like cleaned agenda text.
 - Keep improving focus-item selection for public-hearing boards so the highest-impact hearings surface first without stray lower-signal petition rows.
+- Shift more of the remaining weak-output work from phrase normalization into extraction/ranking fixes for messy agendas, especially where entire agenda notes or explanatory blocks still leak into public raw agenda lists.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 

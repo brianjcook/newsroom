@@ -450,6 +450,7 @@ def _normalize_item_text(text: str) -> str:
         (r"\bSele ction\b", "Selection"),
         (r"\bA pprove\b", "Approve"),
         (r"\bFinanc ia l\b", "Financial"),
+        (r"\bL icenses\b", "Licenses"),
         (r"\bu pdate\b", "update"),
         (r"\bMid\s*-\s*Cycle\b", "Mid-Cycle"),
         (r"\b5\s*-\s*year\b", "5-year"),
@@ -614,9 +615,80 @@ def _headline_phrase(text: str) -> str:
     if "comcast draft renewal license" in lowered:
         return "Comcast Draft Renewal License"
     if "discussion with cable attorney" in lowered:
-        return "Cable Counsel Discussion"
+        return "Cable Counsel Update"
     if "fy 27 capital plan" in lowered or "fy27 capital plan" in lowered:
         return "FY2027 Capital Plan"
+    if "community events reconfiguration" in lowered:
+        return "Community Events Reconfiguration Bylaw"
+    if "purchase, exchange, lease or value of real property" in lowered:
+        return "Potential Real Estate Transaction"
+    if "ridecircuit" in lowered:
+        return "Ride Circuit Presentation"
+    if "storefront renovation grant program" in lowered:
+        return "Storefront Renovation Grant Program"
+    if "downtown dollars program" in lowered:
+        return "Downtown Dollars Program"
+    if "redwood phase 3 window replacement" in lowered:
+        return "Redwood Phase 3 Window Project"
+    if "high leverage asset preservation program" in lowered or "hilap" in lowered:
+        return "HILAP Funding Application"
+    if "bulletin board" in lowered and "public display policy" in lowered:
+        return "Public Display Policy"
+    if "memorial day" in lowered and "veterans day" in lowered:
+        return "Memorial Day and Veterans Day Planning"
+    if "state of emergency" in lowered:
+        return "Emergency Declaration Authority"
+    if "appointments/reappointments/interviews" in lowered or "appointments reappointments interviews" in lowered:
+        return "Board and Committee Appointments"
+    if "spring town meeting articles" in lowered and "grant agreements" in lowered:
+        return "Spring Town Meeting Funding Articles"
+    if (
+        "town meeting article" in lowered
+        and any(token in lowered for token in ("grant agreement", "cranberry manor", "beaverdam", "sawyer property", "little harbor golf"))
+    ):
+        return "Spring Town Meeting Funding Articles"
+    if "include 2026 annual spring town meeting articles" in lowered or "spring town meeting articles" in lowered:
+        return "Spring Town Meeting Articles"
+    if "move" in lowered and "october town meeting" in lowered:
+        return "Town Meeting Timing Debate"
+    if "contracts" in lowered and "discussion" in lowered and "vote" in lowered:
+        return "Contract Votes"
+    if "acceptance of meeting minutes" in lowered:
+        return "Meeting Minutes Approval"
+    if "fy2026 budget" in lowered or ("fee accountant" in lowered and "budget" in lowered):
+        return "FY2026 Budget Review"
+    if "transfer of recording/transcribing minutes" in lowered:
+        return "Minutes and Agenda Clerk Transfer"
+    if "wpcf director report" in lowered:
+        return "WPCF Director Report"
+    if "sewer commission business" in lowered:
+        return "Sewer Commission Business"
+    if "friends of the wareham council on aging" in lowered and "donation" in lowered:
+        return "Council on Aging Donation"
+    if "grant agreement" in lowered:
+        return "Existing Grant Agreements"
+    if "accept a donation" in lowered and "council on aging" in lowered:
+        return "Council on Aging Donation"
+    if "review and compare fy2025 final budgets" in lowered:
+        return "FY2026 Budget Review"
+    if "licenses, markers and monuments" in lowered:
+        return "Licenses, Markers, and Monuments"
+    if "cemetery grasses purchase" in lowered:
+        return "Cemetery Grass Purchase"
+    if "executive director" in lowered and "cd" in lowered and "rate" in lowered:
+        return "CD Rate Review"
+    if "interview and possible vote to appoint" in lowered or "consider application of" in lowered:
+        return "Board Appointments"
+    if "spring special town meeting warrant" in lowered:
+        return "Spring Special Town Meeting Articles"
+    if "scheduling of february public hearing" in lowered:
+        return "Bylaw Hearing Schedule"
+    if "public hearing on by-law changes" in lowered or "possible public hearing on tuesday" in lowered:
+        return "Bylaw Hearing Schedule"
+    if "7th member" in lowered and ("capital planning" in lowered or "carey" in lowered):
+        return "Capital Planning Member Appointment"
+    if "licenses" in lowered and "markers" in lowered and "monuments" in lowered:
+        return "Licenses, Markers, and Monuments"
     if "application of brenda eckstrom" in lowered or "application of bernard pigeon" in lowered:
         return "Finance Committee Appointments"
     if "comprehensive wastewater management plan" in lowered or "cwmp" in lowered:
@@ -961,8 +1033,42 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"3031 cran(?:berry)? hwy.*site plan review", "3031 Cran Hwy. site plan review"),
         (r"citizen petition.*zoning bylaw article 9", "zoning bylaw citizen petition"),
         (r"comcast draft renewal license", "Comcast draft renewal license"),
-        (r"discussion with cable attorney", "cable counsel discussion"),
+        (r"discussion with cable attorney", "cable counsel update"),
         (r"fy\s*27 capital plan|fy27 capital plan", "FY2027 capital plan"),
+        (r"community events reconfiguration", "community events reconfiguration bylaw"),
+        (r"purchase,\s*exchange,\s*lease or value of real property", "potential real estate transaction"),
+        (r"ridecircuit", "Ride Circuit presentation"),
+        (r"storefront renovation grant program", "storefront renovation grant program"),
+        (r"downtown dollars program", "Downtown Dollars program"),
+        (r"redwood phase 3 window replacement", "Redwood Phase 3 window project"),
+        (r"high leverage asset preservation program|hilap", "HILAP funding application"),
+        (r"bulletin board.*public display policy", "public display policy"),
+        (r"memorial day.*veterans day", "Memorial Day and Veterans Day planning"),
+        (r"state of emergency", "emergency declaration authority"),
+        (r"appointments/?reappointments/?interviews", "board and committee appointments"),
+        (r"spring town meeting articles.*grant agreements", "spring Town Meeting funding articles"),
+        (r"town meeting article.*(grant agreement|cranberry manor|beaverdam|sawyer property|little harbor golf)", "Spring Town Meeting funding articles"),
+        (r"include 2026 annual spring town meeting articles|spring town meeting articles", "Spring Town Meeting articles"),
+        (r"october town meeting", "Town Meeting timing debate"),
+        (r"contracts.*discussion.*vote", "contract votes"),
+        (r"acceptance of meeting minutes", "meeting minutes approval"),
+        (r"fy2026 budget|fee accountant.*budget", "FY2026 budget review"),
+        (r"transfer of recording/transcribing minutes", "minutes and agenda clerk transfer"),
+        (r"wpcf director report", "WPCF Director report"),
+        (r"sewer commission business", "sewer commission business"),
+        (r"friends of the wareham council on aging.*donation", "Council on Aging donation"),
+        (r"grant agreement", "existing grant agreements"),
+        (r"accept a donation.*council on aging", "Council on Aging donation"),
+        (r"review and compare fy2025 final budgets", "FY2026 budget review"),
+        (r"licenses,\s*markers and monuments", "licenses, markers, and monuments"),
+        (r"cemetery grasses purchase", "cemetery grass purchase"),
+        (r"executive director.*cd.*rate", "CD rate review"),
+        (r"interview and possible vote to appoint|consider application of", "board appointments"),
+        (r"spring special town meeting warrant", "Spring Special Town Meeting articles"),
+        (r"scheduling of february public hearing", "bylaw hearing schedule"),
+        (r"public hearing on by-?law changes|possible public hearing on tuesday", "bylaw hearing schedule"),
+        (r"7th member.*(capital planning|carey)", "Capital Planning member appointment"),
+        (r"licenses.*markers.*monuments", "licenses, markers, and monuments"),
         (r"application of brenda eckstrom|application of bernard pigeon", "Finance Committee appointments"),
         (r"policies to be reviewed|policy review", "policy review"),
         (r"district calendar", "district calendar vote"),
@@ -1203,6 +1309,20 @@ def _is_low_value_focus_line(text: str) -> bool:
             "zoning re write presentation",
             "business unknown until the previous 48 hours",
             "election of officers",
+            "motion to adjourn",
+            "discussion and vote",
+            "discussion & possible vote",
+            "resident's comments limited to 2 minutes",
+            "resident’s comments limited to 2 minutes",
+            "acceptance of meeting minutes",
+            "approval of january",
+            "approval of february",
+            "approval of december",
+            "review and approval of september",
+            "review and approval of october",
+            "any other council of aging business",
+            "please note that the committee may act",
+            "unanticipated items received in the last 48 hours",
             "review and approve minutes",
             "approve minutes",
         )
@@ -1315,13 +1435,10 @@ def _preview_headline_phrase(body_name: str, focus_items: List[Dict[str, object]
 
 def _preview_headline_action(body_name: str, focus_item_text: str, phrase: str) -> str:
     action = _headline_action(focus_item_text)
-    if action != "to Meet and Consider":
-        return action
 
     lowered_body = _normalize_item_text(body_name).lower()
     lowered_phrase = _normalize_item_text(phrase).lower()
-
-    if lowered_body in (
+    review_bodies = (
         "school committee",
         "historical commission",
         "historic district commission",
@@ -1330,10 +1447,29 @@ def _preview_headline_action(body_name: str, focus_item_text: str, phrase: str) 
         "bylaw review committee",
         "capital planning committee",
         "cultural council",
-    ):
+        "board of library trustees",
+        "wareham housing authority",
+        "appointing authority",
+    )
+    discuss_bodies = (
+        "community events committee",
+        "redevelopment authority",
+        "council on aging",
+        "wareham veterans council",
+        "sewer commissioners",
+        "community preservation committee",
+        "select board",
+        "cemetery commissioners",
+    )
+
+    if lowered_body in review_bodies and action in ("to Meet and Consider", "to Consider"):
         return "to Review"
     if lowered_body == "little harbor golf course advisory committee":
         return "to Discuss"
+    if lowered_body in discuss_bodies and action in ("to Meet and Consider", "to Consider"):
+        return "to Discuss"
+    if action != "to Meet and Consider":
+        return action
 
     if any(
         token in lowered_phrase
@@ -1386,27 +1522,24 @@ def _preview_dek(body_name: str, meeting_date: str, meeting_time: str, location:
     return f"{body_name} will meet {meeting_date}."
 
 
-def _preview_intro(body_name: str, meeting_date: str, meeting_time: str, location: str, focus_items: List[Dict[str, object]]) -> str:
+def _preview_intro(
+    body_name: str,
+    meeting_date: str,
+    meeting_time: str,
+    location: str,
+    focus_items: List[Dict[str, object]],
+    summary_sentence: str = "",
+) -> str:
     if not focus_items:
         return (
             f"<p>The Wareham {html.escape(body_name)} is scheduled to meet on {html.escape(meeting_date)} "
             f"{html.escape(meeting_time)} at {html.escape(location)}, according to the posted agenda.</p>"
         )
 
-    first = _focus_summary_phrase(str(focus_items[0]["text"]))
-    second = _focus_summary_phrase(str(focus_items[1]["text"])) if len(focus_items) > 1 else ""
-    if first and second:
+    if summary_sentence:
         return (
             f"<p>The Wareham {html.escape(body_name)} will meet on {html.escape(meeting_date)} at "
-            f"{html.escape(meeting_time)} at {html.escape(location)}. The posted agenda centers on "
-            f"{html.escape(first)} and {html.escape(second)}.</p>"
-            f"<p>{html.escape(_focus_sentence(focus_items[0]))}</p>"
-        )
-    if first:
-        return (
-            f"<p>The Wareham {html.escape(body_name)} will meet on {html.escape(meeting_date)} at "
-            f"{html.escape(meeting_time)} at {html.escape(location)}. The posted agenda puts "
-            f"{html.escape(first)} near the top of the meeting.</p>"
+            f"{html.escape(meeting_time)} at {html.escape(location)}. {html.escape(summary_sentence)}</p>"
             f"<p>{html.escape(_focus_sentence(focus_items[0]))}</p>"
         )
     return (
@@ -1669,12 +1802,42 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     if "formal_action" in categories:
         if "bill and payroll warrants" in lowered or "payroll and bill warrants" in lowered:
             return "Committee members could vote on bill and payroll warrants."
+        if "spring town meeting articles" in lowered:
+            return "Members are expected to discuss articles headed to the Spring Town Meeting."
+        if "redwood phase 3 window replacement" in lowered:
+            return "Members could vote on a bid for the Redwood Phase 3 window project."
         if "bryant farm management plan" in lowered:
             return "Members are expected to consider the Bryant Farm management plan."
         if "oml violation" in lowered:
             return "Members could take formal action on how to respond to the OML violation finding."
         return "Members could take formal action on {}.".format(_with_article(phrase))
     if "policy" in categories:
+        if "community events reconfiguration" in lowered:
+            return "Members are expected to discuss a proposed bylaw reworking the town's community-events structure."
+        if "spring town meeting funding articles" in lowered:
+            return "Members are expected to review community-preservation funding requests headed to the Spring Town Meeting."
+        if "town meeting timing debate" in lowered or "october town meeting" in lowered:
+            return "Members are expected to discuss whether the article should move to the October Town Meeting."
+        if "storefront renovation grant program" in lowered:
+            return "Members are expected to discuss the new Storefront Renovation Grant Program."
+        if "downtown dollars program" in lowered:
+            return "Members are expected to review the Downtown Dollars program."
+        if "spring special town meeting articles" in lowered:
+            return "Members are expected to review proposed articles for the Spring Special Town Meeting."
+        if "bylaw hearing schedule" in lowered:
+            return "Members are expected to discuss the schedule for the next bylaw public hearing."
+        if "public display policy" in lowered:
+            return "Trustees are expected to review the library's public display policy."
+        if "minutes and agenda clerk transfer" in lowered:
+            return "Members are expected to discuss shifting minute-taking and agenda duties to the board clerk."
+        if "existing grant agreements" in lowered:
+            return "Members are also expected to review the status of existing grant agreements."
+        if "state of emergency" in lowered:
+            return "Members are expected to discuss whether to delegate emergency declaration authority to the Town Administrator."
+        if "board and committee appointments" in lowered:
+            return "Members are expected to review board and committee appointments."
+        if "council on aging donation" in lowered:
+            return "Members are expected to consider a donation for the Council on Aging."
         if "historic district expansion" in lowered:
             return "Members are expected to discuss the Historic District expansion study."
         if "comcast draft renewal license" in lowered:
@@ -1731,6 +1894,24 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     if "permit" in categories:
         return "Members are expected to review {}.".format(_with_article(phrase))
     if "infrastructure" in categories:
+        if "fy2026 budget review" in lowered:
+            return "Members are expected to review the FY2026 budget with the housing authority's fee accountant."
+        if "hilap" in lowered or "high leverage asset preservation program" in lowered:
+            return "Members are expected to consider a HILAP funding application tied to housing repairs."
+        if "ridecircuit" in lowered:
+            return "Members are expected to hear a presentation from Ride Circuit."
+        if "potential real estate transaction" in lowered:
+            return "Members are expected to discuss a possible real-estate matter."
+        if "contract votes" in lowered:
+            return "Members are expected to review contract items that could come to a vote."
+        if "cd rate review" in lowered:
+            return "Members are expected to review certificate-of-deposit rates and related investment planning."
+        if "capital planning member appointment" in lowered:
+            return "Members are expected to discuss appointing a new at-large member to Capital Planning."
+        if "licenses, markers, and monuments" in lowered:
+            return "Members are expected to review license, marker, and monument requests."
+        if "cemetery grass purchase" in lowered:
+            return "Members are expected to review a purchase for cemetery grass."
         if "tractor situation" in lowered:
             return "Members are expected to revisit the tractor situation at the course."
         if "golf cart fleet" in lowered:
@@ -2058,7 +2239,7 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
                 "The posted agenda includes",
                 _summary_phrase_list(_agenda_highlights(extraction)),
             ) or dek
-        intro = _preview_intro(body_name, meeting_date, meeting_time, location, focus_items)
+        intro = _preview_intro(body_name, meeting_date, meeting_time, location, focus_items, summary)
         agenda_block, explainers = _agenda_highlight_blocks(extraction)
         if not agenda_block:
             generic_items = _generic_agenda_lines(extraction)
