@@ -174,7 +174,7 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
-PUBLISHER_RENDER_VERSION = "2026-03-19-render-v1"
+PUBLISHER_RENDER_VERSION = "2026-03-19-render-v2-style"
 
 
 def _slugify(value: str) -> str:
@@ -215,6 +215,17 @@ def _parse_story_basis(raw_value) -> Dict[str, object]:
     except (TypeError, ValueError):
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _oxford_join(items: List[str]) -> str:
+    cleaned = [" ".join(str(item or "").split()) for item in items if " ".join(str(item or "").split())]
+    if not cleaned:
+        return ""
+    if len(cleaned) == 1:
+        return cleaned[0]
+    if len(cleaned) == 2:
+        return "{} and {}".format(cleaned[0], cleaned[1])
+    return "{}, and {}".format(", ".join(cleaned[:-1]), cleaned[-1])
 
 
 def _story_content_signature(headline: str, dek: str, summary: str, body_text: str) -> str:
@@ -1485,9 +1496,8 @@ def _summary_phrase_list(items: List[str], limit: int = 2) -> List[str]:
 def _sentence_from_phrases(prefix: str, phrases: List[str]) -> str:
     if not phrases:
         return ""
-    if len(phrases) == 1:
-        return "{} {}.".format(prefix, phrases[0])
-    return "{} {} and {}.".format(prefix, phrases[0], phrases[1])
+    joined = _oxford_join(phrases)
+    return "{} {}.".format(prefix, joined) if joined else ""
 
 
 def _preview_summary(body_name: str, focus_items: List[Dict[str, object]], dek: str) -> str:
@@ -1846,9 +1856,7 @@ def _focus_reason(categories: List[str]) -> str:
     phrases = [CATEGORY_EXPLANATIONS[category] for category in categories if category in CATEGORY_EXPLANATIONS]
     if not phrases:
         return ""
-    if len(phrases) == 1:
-        return phrases[0]
-    return "{} and {}".format(", ".join(phrases[:-1]), phrases[-1])
+    return _oxford_join(phrases)
 
 
 def _with_article(phrase: str) -> str:
@@ -2381,7 +2389,7 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
         )
         kicker = (
             f"<p>The document is being treated as a public-record recap. Readers should consult the "
-            f"<a href=\"{html.escape(source_url)}\">posted minutes</a> for the full record and exact wording.</p>"
+            f"<a href=\"{html.escape(source_url)}\">full posted minutes</a> for the complete record and exact wording.</p>"
         )
     else:
         focus_items = _agenda_focus_items(extraction)
@@ -2407,7 +2415,7 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
                     summary = _sentence_from_phrases("The posted agenda includes", generic_items[:2]) or dek
         remote_block = _remote_access_block(extraction)
         kicker = (
-            f"<p>The public can review the full <a href=\"{html.escape(source_url)}\">posted agenda</a> "
+            f"<p>The public can review the <a href=\"{html.escape(source_url)}\">full official agenda</a> "
             f"for the complete list of items, attachments, and procedural details.</p>"
         )
 

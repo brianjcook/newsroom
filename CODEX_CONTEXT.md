@@ -428,6 +428,14 @@ Build a local-news publishing system that ingests municipal and other local cont
 - verified live: a publish-only on-host run rewrote the archive under `render_version = 2026-03-19-render-v1` without any manual row resets, and `source_basis_json` now stores that render version for stories like:
 - `board-of-health-meeting-preview-2026-03-18-1700`
 - `planning-board-meeting-preview-2026-02-09-1800`
+- Added a first systematic style-guide pass based on `examples/style.md`:
+- publisher output is now versioned as `2026-03-19-render-v2-style` so style-level copy changes propagate automatically.
+- generated list phrasing and `Why it matters` reason strings now use Oxford-comma joins.
+- source-link language is more descriptive:
+- `full official agenda`
+- `full posted minutes`
+- verified live: `board-of-health-meeting-preview-2026-03-18-1700` now stores `render_version = 2026-03-19-render-v2-style`.
+- The current style pass covers deterministic mechanics and tone choices that fit the existing product direction cleanly. Guide rules like honorific handling will matter later when stories quote or attribute named people more often.
 - Latest successful production run:
 - `run_id`: `85`
 - `items_discovered`: `380`
@@ -442,6 +450,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `82053c0` - `Apply style guide mechanics to story copy`
 - `f7f1332` - `Version publisher output for stale-story rewrites`
 - `d7b535b` - `Suppress stale minutes items in story focus`
 - `5b60edc` - `Polish story remote and note presentation`
@@ -541,6 +550,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Improve messy governance/appointment agendas further so ancillary items like yearbook ads, AARP updates, capital-plan effects, and finance appointments rank and summarize cleanly without requiring one-off phrase patches.
 - Move the next quality pass from obvious copy cleanup into deeper ranking and extraction, especially public-hearing boards and appointment-heavy agendas where the remaining weakness is selection/order rather than OCR phrasing.
 - Target the next extraction pass at bodies like Community Events, Council on Aging, Select Board appointment-heavy agendas, and remaining authority/committee agendas where explanatory notes and procedural blocks still bleed into `What matters most` or raw agenda sections.
+- Keep extending the style-guide application from deterministic mechanics into richer reporting structure, especially once stories quote or attribute named people and need honorifics, attribution patterns, and correction-style handling.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 
