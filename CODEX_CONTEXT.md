@@ -450,7 +450,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
-- `82053c0` - `Apply style guide mechanics to story copy`
+- `1dedd4d` - `Apply style guide mechanics to story copy`
 - `f7f1332` - `Version publisher output for stale-story rewrites`
 - `d7b535b` - `Suppress stale minutes items in story focus`
 - `5b60edc` - `Polish story remote and note presentation`
