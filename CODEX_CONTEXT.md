@@ -419,6 +419,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - the in-body remote block now uses the same clearer labels and line breaks instead of one ` | `-joined string.
 - `Why it matters` notes now render on their own visual line via `story-note--why`.
 - verified live on `board-of-health-meeting-preview-2026-03-18-1700`: the body now shows the updated remote-access formatting and the new `Why it matters` markup.
+- Tightened low-value focus suppression for `meeting minutes` rows using a regex-based guard instead of only exact token matching.
+- the full re-extract path still did not rewrite one stale Board of Health story even after the logic changed, so I forced a direct republish of `board-of-health-meeting-preview-2026-03-18-1700` on-host by clearing `source_basis_json` for that row and rerunning `publish_stories_and_events`.
+- verified live: the Board of Health story now no longer promotes the minutes-approval item inside `What matters most`.
 - Latest successful production run:
 - `run_id`: `85`
 - `items_discovered`: `380`
@@ -433,6 +436,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `d7b535b` - `Suppress stale minutes items in story focus`
 - `5b60edc` - `Polish story remote and note presentation`
 - `36a8722` - `Normalize planning board ANR summaries`
 - `51d81bd` - `Improve appointment and hearing ranking`
@@ -530,7 +534,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Improve messy governance/appointment agendas further so ancillary items like yearbook ads, AARP updates, capital-plan effects, and finance appointments rank and summarize cleanly without requiring one-off phrase patches.
 - Move the next quality pass from obvious copy cleanup into deeper ranking and extraction, especially public-hearing boards and appointment-heavy agendas where the remaining weakness is selection/order rather than OCR phrasing.
 - Target the next extraction pass at bodies like Community Events, Council on Aging, Select Board appointment-heavy agendas, and remaining authority/committee agendas where explanatory notes and procedural blocks still bleed into `What matters most` or raw agenda sections.
-- Continue reducing residual procedural items that still leak into `What matters most`, such as occasional minutes-approval rows that survive OCR/noise cleanup in Board of Health-style agendas.
+- Investigate why some full re-extract runs do not rewrite specific stale stories even when the publisher logic has changed, so targeted manual republish steps are not occasionally necessary.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 
