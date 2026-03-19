@@ -421,7 +421,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
-- `64abef4` - `Polish remaining weak story phrasing`
+- `deaf020` - `Polish remaining weak story phrasing`
 - `566c570` - `Clean governance and appointment phrasing`
 - `3197a42` - `Broaden agenda phrase cleanup across weaker bodies`
 - `87b366b` - `Sharpen preview summaries and focus selection`
