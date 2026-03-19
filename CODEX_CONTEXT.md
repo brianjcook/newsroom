@@ -361,6 +361,13 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Select Board appointment-heavy meetings now surface `Board and Committee Appointments` and `Council on Aging donation` instead of raw interview boilerplate
 - additional historical cleanups now normalize older edge cases like `Bylaw Hearing Schedule`, `Capital Planning Member Appointment`, `Licenses, Markers, and Monuments`, and `CD Rate Review`
 - story intros now reuse the cleaner summary sentence rather than the older `posted agenda centers on ...` wording, so the body copy is more consistent with the improved summaries
+- A later follow-up normalization pass kept cleaning older or weaker bodies:
+- Council on Aging stories now suppress more procedural clutter and can center on issues like `Minutes and Agenda Clerk Transfer` or `Open Meeting law discussion`
+- Cable Advisory legacy stories now use `Cable Counsel Update`
+- Wareham Housing Authority legacy budget stories now collapse to `FY2026 Budget Review`
+- Bylaw Review legacy stories now normalize to `Bylaw Hearing Schedule` or `Spring Special Town Meeting Articles`
+- Cemetery Commissioners now centers on `Licenses, Markers, and Monuments`
+- the remaining weak outputs are now concentrated less in headline phrasing and more in messy raw agenda lists, appointment-heavy items, and long explanatory blocks that need extraction/ranking refinement rather than more simple phrase mapping
 - Latest successful production run:
 - `run_id`: `83`
 - `items_discovered`: `377`
@@ -375,6 +382,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `3197a42` - `Broaden agenda phrase cleanup across weaker bodies`
 - `87b366b` - `Sharpen preview summaries and focus selection`
 - `6351d52` - `Refine preview headline voice across governing bodies`
 - `e673c97` - `Self-heal stale story slugs and cleanup preview phrasing`
@@ -463,6 +471,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Continue improving summaries and body copy for structurally correct stories whose headlines are now better but whose secondary lines still read like cleaned agenda text.
 - Keep improving focus-item selection for public-hearing boards so the highest-impact hearings surface first without stray lower-signal petition rows.
 - Shift more of the remaining weak-output work from phrase normalization into extraction/ranking fixes for messy agendas, especially where entire agenda notes or explanatory blocks still leak into public raw agenda lists.
+- Target the next extraction pass at bodies like Community Events, Council on Aging, Select Board appointment-heavy agendas, and remaining authority/committee agendas where explanatory notes and procedural blocks still bleed into `What matters most` or raw agenda sections.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 
