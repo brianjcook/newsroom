@@ -422,6 +422,12 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Tightened low-value focus suppression for `meeting minutes` rows using a regex-based guard instead of only exact token matching.
 - the full re-extract path still did not rewrite one stale Board of Health story even after the logic changed, so I forced a direct republish of `board-of-health-meeting-preview-2026-03-18-1700` on-host by clearing `source_basis_json` for that row and rerunning `publish_stories_and_events`.
 - verified live: the Board of Health story now no longer promotes the minutes-approval item inside `What matters most`.
+- Investigated the stale-story rewrite issue and resolved the systemic cause:
+- story rewrite decisions were previously tied only to `content_signature` plus source basis, so a change in publisher logic could leave old rendered stories looking current if the basis appeared unchanged.
+- `worker/newsroom/publish.py` now stamps every story basis with `render_version` and includes that render version in `_story_content_signature`.
+- verified live: a publish-only on-host run rewrote the archive under `render_version = 2026-03-19-render-v1` without any manual row resets, and `source_basis_json` now stores that render version for stories like:
+- `board-of-health-meeting-preview-2026-03-18-1700`
+- `planning-board-meeting-preview-2026-02-09-1800`
 - Latest successful production run:
 - `run_id`: `85`
 - `items_discovered`: `380`
@@ -436,6 +442,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `f7f1332` - `Version publisher output for stale-story rewrites`
 - `d7b535b` - `Suppress stale minutes items in story focus`
 - `5b60edc` - `Polish story remote and note presentation`
 - `36a8722` - `Normalize planning board ANR summaries`
@@ -534,7 +541,6 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Improve messy governance/appointment agendas further so ancillary items like yearbook ads, AARP updates, capital-plan effects, and finance appointments rank and summarize cleanly without requiring one-off phrase patches.
 - Move the next quality pass from obvious copy cleanup into deeper ranking and extraction, especially public-hearing boards and appointment-heavy agendas where the remaining weakness is selection/order rather than OCR phrasing.
 - Target the next extraction pass at bodies like Community Events, Council on Aging, Select Board appointment-heavy agendas, and remaining authority/committee agendas where explanatory notes and procedural blocks still bleed into `What matters most` or raw agenda sections.
-- Investigate why some full re-extract runs do not rewrite specific stale stories even when the publisher logic has changed, so targeted manual republish steps are not occasionally necessary.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
 

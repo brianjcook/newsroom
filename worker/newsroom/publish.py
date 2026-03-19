@@ -174,6 +174,8 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
+PUBLISHER_RENDER_VERSION = "2026-03-19-render-v1"
+
 
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
@@ -217,6 +219,8 @@ def _parse_story_basis(raw_value) -> Dict[str, object]:
 
 def _story_content_signature(headline: str, dek: str, summary: str, body_text: str) -> str:
     digest = hashlib.sha256()
+    digest.update(PUBLISHER_RENDER_VERSION.encode("utf-8"))
+    digest.update(b"\n")
     digest.update(headline.encode("utf-8"))
     digest.update(b"\n")
     digest.update((dek or "").encode("utf-8"))
@@ -268,6 +272,7 @@ def _story_basis_json(
             "artifact_type": artifact_type,
             "artifact_posted_at": artifact_posted_at,
             "is_amended": bool(is_amended),
+            "render_version": PUBLISHER_RENDER_VERSION,
             "content_signature": content_signature,
             "agenda_highlights": highlights[:8],
         }
