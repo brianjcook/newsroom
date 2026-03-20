@@ -1013,6 +1013,31 @@ a:hover {
     background: rgba(255,255,255,0.28);
 }
 
+.recap-card--recap_needed {
+    border-top-color: #8f2817;
+}
+
+.recap-card--minutes_reconcile {
+    border-top-color: #3c5327;
+}
+
+.recap-card__notes {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(198, 183, 166, 0.45);
+}
+
+.recap-card__notes strong {
+    display: block;
+    font-weight: 700;
+}
+
+.recap-card__notes p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
 .methodology-card__title {
     margin: 0 0 14px;
     font-family: var(--sans);

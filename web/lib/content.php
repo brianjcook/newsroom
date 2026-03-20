@@ -1347,6 +1347,79 @@ function newsroom_editorial_items(int $limit = 120): array
     return $rows;
 }
 
+function newsroom_recap_queue_items(int $limit = 60): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            s.id,
+            s.slug,
+            s.headline,
+            s.summary,
+            s.story_type,
+            s.workflow_status,
+            s.watch_live,
+            s.follow_up_needed,
+            s.admin_notes,
+            s.display_date,
+            s.published_at,
+            COALESCE(s.sort_date, s.display_date, s.published_at) AS occurs_at,
+            COALESCE(gb.normalized_name, m.governing_body, "") AS body_name,
+            m.meeting_date,
+            TIME_FORMAT(m.meeting_time, "%H:%i:%s") AS meeting_time,
+            m.location_name,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_url,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "minutes"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS minutes_url
+         FROM stories s
+         LEFT JOIN meetings m ON m.id = s.meeting_id
+         LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
+         WHERE s.publish_status = "published"
+           AND s.workflow_status IN ("recap_needed", "minutes_reconcile")
+         ORDER BY
+            CASE s.workflow_status
+                WHEN "recap_needed" THEN 0
+                WHEN "minutes_reconcile" THEN 1
+                ELSE 2
+            END,
+            COALESCE(s.sort_date, s.display_date, s.published_at) DESC,
+            s.id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    $rows = $statement->fetchAll();
+    foreach ($rows as &$row) {
+        $row['public_url'] = newsroom_story_url_from_slug((string) ($row['slug'] ?? ''));
+        $row['workflow_status'] = newsroom_normalize_workflow_status((string) ($row['workflow_status'] ?? ''), [
+            'entity_type' => 'story',
+            'item_type' => (string) ($row['story_type'] ?? ''),
+        ]);
+        $row['workflow_label'] = newsroom_workflow_label((string) $row['workflow_status']);
+        $row['next_action'] = newsroom_workflow_next_action($row);
+    }
+    unset($row);
+
+    return $rows;
+}
+
 function newsroom_update_editorial_override(array $payload): void
 {
     if (!newsroom_db_available()) {

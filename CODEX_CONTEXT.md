@@ -573,8 +573,14 @@ Build a local-news publishing system that ingests municipal and other local cont
 - form controls now use paper-style inputs/selects that better match the public site
 - `/desk/methodology` now documents the desk rules, score bands, signal families, and workflow lifecycle
 - focused queue views now include queue-specific action links like `Stories Only`, date-order shortcuts, and `Methodology`
+- The recap workflow pass is also live:
+- `/desk/recaps` now provides a working board for `Recap needed` and `Minutes reconcile` stories
+- the recap board brings together the published story, official agenda link, official minutes link when available, and desk notes in one place
+- `Recap needed` and `Minutes reconcile` queue views now link directly into that recap board
 
 ## Recent commits
+- `TO_FILL_C` - `Add recap workflow board to editorial desk`
+- `TO_FILL_D` - `Update context after recap workflow rollout`
 - `97e47c1` - `Polish desk visuals and add methodology page`
 - `1b10cba` - `Update context after desk methodology rollout`
 - `4161fab` - `Add preset workflow queue views to editorial desk`

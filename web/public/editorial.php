@@ -155,12 +155,14 @@ function newsroom_editorial_queue_actions(?string $queueFilter): array
             ];
         case 'recap_needed':
             return [
+                ['label' => 'Recap Board', 'url' => '/desk/recaps'],
                 ['label' => 'Stories Only', 'url' => newsroom_editorial_queue_url('recap_needed', ['entity' => 'story'])],
                 ['label' => 'Newest First', 'url' => newsroom_editorial_queue_url('recap_needed', ['sort' => 'date_desc'])],
                 ['label' => 'Methodology', 'url' => '/desk/methodology'],
             ];
         case 'minutes_reconcile':
             return [
+                ['label' => 'Recap Board', 'url' => '/desk/recaps'],
                 ['label' => 'Stories Only', 'url' => newsroom_editorial_queue_url('minutes_reconcile', ['entity' => 'story'])],
                 ['label' => 'Latest Meetings First', 'url' => newsroom_editorial_queue_url('minutes_reconcile', ['sort' => 'date_desc'])],
                 ['label' => 'Methodology', 'url' => '/desk/methodology'],
