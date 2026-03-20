@@ -178,6 +178,162 @@ SHORT_MEANINGFUL_PHRASES = {
 PUBLISHER_RENDER_VERSION = "2026-03-19-render-v8-address-style"
 
 
+def _normalize_workflow_status(status: Optional[str], story_type: Optional[str] = None) -> str:
+    raw = " ".join(str(status or "").split()).lower()
+    if raw == "watch":
+        return "monitor"
+    if raw == "follow_up":
+        return "follow_up_story"
+    if raw == "published":
+        if story_type == "meeting_preview":
+            return "preview_published"
+        if story_type == "minutes_recap":
+            return "minutes_reconcile"
+        return "done"
+    return raw
+
+
+def _meeting_start_datetime(meeting: Dict[str, object]) -> Optional[datetime]:
+    meeting_date = meeting.get("meeting_date")
+    if not meeting_date:
+        return None
+    meeting_time = _db_time_string(meeting.get("meeting_time")) if meeting.get("meeting_time") else "00:00:00"
+    try:
+        return datetime.strptime(
+            "{} {}".format(str(meeting_date), meeting_time),
+            "%Y-%m-%d %H:%M:%S",
+        )
+    except ValueError:
+        return None
+
+
+def _auto_story_workflow_status(
+    meeting: Dict[str, object],
+    story_type: str,
+    existing_status: Optional[str] = None,
+    watch_live: bool = False,
+    follow_up_needed: bool = False,
+) -> str:
+    normalized = _normalize_workflow_status(existing_status, story_type)
+    locked_statuses = {
+        "draft",
+        "assigned",
+        "follow_up_story",
+        "done",
+    }
+    if normalized in locked_statuses:
+        return normalized
+
+    meeting_start = _meeting_start_datetime(meeting)
+    now = datetime.utcnow()
+
+    if story_type == "meeting_preview":
+        if meeting_start and meeting_start <= now:
+            return "recap_needed"
+        if watch_live:
+            return "watch_live"
+        return "preview_published"
+
+    if story_type == "minutes_recap":
+        if follow_up_needed:
+            return "follow_up_story"
+        return "minutes_reconcile"
+
+    return normalized or "monitor"
+
+
+def _auto_event_workflow_status(
+    starts_at: str,
+    source_type: str,
+    existing_status: Optional[str] = None,
+    watch_live: bool = False,
+    follow_up_needed: bool = False,
+) -> str:
+    normalized = _normalize_workflow_status(existing_status)
+    locked_statuses = {
+        "draft",
+        "assigned",
+        "follow_up_story",
+        "minutes_reconcile",
+        "done",
+    }
+    if normalized in locked_statuses:
+        return normalized
+
+    try:
+        event_start = datetime.strptime(starts_at, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        event_start = None
+
+    now = datetime.utcnow()
+    if event_start and event_start <= now:
+        if follow_up_needed:
+            return "follow_up_story"
+        if source_type == "official_meeting" and watch_live:
+            return "recap_needed"
+        return "done"
+
+    if watch_live:
+        return "watch_live"
+    return "monitor"
+
+
+def _sync_workflow_states(connection: Connection) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT s.id, s.story_type, s.workflow_status, s.watch_live, s.follow_up_needed, m.meeting_date, m.meeting_time
+            FROM stories s
+            LEFT JOIN meetings m ON m.id = s.meeting_id
+            WHERE s.publish_status = 'published'
+            """
+        )
+        story_rows = cursor.fetchall()
+
+    for row in story_rows:
+        meeting = {
+            "meeting_date": row.get("meeting_date"),
+            "meeting_time": row.get("meeting_time"),
+        }
+        desired = _auto_story_workflow_status(
+            meeting,
+            str(row.get("story_type") or ""),
+            row.get("workflow_status"),
+            bool(row.get("watch_live")),
+            bool(row.get("follow_up_needed")),
+        )
+        if desired != _normalize_workflow_status(row.get("workflow_status"), str(row.get("story_type") or "")):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE stories SET workflow_status = %s WHERE id = %s",
+                    (desired, int(row["id"])),
+                )
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT id, starts_at, source_type, workflow_status, watch_live, follow_up_needed
+            FROM community_events
+            """
+        )
+        event_rows = cursor.fetchall()
+
+    for row in event_rows:
+        desired = _auto_event_workflow_status(
+            str(row.get("starts_at") or ""),
+            str(row.get("source_type") or ""),
+            row.get("workflow_status"),
+            bool(row.get("watch_live")),
+            bool(row.get("follow_up_needed")),
+        )
+        if desired != _normalize_workflow_status(row.get("workflow_status")):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE community_events SET workflow_status = %s WHERE id = %s",
+                    (desired, int(row["id"])),
+                )
+
+
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return slug[:180] or "story"
@@ -2827,7 +2983,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         topic_tags_json = json.dumps(editorial.get("topics") or [])
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT id, slug, published_at, publish_status, source_basis_json, editorial_score, suggested_coverage_mode, editorial_signals_json, topic_tags_json FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
+                "SELECT id, slug, published_at, publish_status, source_basis_json, editorial_score, suggested_coverage_mode, editorial_signals_json, topic_tags_json, workflow_status, watch_live, follow_up_needed FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
                 (meeting["id"], story_type),
             )
             existing_story = cursor.fetchone()
@@ -2884,6 +3040,13 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             story_id = int(existing_story["id"])
             desired_slug = desired_existing_slug or _story_slug(connection, meeting, story_type, headline, story_id)
             existing_published_at = existing_story["published_at"].strftime("%Y-%m-%d %H:%M:%S") if existing_story.get("published_at") else published_at
+            workflow_status = _auto_story_workflow_status(
+                meeting,
+                story_type,
+                existing_story.get("workflow_status"),
+                bool(existing_story.get("watch_live")),
+                bool(existing_story.get("follow_up_needed")),
+            )
             story_body_html = body_html
             story_body_text = body_text
             if previous_basis.get("content_signature") != content_signature:
@@ -2914,6 +3077,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         body_html = %s,
                         body_text = %s,
                         publish_status = 'published',
+                        workflow_status = %s,
                         published_at = %s,
                         display_date = %s,
                         sort_date = %s,
@@ -2932,6 +3096,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         topic_tags_json,
                         story_body_html,
                         story_body_text,
+                        workflow_status,
                         existing_published_at,
                         display_date,
                         sort_date,
@@ -2941,6 +3106,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 )
         else:
             slug = _story_slug(connection, meeting, story_type, headline)
+            workflow_status = _auto_story_workflow_status(meeting, story_type)
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
@@ -2960,11 +3126,12 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         body_text,
                         tone_profile,
                         publish_status,
+                        workflow_status,
                         published_at,
                         display_date,
                         sort_date,
                         source_basis_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', %s, %s, %s, %s, %s)
                     """,
                     (
                         meeting["id"],
@@ -2980,6 +3147,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         topic_tags_json,
                         body_html,
                         body_text,
+                        workflow_status,
                         published_at,
                         display_date,
                         sort_date,
@@ -3109,6 +3277,8 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                     ),
                 )
                 events_created += 1
+
+    _sync_workflow_states(connection)
 
     return PublishedCounts(
         stories_published=stories_published,

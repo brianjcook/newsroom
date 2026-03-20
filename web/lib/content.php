@@ -59,7 +59,7 @@ function newsroom_parse_json($value): array
 
 function newsroom_signal_summary($value): string
 {
-    $signals = newsroom_parse_json($value);
+    $signals = newsroom_sorted_signals($value);
     if (!$signals) {
         return '';
     }
@@ -78,6 +78,38 @@ function newsroom_signal_summary($value): string
     }
 
     return implode('; ', $parts);
+}
+
+function newsroom_sorted_signals($value): array
+{
+    $signals = newsroom_parse_json($value);
+    if (!$signals) {
+        return [];
+    }
+
+    $filtered = [];
+    foreach ($signals as $signal) {
+        if (!is_array($signal)) {
+            continue;
+        }
+        $reason = trim((string) ($signal['reason'] ?? ''));
+        if ($reason === '') {
+            continue;
+        }
+        $signal['reason'] = $reason;
+        $signal['weight'] = (int) ($signal['weight'] ?? 0);
+        $filtered[] = $signal;
+    }
+
+    usort($filtered, static function (array $a, array $b): int {
+        $weightCompare = abs((int) $b['weight']) <=> abs((int) $a['weight']);
+        if ($weightCompare !== 0) {
+            return $weightCompare;
+        }
+        return strcmp((string) $a['reason'], (string) $b['reason']);
+    });
+
+    return $filtered;
 }
 
 function newsroom_parse_topics($value): array
@@ -209,6 +241,32 @@ function newsroom_workflow_next_action(array $item): string
         default:
             return 'No immediate desk action is queued.';
     }
+}
+
+function newsroom_editorial_queue_summary(array $items): array
+{
+    $summary = [
+        'watch_live' => 0,
+        'recap_needed' => 0,
+        'minutes_reconcile' => 0,
+        'follow_up_story' => 0,
+        'must_cover' => 0,
+    ];
+
+    foreach ($items as $item) {
+        $workflow = newsroom_normalize_workflow_status((string) ($item['workflow_status'] ?? ''), $item);
+        if (!empty($item['watch_live'])) {
+            $summary['watch_live']++;
+        }
+        if (isset($summary[$workflow])) {
+            $summary[$workflow]++;
+        }
+        if ((string) ($item['effective_coverage_mode'] ?? '') === 'must_cover') {
+            $summary['must_cover']++;
+        }
+    }
+
+    return $summary;
 }
 
 function newsroom_story_url_from_slug(string $slug): string
@@ -506,12 +564,9 @@ function newsroom_community_event_focus(array $event): string
 
 function newsroom_community_event_signal_items(array $event, int $limit = 4): array
 {
-    $signals = newsroom_parse_json($event['editorial_signals_json'] ?? null);
+    $signals = newsroom_sorted_signals($event['editorial_signals_json'] ?? null);
     $items = [];
     foreach ($signals as $signal) {
-        if (!is_array($signal)) {
-            continue;
-        }
         $weight = (int) ($signal['weight'] ?? 0);
         $reason = trim((string) ($signal['reason'] ?? ''));
         if ($weight <= 0 || $reason === '') {

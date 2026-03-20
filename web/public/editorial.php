@@ -105,6 +105,8 @@ usort($items, static function (array $a, array $b) use ($sortFilter): int {
     }
 });
 
+$queueSummary = newsroom_editorial_queue_summary($items);
+
 function newsroom_editorial_datetime(string $value): string
 {
     $stamp = strtotime($value);
@@ -237,8 +239,32 @@ function newsroom_editorial_datetime(string $value): string
                 <option value="date_desc"<?= $sortFilter === 'date_desc' ? ' selected' : '' ?>>Date latest</option>
             </select>
         </label>
+        <a class="editorial-filters__reset" href="/desk">Reset</a>
         <button type="submit">Apply</button>
     </form>
+
+    <section class="editorial-queue-strip">
+        <div class="editorial-queue-card">
+            <span class="editorial-queue-card__label">Watch Live</span>
+            <strong><?= htmlspecialchars((string) $queueSummary['watch_live']) ?></strong>
+        </div>
+        <div class="editorial-queue-card">
+            <span class="editorial-queue-card__label">Recap Needed</span>
+            <strong><?= htmlspecialchars((string) $queueSummary['recap_needed']) ?></strong>
+        </div>
+        <div class="editorial-queue-card">
+            <span class="editorial-queue-card__label">Minutes Reconcile</span>
+            <strong><?= htmlspecialchars((string) $queueSummary['minutes_reconcile']) ?></strong>
+        </div>
+        <div class="editorial-queue-card">
+            <span class="editorial-queue-card__label">Follow-Up Story</span>
+            <strong><?= htmlspecialchars((string) $queueSummary['follow_up_story']) ?></strong>
+        </div>
+        <div class="editorial-queue-card">
+            <span class="editorial-queue-card__label">Must Cover</span>
+            <strong><?= htmlspecialchars((string) $queueSummary['must_cover']) ?></strong>
+        </div>
+    </section>
 
     <section class="editorial-table-wrap">
         <table class="editorial-table">
@@ -260,42 +286,51 @@ function newsroom_editorial_datetime(string $value): string
                     <?php $formId = 'editorial-item-' . (string) $item['entity_type'] . '-' . (string) $item['entity_id']; ?>
                     <td>
                         <div class="editorial-item__title"><?= htmlspecialchars((string) $item['title']) ?></div>
-                        <?php if (!empty($item['body_name'])): ?>
-                            <div class="editorial-item__meta"><?= htmlspecialchars((string) $item['body_name']) ?></div>
-                        <?php endif; ?>
+                        <div class="editorial-item__meta-group">
+                            <?php if (!empty($item['body_name'])): ?>
+                                <div class="editorial-item__meta editorial-item__meta--chip"><?= htmlspecialchars((string) $item['body_name']) ?></div>
+                            <?php endif; ?>
+                            <div class="editorial-item__meta editorial-item__meta--chip"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $item['entity_type']))) ?></div>
+                            <div class="editorial-item__meta editorial-item__meta--chip"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $item['item_type']))) ?></div>
+                            <?php if (!empty($item['status_label'])): ?>
+                                <div class="editorial-item__meta editorial-item__meta--chip"><?= htmlspecialchars((string) $item['status_label']) ?></div>
+                            <?php endif; ?>
+                            <div class="editorial-item__meta editorial-item__meta--chip editorial-item__meta--workflow"><?= htmlspecialchars((string) $item['workflow_label']) ?></div>
+                        </div>
                         <?php if (!empty($item['public_url'])): ?>
-                            <div class="editorial-item__meta"><a href="<?= htmlspecialchars((string) $item['public_url']) ?>"<?= $item['entity_type'] === 'community_event' ? ' target="_blank" rel="noopener noreferrer"' : '' ?>>Open</a></div>
+                            <div class="editorial-item__meta editorial-item__meta--link"><a href="<?= htmlspecialchars((string) $item['public_url']) ?>"<?= $item['entity_type'] === 'community_event' ? ' target="_blank" rel="noopener noreferrer"' : '' ?>>Open item</a></div>
                         <?php endif; ?>
                     </td>
                     <td class="editorial-table__when"><?= htmlspecialchars(newsroom_editorial_datetime((string) $item['occurs_at'])) ?></td>
                     <td>
-                        <div class="editorial-item__meta"><?= htmlspecialchars((string) $item['entity_type']) ?></div>
-                        <div><?= htmlspecialchars((string) $item['item_type']) ?></div>
-                        <?php if (!empty($item['status_label'])): ?>
-                            <div class="editorial-item__meta"><?= htmlspecialchars((string) $item['status_label']) ?></div>
-                        <?php endif; ?>
-                        <div class="editorial-item__meta">Workflow: <?= htmlspecialchars((string) $item['workflow_label']) ?></div>
+                        <div class="editorial-item__meta-label">Current Workflow</div>
+                        <div class="editorial-item__meta-value"><?= htmlspecialchars((string) $item['workflow_label']) ?></div>
+                        <div class="editorial-item__meta-label">Surface</div>
+                        <div class="editorial-item__meta-value"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $item['effective_coverage_mode']))) ?></div>
                     </td>
                     <td>
                         <div class="editorial-score"><?= htmlspecialchars((string) $item['editorial_score']) ?></div>
-                        <div class="editorial-item__meta">base score</div>
+                        <div class="editorial-item__meta">Default score</div>
                         <label class="editorial-inline-control">
                             <span>Override</span>
                             <input type="number" form="<?= htmlspecialchars($formId) ?>" name="score_override" min="0" max="100" value="<?= htmlspecialchars($item['score_override'] === null ? '' : (string) $item['score_override']) ?>">
                         </label>
-                        <?php if ($item['score_override'] !== null && $item['score_override'] !== ''): ?>
-                            <div class="editorial-item__meta">effective <?= htmlspecialchars((string) $item['effective_score']) ?></div>
-                        <?php endif; ?>
+                        <div class="editorial-item__meta editorial-item__meta--score">
+                            Effective <?= htmlspecialchars((string) $item['effective_score']) ?>
+                            <?php if ($item['score_override'] !== null && $item['score_override'] !== ''): ?>
+                                <span class="editorial-score-delta"><?= htmlspecialchars(sprintf('%+d', (int) $item['effective_score'] - (int) $item['editorial_score'])) ?></span>
+                            <?php endif; ?>
+                        </div>
                     </td>
                     <td>
-                        <?php $signals = newsroom_parse_json($item['editorial_signals_json'] ?? null); ?>
+                        <?php $signals = newsroom_sorted_signals($item['editorial_signals_json'] ?? null); ?>
                         <?php if ($signals): ?>
                             <ul class="editorial-signal-list">
                                 <?php foreach ($signals as $signal): ?>
-                                    <?php if (!is_array($signal)) { continue; } ?>
-                                    <li>
+                                    <?php $signalWeight = (int) ($signal['weight'] ?? 0); ?>
+                                    <li class="<?= $signalWeight >= 0 ? 'editorial-signal-list__item--positive' : 'editorial-signal-list__item--negative' ?>">
                                         <span class="editorial-signal-list__reason"><?= htmlspecialchars((string) ($signal['reason'] ?? 'Signal')) ?></span>
-                                        <span class="editorial-signal-list__weight"><?= htmlspecialchars(sprintf('%+d', (int) ($signal['weight'] ?? 0))) ?></span>
+                                        <span class="editorial-signal-list__weight"><?= htmlspecialchars(sprintf('%+d', $signalWeight)) ?></span>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
@@ -325,8 +360,8 @@ function newsroom_editorial_datetime(string $value): string
                         </label>
                     </td>
                     <td>
-                        <div><?= htmlspecialchars((string) $item['suggested_coverage_mode']) ?></div>
-                        <div class="editorial-item__meta">suggested coverage</div>
+                        <div class="editorial-item__meta-label">Suggested Coverage</div>
+                        <div class="editorial-item__meta-value"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $item['suggested_coverage_mode']))) ?></div>
                         <label class="editorial-inline-control">
                             <span>Override</span>
                             <select form="<?= htmlspecialchars($formId) ?>" name="coverage_override">
@@ -337,12 +372,10 @@ function newsroom_editorial_datetime(string $value): string
                                 <option value="must_cover"<?= (string) $item['coverage_override'] === 'must_cover' ? ' selected' : '' ?>>Must cover</option>
                             </select>
                         </label>
-                        <?php if (!empty($item['coverage_override'])): ?>
-                            <div class="editorial-item__meta">effective <?= htmlspecialchars((string) $item['effective_coverage_mode']) ?></div>
-                        <?php endif; ?>
+                        <div class="editorial-item__meta">Effective <?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $item['effective_coverage_mode']))) ?></div>
                     </td>
                     <td>
-                        <div class="editorial-item__meta">Next step</div>
+                        <div class="editorial-item__meta-label">Next Step</div>
                         <p class="editorial-next-action"><?= htmlspecialchars((string) ($item['next_action'] ?? '')) ?></p>
                         <label class="editorial-form__check">
                             <input type="checkbox" form="<?= htmlspecialchars($formId) ?>" name="watch_live" value="1"<?= !empty($item['watch_live']) ? ' checked' : '' ?>>
