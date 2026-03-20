@@ -528,6 +528,8 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Added lightweight desk protection:
 - `web/bootstrap.php` now supports config-driven editorial credentials and a session-based login gate
 - `/desk` now redirects unauthenticated users to a small login form and preserves access through a session cookie
+- the desk session cookie is now long-lived by default (`NEWSROOM_EDITORIAL_SESSION_DAYS`, default `30`) so the same browser can stay signed in for weeks
+- the desk masthead now includes a logout link at `/desk?logout=1`
 - Freehostia CGI stripped HTTP Basic Auth headers in practice, so the final live implementation is form/session-based rather than Basic Auth
 - Because production is deployed in a flat root layout, changes to `web/public/*`, `web/lib/*`, and `web/bootstrap.php` must also be mirrored to `/home/www/warehamtimes.com/*`, `/home/www/warehamtimes.com/lib/*`, and `/home/www/warehamtimes.com/bootstrap.php` on the host
 - Latest successful production run:
@@ -545,6 +547,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `5157f96` - `Protect editorial desk with session login`
 - `d983b5b` - `Improve event briefs and editorial desk triage`
 - `6565acf` - `Update context after workflow and topic rollout`
 - `bdf563d` - `Add newsroom workflow states and topic pages`

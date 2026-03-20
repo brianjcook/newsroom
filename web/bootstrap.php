@@ -46,6 +46,7 @@ function newsroom_config(): array
         'editorial_auth' => [
             'user' => newsroom_env('NEWSROOM_EDITORIAL_USER', ''),
             'password' => newsroom_env('NEWSROOM_EDITORIAL_PASSWORD', ''),
+            'session_days' => (int) newsroom_env('NEWSROOM_EDITORIAL_SESSION_DAYS', '30'),
         ],
         'db' => [
             'host' => newsroom_env('NEWSROOM_DB_HOST', 'localhost'),
@@ -98,6 +99,17 @@ function newsroom_start_session(): void
         return;
     }
 
+    $config = newsroom_config();
+    $lifetimeDays = max(1, (int) ($config['editorial_auth']['session_days'] ?? 30));
+    $lifetime = $lifetimeDays * 86400;
+
+    session_set_cookie_params([
+        'lifetime' => $lifetime,
+        'path' => '/',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_name('newsroomdesk');
     session_start();
 }
@@ -131,6 +143,7 @@ function newsroom_render_editorial_login(string $message = ''): void
     <p class="login-note"><?= htmlspecialchars($config['site_name']) ?></p>
     <h1>Editorial News Desk</h1>
     <p>Sign in to view and manage newsroom workflow, rankings, and overrides.</p>
+    <p class="login-note">This login can stay active for several weeks on the same browser unless you explicitly log out.</p>
     <?php if ($message !== ''): ?>
         <p class="login-error"><?= htmlspecialchars($message) ?></p>
     <?php endif; ?>

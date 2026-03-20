@@ -132,7 +132,7 @@ function newsroom_editorial_datetime(string $value): string
     <header class="masthead">
         <div class="masthead__rail">
             <div class="masthead__meta">Editorial News Desk</div>
-            <div class="masthead__meta"><?= date('l, F j, Y') ?></div>
+            <div class="masthead__meta"><a href="/desk?logout=1">Log out</a> / <?= date('l, F j, Y') ?></div>
         </div>
         <div class="masthead__core">
             <h1 class="masthead__title"><a href="/" class="masthead__home-link">The Wareham Times</a></h1>
