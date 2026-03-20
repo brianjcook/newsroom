@@ -46,7 +46,7 @@ function newsroom_config(): array
         'editorial_auth' => [
             'user' => newsroom_env('NEWSROOM_EDITORIAL_USER', ''),
             'password' => newsroom_env('NEWSROOM_EDITORIAL_PASSWORD', ''),
-            'session_days' => (int) newsroom_env('NEWSROOM_EDITORIAL_SESSION_DAYS', '30'),
+            'session_days' => (int) newsroom_env('NEWSROOM_EDITORIAL_SESSION_DAYS', '365'),
         ],
         'db' => [
             'host' => newsroom_env('NEWSROOM_DB_HOST', 'localhost'),

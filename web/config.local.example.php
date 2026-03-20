@@ -10,5 +10,5 @@ return [
     'NEWSROOM_SITE_URL' => 'https://warehamtimes.com',
     'NEWSROOM_EDITORIAL_USER' => 'editor',
     'NEWSROOM_EDITORIAL_PASSWORD' => 'replace_me',
-    'NEWSROOM_EDITORIAL_SESSION_DAYS' => '30',
+    'NEWSROOM_EDITORIAL_SESSION_DAYS' => '365',
 ];
