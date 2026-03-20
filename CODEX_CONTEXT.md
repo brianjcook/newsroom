@@ -513,7 +513,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
-- `pending` - `Add editorial scoring, community calendar sync, and desk UI`
+- `6e06e28` - `Add editorial scoring and public calendar desk`
 - `9f6f6ad` - `Refine hearing and appointment story quality`
 - `2909d09` - `Refine appointment story parsing and focus ranking`
 - `8a8cc25` - `Track style guide reference`
