@@ -183,16 +183,21 @@ def _slugify(value: str) -> str:
     return slug[:180] or "story"
 
 
-def _story_slug(connection: Connection, meeting: Dict[str, object], story_type: str, existing_story_id: Optional[int] = None) -> str:
-    parts = [
-        meeting["governing_body"] or "wareham",
-        story_type,
-        meeting["meeting_date"] or "undated",
-    ]
-    if meeting.get("meeting_time"):
-        parts.append(str(meeting["meeting_time"]).replace(":", "")[:4])
+def _story_slug(
+    connection: Connection,
+    meeting: Dict[str, object],
+    story_type: str,
+    headline: str,
+    existing_story_id: Optional[int] = None,
+) -> str:
+    base_slug = _slugify(headline)
+    if story_type == "minutes_recap" and not base_slug.endswith("recap"):
+        base_slug = "{}-recap".format(base_slug)
+    if base_slug == "story" and meeting.get("meeting_date"):
+        base_slug = _slugify(
+            "{} {}".format(meeting.get("governing_body") or "wareham", meeting.get("meeting_date") or "")
+        )
 
-    base_slug = _slugify("-".join(parts))
     slug = base_slug
     suffix = 2
 
@@ -202,6 +207,10 @@ def _story_slug(connection: Connection, meeting: Dict[str, object], story_type: 
             row = cursor.fetchone()
             if not row or (existing_story_id and int(row["id"]) == int(existing_story_id)):
                 return slug
+            if suffix == 2 and meeting.get("meeting_date"):
+                slug = "{}-{}".format(base_slug, str(meeting["meeting_date"]))
+                suffix += 1
+                continue
             slug = "{}-{}".format(base_slug, suffix)
             suffix += 1
 
@@ -2821,7 +2830,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 (meeting["id"], story_type),
             )
             existing_story = cursor.fetchone()
-        desired_existing_slug = _story_slug(connection, meeting, story_type, int(existing_story["id"])) if existing_story else None
+        desired_existing_slug = _story_slug(connection, meeting, story_type, headline, int(existing_story["id"])) if existing_story else None
         previous_basis = _parse_story_basis(existing_story["source_basis_json"]) if existing_story else {}
         basis_json = _story_basis_json(
             source_item,
@@ -2871,7 +2880,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         story_id = None
         if existing_story:
             story_id = int(existing_story["id"])
-            desired_slug = desired_existing_slug or _story_slug(connection, meeting, story_type, story_id)
+            desired_slug = desired_existing_slug or _story_slug(connection, meeting, story_type, headline, story_id)
             existing_published_at = existing_story["published_at"].strftime("%Y-%m-%d %H:%M:%S") if existing_story.get("published_at") else published_at
             story_body_html = body_html
             story_body_text = body_text
@@ -2927,7 +2936,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                     ),
                 )
         else:
-            slug = _story_slug(connection, meeting, story_type)
+            slug = _story_slug(connection, meeting, story_type, headline)
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
