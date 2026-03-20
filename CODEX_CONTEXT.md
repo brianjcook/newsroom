@@ -575,8 +575,8 @@ Build a local-news publishing system that ingests municipal and other local cont
 - focused queue views now include queue-specific action links like `Stories Only`, date-order shortcuts, and `Methodology`
 
 ## Recent commits
-- `TO_FILL_A` - `Polish desk visuals and add methodology page`
-- `TO_FILL_B` - `Update context after desk methodology rollout`
+- `97e47c1` - `Polish desk visuals and add methodology page`
+- `PENDING` - `Update context after desk methodology rollout`
 - `4161fab` - `Add preset workflow queue views to editorial desk`
 - `79d0a14` - `Polish editorial desk and sync workflow automation`
 - `1aaf307` - `Add story context and related coverage blocks`
