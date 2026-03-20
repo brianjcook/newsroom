@@ -269,6 +269,52 @@ function newsroom_editorial_queue_summary(array $items): array
     return $summary;
 }
 
+function newsroom_editorial_queue_presets(): array
+{
+    return [
+        'watch_live' => [
+            'label' => 'Watch Live',
+            'description' => 'Meetings and events flagged for live attendance or monitoring.',
+            'filters' => [
+                'watch_live' => 'watching',
+                'sort' => 'date_asc',
+            ],
+        ],
+        'recap_needed' => [
+            'label' => 'Recap Needed',
+            'description' => 'Items that have likely happened and need a fast post-meeting story or brief.',
+            'filters' => [
+                'workflow' => 'recap_needed',
+                'sort' => 'date_desc',
+            ],
+        ],
+        'minutes_reconcile' => [
+            'label' => 'Minutes Reconcile',
+            'description' => 'Published items that should be checked against posted minutes or the official record.',
+            'filters' => [
+                'workflow' => 'minutes_reconcile',
+                'sort' => 'date_desc',
+            ],
+        ],
+        'follow_up_story' => [
+            'label' => 'Follow-Up Story',
+            'description' => 'Items likely to need a second-day or explanatory story.',
+            'filters' => [
+                'workflow' => 'follow_up_story',
+                'sort' => 'score_desc',
+            ],
+        ],
+        'must_cover' => [
+            'label' => 'Must Cover',
+            'description' => 'Items currently marked for the strongest level of editorial attention.',
+            'filters' => [
+                'coverage' => 'must_cover',
+                'sort' => 'date_asc',
+            ],
+        ],
+    ];
+}
+
 function newsroom_story_url_from_slug(string $slug): string
 {
     return '/stories/' . rawurlencode($slug);

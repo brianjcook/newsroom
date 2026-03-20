@@ -31,7 +31,37 @@ $watchFilter = trim((string) ($_GET['watch_live'] ?? 'all'));
 $followUpFilter = trim((string) ($_GET['follow_up'] ?? 'all'));
 $topicFilter = trim((string) ($_GET['topic'] ?? 'all'));
 $bodyFilter = trim((string) ($_GET['body'] ?? 'all'));
-$sortFilter = trim((string) ($_GET['sort'] ?? 'score_desc'));
+$queueFilter = trim((string) ($_GET['queue'] ?? ''));
+$queuePresets = newsroom_editorial_queue_presets();
+$defaultSort = 'score_desc';
+if ($queueFilter !== '' && isset($queuePresets[$queueFilter])) {
+    $presetFilters = $queuePresets[$queueFilter]['filters'];
+    if ($entityFilter === 'all' && isset($presetFilters['entity'])) {
+        $entityFilter = (string) $presetFilters['entity'];
+    }
+    if ($coverageFilter === 'all' && isset($presetFilters['coverage'])) {
+        $coverageFilter = (string) $presetFilters['coverage'];
+    }
+    if ($workflowFilter === 'all' && isset($presetFilters['workflow'])) {
+        $workflowFilter = (string) $presetFilters['workflow'];
+    }
+    if ($watchFilter === 'all' && isset($presetFilters['watch_live'])) {
+        $watchFilter = (string) $presetFilters['watch_live'];
+    }
+    if ($followUpFilter === 'all' && isset($presetFilters['follow_up'])) {
+        $followUpFilter = (string) $presetFilters['follow_up'];
+    }
+    if ($topicFilter === 'all' && isset($presetFilters['topic'])) {
+        $topicFilter = (string) $presetFilters['topic'];
+    }
+    if ($bodyFilter === 'all' && isset($presetFilters['body'])) {
+        $bodyFilter = (string) $presetFilters['body'];
+    }
+    if (empty($_GET['sort']) && isset($presetFilters['sort'])) {
+        $defaultSort = (string) $presetFilters['sort'];
+    }
+}
+$sortFilter = trim((string) ($_GET['sort'] ?? $defaultSort));
 $workflowOptions = newsroom_workflow_options();
 
 $topicOptions = [];
@@ -106,6 +136,13 @@ usort($items, static function (array $a, array $b) use ($sortFilter): int {
 });
 
 $queueSummary = newsroom_editorial_queue_summary($items);
+$activeQueue = ($queueFilter !== '' && isset($queuePresets[$queueFilter])) ? $queuePresets[$queueFilter] : null;
+
+function newsroom_editorial_queue_url(string $queueKey, array $filters = []): string
+{
+    $query = array_merge(['queue' => $queueKey], $filters);
+    return '/desk?' . http_build_query($query);
+}
 
 function newsroom_editorial_datetime(string $value): string
 {
@@ -153,6 +190,13 @@ function newsroom_editorial_datetime(string $value): string
     <p class="section-intro">Scores are deterministic and inspectable. The desk can override the score, coverage mode, and visibility without losing the underlying factor breakdown.</p>
     <?php if ($saved): ?>
         <p class="editorial-save-note">Editorial overrides saved.</p>
+    <?php endif; ?>
+    <?php if ($activeQueue): ?>
+        <section class="editorial-active-queue">
+            <div class="editorial-active-queue__label">Focused queue</div>
+            <h3><?= htmlspecialchars((string) $activeQueue['label']) ?></h3>
+            <p><?= htmlspecialchars((string) $activeQueue['description']) ?></p>
+        </section>
     <?php endif; ?>
 
     <section class="editorial-explainer">
@@ -244,26 +288,26 @@ function newsroom_editorial_datetime(string $value): string
     </form>
 
     <section class="editorial-queue-strip">
-        <div class="editorial-queue-card">
+        <a class="editorial-queue-card<?= $queueFilter === 'watch_live' ? ' editorial-queue-card--active' : '' ?>" href="<?= htmlspecialchars(newsroom_editorial_queue_url('watch_live')) ?>">
             <span class="editorial-queue-card__label">Watch Live</span>
             <strong><?= htmlspecialchars((string) $queueSummary['watch_live']) ?></strong>
-        </div>
-        <div class="editorial-queue-card">
+        </a>
+        <a class="editorial-queue-card<?= $queueFilter === 'recap_needed' ? ' editorial-queue-card--active' : '' ?>" href="<?= htmlspecialchars(newsroom_editorial_queue_url('recap_needed')) ?>">
             <span class="editorial-queue-card__label">Recap Needed</span>
             <strong><?= htmlspecialchars((string) $queueSummary['recap_needed']) ?></strong>
-        </div>
-        <div class="editorial-queue-card">
+        </a>
+        <a class="editorial-queue-card<?= $queueFilter === 'minutes_reconcile' ? ' editorial-queue-card--active' : '' ?>" href="<?= htmlspecialchars(newsroom_editorial_queue_url('minutes_reconcile')) ?>">
             <span class="editorial-queue-card__label">Minutes Reconcile</span>
             <strong><?= htmlspecialchars((string) $queueSummary['minutes_reconcile']) ?></strong>
-        </div>
-        <div class="editorial-queue-card">
+        </a>
+        <a class="editorial-queue-card<?= $queueFilter === 'follow_up_story' ? ' editorial-queue-card--active' : '' ?>" href="<?= htmlspecialchars(newsroom_editorial_queue_url('follow_up_story')) ?>">
             <span class="editorial-queue-card__label">Follow-Up Story</span>
             <strong><?= htmlspecialchars((string) $queueSummary['follow_up_story']) ?></strong>
-        </div>
-        <div class="editorial-queue-card">
+        </a>
+        <a class="editorial-queue-card<?= $queueFilter === 'must_cover' ? ' editorial-queue-card--active' : '' ?>" href="<?= htmlspecialchars(newsroom_editorial_queue_url('must_cover')) ?>">
             <span class="editorial-queue-card__label">Must Cover</span>
             <strong><?= htmlspecialchars((string) $queueSummary['must_cover']) ?></strong>
-        </div>
+        </a>
     </section>
 
     <section class="editorial-table-wrap">
@@ -282,7 +326,7 @@ function newsroom_editorial_datetime(string $value): string
             </thead>
             <tbody>
             <?php foreach ($items as $item): ?>
-                <tr>
+                <tr class="editorial-table__row editorial-table__row--<?= htmlspecialchars((string) ($item['workflow_status'] ?? 'monitor')) ?>">
                     <?php $formId = 'editorial-item-' . (string) $item['entity_type'] . '-' . (string) $item['entity_id']; ?>
                     <td>
                         <div class="editorial-item__title"><?= htmlspecialchars((string) $item['title']) ?></div>

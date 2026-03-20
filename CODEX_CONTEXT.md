@@ -563,8 +563,14 @@ Build a local-news publishing system that ingests municipal and other local cont
 - queue summary cards surface `Watch live`, `Recap needed`, `Minutes reconcile`, `Follow-up story`, and `Must cover`
 - signal lists are sorted by magnitude and styled to show positive/negative weight more clearly
 - item meta now uses chips and labeled values instead of loose stacked text
+- The next desk pass is also live:
+- the queue summary cards now act as preset queue views
+- queue views can preset filters and sort order for `Watch live`, `Recap needed`, `Minutes reconcile`, `Follow-up story`, and `Must cover`
+- active queue views now show a focused-queue explainer block
+- workflow rows like `Watch live`, `Recap needed`, and `Minutes reconcile` now get row-level visual emphasis in the table
 
 ## Recent commits
+- `TO_FILL` - `Add preset workflow queue views to editorial desk`
 - `79d0a14` - `Polish editorial desk and sync workflow automation`
 - `1aaf307` - `Add story context and related coverage blocks`
 - `7aa4f9d` - `Extend editorial desk session lifetime`
