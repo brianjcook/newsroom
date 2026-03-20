@@ -16,6 +16,7 @@ $config = newsroom_config();
 $stories = newsroom_latest_stories();
 $events = newsroom_upcoming_events();
 $communityEvents = newsroom_storyworthy_community_events(4);
+$topics = newsroom_topics_index(6);
 $lead = $stories[0] ?? null;
 $secondaryStories = array_slice($stories, 1);
 
@@ -56,6 +57,7 @@ function newsroom_pill_style(array $signal): string
     <nav class="nav">
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
+        <a href="/topics">Topics</a>
     </nav>
 
     <section class="front-page">
@@ -184,6 +186,16 @@ function newsroom_pill_style(array $signal): string
                 <p class="empty-state">Story-worthy public-calendar events will appear here once the editorial scoring sync has run.</p>
             </article>
         <?php endif; ?>
+    </section>
+
+    <h2 class="section-heading">Topics</h2>
+    <section class="story-masonry">
+        <?php foreach ($topics as $topic): ?>
+            <article class="story-tease">
+                <h3><a href="<?= htmlspecialchars(newsroom_topic_url((string) $topic['slug'])) ?>"><?= htmlspecialchars((string) $topic['label']) ?></a></h3>
+                <p><?= htmlspecialchars((string) $topic['count']) ?> tagged items across meeting coverage and community events.</p>
+            </article>
+        <?php endforeach; ?>
     </section>
 </div>
 </body>

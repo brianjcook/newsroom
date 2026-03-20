@@ -24,8 +24,9 @@ $saved = isset($_GET['saved']) && $_GET['saved'] === '1';
 $entityFilter = trim((string) ($_GET['entity'] ?? 'all'));
 $coverageFilter = trim((string) ($_GET['coverage'] ?? 'all'));
 $visibilityFilter = trim((string) ($_GET['visibility'] ?? 'all'));
+$workflowFilter = trim((string) ($_GET['workflow'] ?? 'all'));
 
-$items = array_values(array_filter($items, static function (array $item) use ($entityFilter, $coverageFilter, $visibilityFilter): bool {
+$items = array_values(array_filter($items, static function (array $item) use ($entityFilter, $coverageFilter, $visibilityFilter, $workflowFilter): bool {
     if ($entityFilter !== 'all' && (string) $item['entity_type'] !== $entityFilter) {
         return false;
     }
@@ -36,6 +37,9 @@ $items = array_values(array_filter($items, static function (array $item) use ($e
         return false;
     }
     if ($visibilityFilter === 'visible' && !empty($item['is_hidden'])) {
+        return false;
+    }
+    if ($workflowFilter !== 'all' && (string) ($item['workflow_status'] ?? '') !== $workflowFilter) {
         return false;
     }
     return true;
@@ -80,6 +84,7 @@ function newsroom_editorial_datetime(string $value): string
     <nav class="nav">
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
+        <a href="/topics">Topics</a>
     </nav>
 
     <h2 class="section-heading">Newsworthiness Queue</h2>
@@ -119,6 +124,17 @@ function newsroom_editorial_datetime(string $value): string
                 <option value="hidden"<?= $visibilityFilter === 'hidden' ? ' selected' : '' ?>>Hidden</option>
             </select>
         </label>
+        <label>
+            <span>Workflow</span>
+            <select name="workflow">
+                <option value="all"<?= $workflowFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <option value="watch"<?= $workflowFilter === 'watch' ? ' selected' : '' ?>>Watch</option>
+                <option value="draft"<?= $workflowFilter === 'draft' ? ' selected' : '' ?>>Draft</option>
+                <option value="assigned"<?= $workflowFilter === 'assigned' ? ' selected' : '' ?>>Assigned</option>
+                <option value="published"<?= $workflowFilter === 'published' ? ' selected' : '' ?>>Published</option>
+                <option value="follow_up"<?= $workflowFilter === 'follow_up' ? ' selected' : '' ?>>Follow up</option>
+            </select>
+        </label>
         <button type="submit">Apply</button>
     </form>
 
@@ -131,6 +147,7 @@ function newsroom_editorial_datetime(string $value): string
                 <th>Type</th>
                 <th>Score</th>
                 <th>Signals</th>
+                <th>Topics</th>
                 <th>Coverage</th>
                 <th>Notes</th>
             </tr>
@@ -184,6 +201,29 @@ function newsroom_editorial_datetime(string $value): string
                         <?php endif; ?>
                     </td>
                     <td>
+                        <?php $topics = newsroom_parse_topics($item['topic_tags_json'] ?? null); ?>
+                        <?php if ($topics): ?>
+                            <div class="topic-chip-row">
+                                <?php foreach ($topics as $topic): ?>
+                                    <a class="topic-chip" href="<?= htmlspecialchars(newsroom_topic_url((string) $topic['slug'])) ?>"><?= htmlspecialchars((string) $topic['label']) ?></a>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="editorial-item__meta">No topics</div>
+                        <?php endif; ?>
+                        <label class="editorial-inline-control">
+                            <span>Workflow</span>
+                            <select form="<?= htmlspecialchars($formId) ?>" name="workflow_status">
+                                <?php $workflowStatus = (string) ($item['workflow_status'] ?? 'watch'); ?>
+                                <option value="watch"<?= $workflowStatus === 'watch' ? ' selected' : '' ?>>Watch</option>
+                                <option value="draft"<?= $workflowStatus === 'draft' ? ' selected' : '' ?>>Draft</option>
+                                <option value="assigned"<?= $workflowStatus === 'assigned' ? ' selected' : '' ?>>Assigned</option>
+                                <option value="published"<?= $workflowStatus === 'published' ? ' selected' : '' ?>>Published</option>
+                                <option value="follow_up"<?= $workflowStatus === 'follow_up' ? ' selected' : '' ?>>Follow up</option>
+                            </select>
+                        </label>
+                    </td>
+                    <td>
                         <div><?= htmlspecialchars((string) $item['suggested_coverage_mode']) ?></div>
                         <div class="editorial-item__meta">suggested coverage</div>
                         <label class="editorial-inline-control">
@@ -201,6 +241,14 @@ function newsroom_editorial_datetime(string $value): string
                         <?php endif; ?>
                     </td>
                     <td>
+                        <label class="editorial-form__check">
+                            <input type="checkbox" form="<?= htmlspecialchars($formId) ?>" name="watch_live" value="1"<?= !empty($item['watch_live']) ? ' checked' : '' ?>>
+                            <span>Watch live</span>
+                        </label>
+                        <label class="editorial-form__check">
+                            <input type="checkbox" form="<?= htmlspecialchars($formId) ?>" name="follow_up_needed" value="1"<?= !empty($item['follow_up_needed']) ? ' checked' : '' ?>>
+                            <span>Follow up needed</span>
+                        </label>
                         <?php if ($item['entity_type'] === 'community_event'): ?>
                             <label class="editorial-form__check">
                                 <input type="checkbox" form="<?= htmlspecialchars($formId) ?>" name="is_hidden" value="1"<?= !empty($item['is_hidden']) ? ' checked' : '' ?>>

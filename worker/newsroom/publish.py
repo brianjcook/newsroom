@@ -2824,9 +2824,10 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         editorial_score = int(editorial["score"])
         editorial_signals_json = json.dumps(editorial["signals"])
         suggested_coverage_mode = str(editorial["coverage_mode"])
+        topic_tags_json = json.dumps(editorial.get("topics") or [])
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT id, slug, published_at, publish_status, source_basis_json, editorial_score, suggested_coverage_mode, editorial_signals_json FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
+                "SELECT id, slug, published_at, publish_status, source_basis_json, editorial_score, suggested_coverage_mode, editorial_signals_json, topic_tags_json FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
                 (meeting["id"], story_type),
             )
             existing_story = cursor.fetchone()
@@ -2874,6 +2875,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 and int(existing_story.get("editorial_score") or 0) == editorial_score
                 and (existing_story.get("suggested_coverage_mode") or "") == suggested_coverage_mode
                 and (existing_story.get("editorial_signals_json") or "") == editorial_signals_json
+                and (existing_story.get("topic_tags_json") or "") == topic_tags_json
             ):
                 continue
 
@@ -2908,6 +2910,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         editorial_score = %s,
                         editorial_signals_json = %s,
                         suggested_coverage_mode = %s,
+                        topic_tags_json = %s,
                         body_html = %s,
                         body_text = %s,
                         publish_status = 'published',
@@ -2926,6 +2929,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         editorial_score,
                         editorial_signals_json,
                         suggested_coverage_mode,
+                        topic_tags_json,
                         story_body_html,
                         story_body_text,
                         existing_published_at,
@@ -2951,6 +2955,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         editorial_score,
                         editorial_signals_json,
                         suggested_coverage_mode,
+                        topic_tags_json,
                         body_html,
                         body_text,
                         tone_profile,
@@ -2959,7 +2964,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         display_date,
                         sort_date,
                         source_basis_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', %s, %s, %s, %s)
                     """,
                     (
                         meeting["id"],
@@ -2972,6 +2977,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         editorial_score,
                         editorial_signals_json,
                         suggested_coverage_mode,
+                        topic_tags_json,
                         body_html,
                         body_text,
                         published_at,

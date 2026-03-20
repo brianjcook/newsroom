@@ -56,6 +56,7 @@ http_response_code($event ? 200 : 404);
     <nav class="nav">
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
+        <a href="/topics">Topics</a>
     </nav>
 
     <div class="story-layout">

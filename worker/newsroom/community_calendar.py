@@ -306,8 +306,9 @@ def sync_community_calendar(config: WorkerConfig, connection: Connection) -> int
                     editorial_score,
                     editorial_signals_json,
                     suggested_coverage_mode,
+                    topic_tags_json,
                     raw_meta_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     title = VALUES(title),
                     slug = VALUES(slug),
@@ -323,6 +324,7 @@ def sync_community_calendar(config: WorkerConfig, connection: Connection) -> int
                     editorial_score = VALUES(editorial_score),
                     editorial_signals_json = VALUES(editorial_signals_json),
                     suggested_coverage_mode = VALUES(suggested_coverage_mode),
+                    topic_tags_json = VALUES(topic_tags_json),
                     raw_meta_json = VALUES(raw_meta_json)
                 """,
                 (
@@ -341,6 +343,15 @@ def sync_community_calendar(config: WorkerConfig, connection: Connection) -> int
                     item.editorial_score,
                     item.editorial_signals_json,
                     item.suggested_coverage_mode,
+                    json.dumps(score_community_event(
+                        {
+                            "title": item.title,
+                            "description": item.description,
+                            "starts_at": item.starts_at,
+                            "source_category": item.source_category,
+                            "source_type": item.source_type,
+                        }
+                    )["topics"]),
                     item.raw_meta_json,
                 ),
             )

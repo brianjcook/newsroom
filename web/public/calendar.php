@@ -54,6 +54,7 @@ function newsroom_pill_style(array $signal): string
     <nav class="nav">
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
+        <a href="/topics">Topics</a>
     </nav>
 
     <h2 class="section-heading">Upcoming Meetings</h2>

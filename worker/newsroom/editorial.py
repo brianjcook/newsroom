@@ -65,6 +65,32 @@ HIGH_SIGNAL_BODIES = {
     "finance committee": 3,
 }
 
+TOPIC_RULES = [
+    ("wastewater", "wastewater", "Wastewater"),
+    ("sewer", "sewer", "Sewer"),
+    ("town meeting", "town-meeting", "Town Meeting"),
+    ("budget", "budget", "Budget"),
+    ("policy", "policy", "Policy"),
+    ("school choice", "schools", "Schools"),
+    ("school committee", "schools", "Schools"),
+    ("planning board", "development", "Development"),
+    ("site plan", "development", "Development"),
+    ("special permit", "development", "Development"),
+    ("zoning", "zoning", "Zoning"),
+    ("housing", "housing", "Housing"),
+    ("affordable housing", "housing", "Housing"),
+    ("tobacco", "public-health", "Public Health"),
+    ("title 5", "public-health", "Public Health"),
+    ("conservation", "environment", "Environment"),
+    ("stormwater", "environment", "Environment"),
+    ("community event", "community-life", "Community Life"),
+    ("concert", "arts-culture", "Arts & Culture"),
+    ("orchestra", "arts-culture", "Arts & Culture"),
+    ("festival", "community-life", "Community Life"),
+    ("contest", "community-life", "Community Life"),
+    ("library", "community-life", "Community Life"),
+]
+
 
 def _clean_text(value: Optional[str]) -> str:
     return " ".join(str(value or "").split())
@@ -157,10 +183,24 @@ def score_community_event(event: Dict[str, object]) -> Dict[str, object]:
         score += _add_signal(signals, 4, "attendance_potential", "Likely public attendance window")
 
     score = max(0, min(100, score))
+    topics = infer_topics(
+        " ".join(
+            filter(
+                None,
+                [
+                    title,
+                    description,
+                    source_category,
+                    source_type,
+                ],
+            )
+        )
+    )
     return {
         "score": score,
         "signals": signals,
         "coverage_mode": _score_to_mode(score),
+        "topics": topics,
     }
 
 
@@ -198,10 +238,24 @@ def score_story(row: Dict[str, object]) -> Dict[str, object]:
         score += _add_signal(signals, -8, "appointment_penalty", "Primarily appointment-driven agenda")
 
     score = max(0, min(100, score))
+    topics = infer_topics(
+        " ".join(
+            filter(
+                None,
+                [
+                    headline,
+                    summary,
+                    body_text[:1500],
+                    body_name,
+                ],
+            )
+        )
+    )
     return {
         "score": score,
         "signals": signals,
         "coverage_mode": _score_to_mode(score),
+        "topics": topics,
     }
 
 
@@ -214,3 +268,14 @@ def signal_summary(signals: List[Signal]) -> str:
             continue
         parts.append("{} ({:+d})".format(reason, weight))
     return "; ".join(parts)
+
+
+def infer_topics(text: str) -> List[Dict[str, str]]:
+    lowered = _clean_text(text).lower()
+    topics = []
+    seen = set()
+    for needle, slug, label in TOPIC_RULES:
+        if needle in lowered and slug not in seen:
+            seen.add(slug)
+            topics.append({"slug": slug, "label": label})
+    return topics[:5]
