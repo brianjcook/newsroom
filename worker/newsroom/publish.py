@@ -174,7 +174,7 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
-PUBLISHER_RENDER_VERSION = "2026-03-19-render-v4-appointment-focus"
+PUBLISHER_RENDER_VERSION = "2026-03-19-render-v6-hearings-style"
 
 
 def _slugify(value: str) -> str:
@@ -493,6 +493,8 @@ def _clean_agenda_display_item(text: str) -> str:
     cleaned = _normalize_item_text(text).replace("\uf0b7", " - ")
     if not cleaned:
         return ""
+    cleaned = re.sub(r"^\((Reappointment)\):\s*", r"\1: ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^APPOINTMENTS:\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(
         r"\s*[-\u2013\u2014]?\s*Any other (?:new )?business not (?:reasonably )?antici\w+.*$",
         "",
@@ -534,6 +536,14 @@ def _is_low_value_agenda_line(text: str) -> bool:
     lowered = _clean_agenda_display_item(text).lower().strip(" .;:-")
     if not lowered:
         return True
+    if re.search(r"\bappoint\s+(him|her|them)\b", lowered, flags=re.IGNORECASE) and not re.search(
+        r"\b(board of appeals|board|committee|commission|authority|council|trust|trustees)\b",
+        lowered,
+        flags=re.IGNORECASE,
+    ):
+        return True
+    if re.match(r"^(?:[ivxlcdm]+\.\s*)?(?:continued\s+)?public hearings?$", lowered, flags=re.IGNORECASE):
+        return True
     if re.fullmatch(r"(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\s*,\s*\d{4}", lowered):
         return True
     if re.match(r"^\d{1,2}:\d{2}\s*(a\.m\.|p\.m\.|am|pm)\b", lowered, flags=re.IGNORECASE):
@@ -552,6 +562,8 @@ def _is_low_value_agenda_line(text: str) -> bool:
         "any other new business",
         "next meeting",
         "adjourn",
+        "public hearings",
+        "continued public hearings",
     )
     return lowered.startswith(low_value_prefixes)
 
@@ -1130,6 +1142,12 @@ def _zoning_case_summary(text: str) -> Dict[str, str]:
 
     subject = core[: match_obj.start()].strip(" ,.;:-/")
     tail = core[match_obj.end() :].strip(" ,.;:-/")
+    tail = re.sub(
+        r"^(?:/|and/or)?\s*(?:special permit|site plan review|spr|sp|variance(?:\(s\))?|special permit and/or a variance)\s*[-:/]?\s*",
+        "",
+        tail,
+        flags=re.IGNORECASE,
+    )
     subject = re.sub(r"^[^A-Za-z0-9]+", "", subject)
     tail = re.sub(r"^[^A-Za-z0-9]+", "", tail)
     address = tail
@@ -1151,14 +1169,23 @@ def _zoning_case_summary(text: str) -> Dict[str, str]:
     headline = ""
     summary = ""
     sentence = ""
+    sentence_phrase = action_phrase
+    if action_phrase == "site plan review":
+        sentence_phrase = "site plan proposal"
+    elif action_phrase == "special permit request":
+        sentence_phrase = "special permit request"
+    elif action_phrase == "special permit and variance request":
+        sentence_phrase = "special permit and variance request"
+    elif action_phrase == "special permit or variance request":
+        sentence_phrase = "special permit or variance request"
     if address:
         headline = "{} {}".format(address, action_title)
         summary = "{} at {}".format(action_phrase, address)
-        sentence = "The board is set to review {} at {}.".format(_with_article(action_phrase), address)
+        sentence = "The board is set to review {} at {}.".format(_with_article(sentence_phrase), address)
     elif subject:
         headline = "{} {}".format(subject, action_title)
         summary = "{} involving {}".format(action_phrase, subject)
-        sentence = "The board is set to review {} involving {}.".format(_with_article(action_phrase), subject)
+        sentence = "The board is set to review {} involving {}.".format(_with_article(sentence_phrase), subject)
 
     return {
         "headline": headline.strip(" ,.;:-"),
@@ -1594,10 +1621,35 @@ def _summary_phrase_list(items: List[str], limit: int = 2) -> List[str]:
         filtered_phrases.append(phrase)
 
     if len(specific_appointment_targets) >= 2:
-        return ["{} appointments".format(_oxford_join(specific_appointment_targets[:2]))]
+        normalized_targets = []
+        for target in specific_appointment_targets[:2]:
+            normalized = _normalize_appointment_target(target)
+            normalized_targets.append(normalized or target)
+        return ["{} appointments".format(_oxford_join(normalized_targets))]
     if filtered_phrases:
         return filtered_phrases[:limit]
     return phrases
+
+
+def _is_hearing_focus_text(text: str) -> bool:
+    lowered = _normalize_item_text(text).lower()
+    if not lowered:
+        return False
+    return any(
+        token in lowered
+        for token in (
+            "public hearing",
+            "special permit",
+            "variance request",
+            "permit request",
+            "site plan review",
+            "comprehensive permit",
+            "safe harbor marina",
+            "stormwater",
+            "noi",
+            "rda",
+        )
+    )
 
 
 def _sentence_from_phrases(prefix: str, phrases: List[str]) -> str:
@@ -1613,6 +1665,11 @@ def _preview_summary(body_name: str, focus_items: List[Dict[str, object]], dek: 
         return dek
 
     lowered_body = _normalize_item_text(body_name).lower()
+    hearing_count = sum(1 for item in focus_items[:3] if _is_hearing_focus_text(str(item.get("text") or "")))
+    if lowered_body in ("planning board", "zoning board of appeals", "conservation commission") and hearing_count >= 1:
+        if lowered_body == "planning board":
+            return _sentence_from_phrases("Public hearings and development reviews are expected to focus on", phrases) or dek
+        return _sentence_from_phrases("Public hearings are expected to focus on", phrases) or dek
     if lowered_body == "school committee":
         return _sentence_from_phrases("The committee is expected to focus on", phrases) or dek
     if lowered_body in ("planning board", "zoning board of appeals", "finance committee"):
@@ -1990,6 +2047,9 @@ def _focus_sentence(item: Dict[str, object]) -> str:
     zoning_summary = _zoning_case_summary(raw_text)
     appointment = _parse_appointment_item(raw_text)
 
+    if "appointment" in categories and appointment.get("sentence"):
+        return str(appointment["sentence"])
+
     if "permit" in categories and "tobacco violation" in lowered:
         if "onset village market" in lowered:
             return "The board is expected to review a tobacco-violation case involving Onset Village Market."
@@ -2157,8 +2217,6 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to discuss relocating the bus stop at Indian Neck Road."
         return "The agenda includes {} as a policy item.".format(_with_article(phrase))
     if "appointment" in categories:
-        if appointment.get("sentence"):
-            return str(appointment["sentence"])
         return "Members are expected to consider {}.".format(_with_article(phrase))
     if "permit" in categories:
         return "Members are expected to review {}.".format(_with_article(phrase))
@@ -2268,11 +2326,34 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
         key.endswith(" appointment") and key not in generic_appointment_phrases
         for key in focus_display_keys
     )
+    strong_hearing_keys = [
+        key for key in focus_display_keys
+        if any(
+            token in key
+            for token in (
+                "permit request",
+                "site plan review",
+                "variance request",
+                "special permit",
+                "comprehensive permit",
+                "safe harbor marina redevelopment",
+                "river hawk stormwater work",
+                "public hearing",
+            )
+        )
+    ]
     deduped = []
     seen = set()
     for item in focus:
         display_key = (_focus_summary_phrase(str(item["text"])) or str(item["text"])).lower()
         if has_specific_appointment and display_key in generic_appointment_phrases:
+            continue
+        if len(strong_hearing_keys) >= 2 and display_key in (
+            "maple springs road anr",
+            "draft zoning bylaw recodification issues",
+            "zoning bylaw policy issues",
+            "zoning bylaw citizen petition",
+        ):
             continue
         if display_key in seen:
             continue

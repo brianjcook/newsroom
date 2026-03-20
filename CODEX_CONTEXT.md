@@ -448,6 +448,21 @@ Build a local-news publishing system that ingests municipal and other local cont
 - that same story summary now centers on `Capital Planning Committee and finance committee appointments`
 - `finance-committee-meeting-preview-2025-09-25-1630` now renders as `Finance Committee to Consider Finance Committee Appointment`
 - direct publish-only syncs after this pass updated the live archive without requiring a full re-extraction run
+- Added a hearing/style cleanup pass in `worker/newsroom/publish.py`:
+- story output is now versioned as `2026-03-19-render-v6-hearings-style`
+- public-hearing boards now use more natural summary framing such as:
+- `Public hearings are expected to focus on ...`
+- `Public hearings and development reviews are expected to focus on ...`
+- zoning/Planning Board hearing intros now use cleaner plain-language phrasing like `site plan proposal at 238 & 240 Sandwich Road`
+- generic raw agenda headers like `IV. PUBLIC HEARINGS` are now suppressed from public agenda lists
+- generic appointment/orphan interview fragments like `appoint him/her` are now suppressed more aggressively from public raw agenda lists
+- appointment-summary rollups now preserve body capitalization, such as `Capital Planning Committee and Finance Committee appointments`
+- appointment items now prefer appointment-specific story sentences over misleading budget-style wording when a line scores across multiple categories
+- verified live:
+- `planning-board-meeting-preview-2026-02-09-1800` now uses `Public hearings and development reviews are expected to focus on ...` and `A public hearing is scheduled on the site plan proposal at 238 & 240 Sandwich Road`
+- `conservation-commission-meeting-preview-2026-03-18-1800` now uses `Public hearings are expected to focus on ...`
+- `zoning-board-of-appeals-meeting-preview-2026-01-28-1830` now uses the same public-hearing framing
+- `appointing-authority-meeting-preview-2025-06-24-1615` now shows `Capital Planning Committee and Finance Committee appointments`, removes the orphan `appoint him` raw bullet, and uses cleaner appointment-focused `What matters most` sentences
 - Latest successful production run:
 - `run_id`: `85`
 - `items_discovered`: `380`
@@ -462,6 +477,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `2909d09` - `Refine appointment story parsing and focus ranking`
 - `8a8cc25` - `Track style guide reference`
 - `1dedd4d` - `Apply style guide mechanics to story copy`
 - `d672008` - `Version publisher output for stale-story rewrites`
@@ -529,6 +545,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
+- Continue improving public-hearing ranking so boards like Planning Board and ZBA promote the most consequential hearings first and demote lower-signal ANR/admin items further.
+- Keep improving appointing-authority and named-person stories so candidate-specific lines can surface more naturally while still staying source-grounded and style-safe.
+- Improve raw agenda cleanup on remaining messy bodies whose public lists still expose OCR residue, low-value workshop/admin lines, or repeated petition metadata.
+- Continue moving preview summaries and intro paragraphs from `agenda focus on ...` phrasing toward cleaner newsroom-style language without inventing significance.
 - Continue tightening appointment-heavy and appointing-authority agendas so named candidates, reappointments, and multi-seat vacancies can surface more naturally in headlines and summaries.
 - Improve lingering appointment/governance edge cases like `Capital Planning Committee appointment` phrasing and any remaining generic `board appointments` fallback labels.
 - Audit live output for other named-person agendas where style-guide rules around first-reference full names and subsequent references could now be applied safely.
