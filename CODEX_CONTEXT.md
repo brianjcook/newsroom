@@ -536,6 +536,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `bdf563d` - `Add newsroom workflow states and topic pages`
 - `03136a9` - `Update context after editorial desk rollout`
 - `b137ae0` - `Tune editorial desk scoring and filters`
 - `5d6b22f` - `Update context after desk tuning`
