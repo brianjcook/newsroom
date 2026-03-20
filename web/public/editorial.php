@@ -21,6 +21,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $config = newsroom_config();
 $items = newsroom_editorial_items();
 $saved = isset($_GET['saved']) && $_GET['saved'] === '1';
+$entityFilter = trim((string) ($_GET['entity'] ?? 'all'));
+$coverageFilter = trim((string) ($_GET['coverage'] ?? 'all'));
+$visibilityFilter = trim((string) ($_GET['visibility'] ?? 'all'));
+
+$items = array_values(array_filter($items, static function (array $item) use ($entityFilter, $coverageFilter, $visibilityFilter): bool {
+    if ($entityFilter !== 'all' && (string) $item['entity_type'] !== $entityFilter) {
+        return false;
+    }
+    if ($coverageFilter !== 'all' && (string) $item['effective_coverage_mode'] !== $coverageFilter) {
+        return false;
+    }
+    if ($visibilityFilter === 'hidden' && empty($item['is_hidden'])) {
+        return false;
+    }
+    if ($visibilityFilter === 'visible' && !empty($item['is_hidden'])) {
+        return false;
+    }
+    return true;
+}));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -58,6 +77,40 @@ $saved = isset($_GET['saved']) && $_GET['saved'] === '1';
     <?php if ($saved): ?>
         <p class="editorial-save-note">Editorial overrides saved.</p>
     <?php endif; ?>
+
+    <section class="editorial-explainer">
+        <p>The current score emphasizes civic impact, public interest, timeliness, and body priority. It subtracts points for routine recurring meetings and low-signal appointment-only agendas.</p>
+    </section>
+
+    <form method="get" class="editorial-filters">
+        <label>
+            <span>Entity</span>
+            <select name="entity">
+                <option value="all"<?= $entityFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <option value="story"<?= $entityFilter === 'story' ? ' selected' : '' ?>>Stories</option>
+                <option value="community_event"<?= $entityFilter === 'community_event' ? ' selected' : '' ?>>Community events</option>
+            </select>
+        </label>
+        <label>
+            <span>Coverage</span>
+            <select name="coverage">
+                <option value="all"<?= $coverageFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <option value="calendar_only"<?= $coverageFilter === 'calendar_only' ? ' selected' : '' ?>>Calendar only</option>
+                <option value="brief"<?= $coverageFilter === 'brief' ? ' selected' : '' ?>>Brief</option>
+                <option value="full_story"<?= $coverageFilter === 'full_story' ? ' selected' : '' ?>>Full story</option>
+                <option value="must_cover"<?= $coverageFilter === 'must_cover' ? ' selected' : '' ?>>Must cover</option>
+            </select>
+        </label>
+        <label>
+            <span>Visibility</span>
+            <select name="visibility">
+                <option value="all"<?= $visibilityFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <option value="visible"<?= $visibilityFilter === 'visible' ? ' selected' : '' ?>>Visible</option>
+                <option value="hidden"<?= $visibilityFilter === 'hidden' ? ' selected' : '' ?>>Hidden</option>
+            </select>
+        </label>
+        <button type="submit">Apply</button>
+    </form>
 
     <section class="editorial-table-wrap">
         <table class="editorial-table">

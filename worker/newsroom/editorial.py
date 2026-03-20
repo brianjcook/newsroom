@@ -56,13 +56,13 @@ ROUTINE_MEETING_PATTERNS = (
 )
 
 HIGH_SIGNAL_BODIES = {
-    "select board": 8,
-    "planning board": 8,
-    "zoning board of appeals": 8,
-    "school committee": 8,
-    "conservation commission": 6,
-    "board of health": 6,
-    "finance committee": 5,
+    "select board": 5,
+    "planning board": 5,
+    "zoning board of appeals": 5,
+    "school committee": 5,
+    "conservation commission": 4,
+    "board of health": 4,
+    "finance committee": 3,
 }
 
 
@@ -179,7 +179,7 @@ def score_story(row: Dict[str, object]) -> Dict[str, object]:
         if needle in text:
             matched.append({"key": key, "weight": weight, "reason": reason})
 
-    for signal in sorted(matched, key=lambda item: int(item["weight"]), reverse=True)[:3]:
+    for signal in sorted(matched, key=lambda item: int(item["weight"]), reverse=True)[:2]:
         score += _add_signal(signals, int(signal["weight"]), str(signal["key"]), str(signal["reason"]))
 
     if story_type == "meeting_preview":

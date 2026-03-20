@@ -495,11 +495,13 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `worker/newsroom/pipeline.py` now syncs community-calendar events during daily runs
 - `worker/newsroom/publish.py` now writes editorial score, factor breakdown, and suggested coverage mode onto published stories and no longer skips score backfills on unchanged story content
 - `web/public/editorial.php` adds a first editorial desk view with visible score breakdowns and override controls
+- the editorial desk now includes basic filters for entity, suggested coverage mode, and visibility plus a short explainer of the current scoring logic
+- story-score weighting was tightened after the first rollout so the top of the desk is less saturated; high-signal civic stories now cluster more around the low-80s than a flat wall of `100`
 - `web/lib/content.php` now exposes community-event queries, editorial-desk queries, and override update helpers
 - the homepage now includes an `Around Town` section fed by high-scoring community events
 - the calendar page now includes a `Community Calendar` section fed by `community_events`
 - Latest successful production run:
-- `run_id`: `89`
+- `run_id`: `90`
 - `items_discovered`: `380`
 - `documents_fetched`: `0`
 - `extractions_created`: `0`
@@ -513,6 +515,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `pending` - `Tighten editorial score distribution and desk filters`
 - `6e06e28` - `Add editorial scoring and public calendar desk`
 - `9f6f6ad` - `Refine hearing and appointment story quality`
 - `2909d09` - `Refine appointment story parsing and focus ranking`
@@ -583,7 +586,6 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
-- Tune editorial-score weighting so top-end story scores are less saturated and the desk produces a more discriminating ranking among high-signal civic stories.
 - Decide whether high-scoring `community_events` should remain listings/brief candidates only or should begin auto-generating short preview stories as a second publication track.
 - Add authentication or at least lightweight protection around `editorial.php` if the desk should not remain publicly accessible.
 - Improve CivicPlus event-description cleanup so fields like registrant counts, ticket boilerplate, and generic placeholders such as `Event Location` are normalized more cleanly in public event summaries.
