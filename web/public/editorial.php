@@ -32,6 +32,7 @@ $followUpFilter = trim((string) ($_GET['follow_up'] ?? 'all'));
 $topicFilter = trim((string) ($_GET['topic'] ?? 'all'));
 $bodyFilter = trim((string) ($_GET['body'] ?? 'all'));
 $sortFilter = trim((string) ($_GET['sort'] ?? 'score_desc'));
+$workflowOptions = newsroom_workflow_options();
 
 $topicOptions = [];
 $bodyOptions = [];
@@ -154,6 +155,7 @@ function newsroom_editorial_datetime(string $value): string
 
     <section class="editorial-explainer">
         <p>The current score emphasizes civic impact, public interest, timeliness, and body priority. It subtracts points for routine recurring meetings and low-signal appointment-only agendas.</p>
+        <p>The workflow is intended as a newsroom lifecycle: preview published, watch live, recap needed, minutes reconcile, follow-up story, and done.</p>
     </section>
 
     <form method="get" class="editorial-filters">
@@ -187,11 +189,9 @@ function newsroom_editorial_datetime(string $value): string
             <span>Workflow</span>
             <select name="workflow">
                 <option value="all"<?= $workflowFilter === 'all' ? ' selected' : '' ?>>All</option>
-                <option value="watch"<?= $workflowFilter === 'watch' ? ' selected' : '' ?>>Watch</option>
-                <option value="draft"<?= $workflowFilter === 'draft' ? ' selected' : '' ?>>Draft</option>
-                <option value="assigned"<?= $workflowFilter === 'assigned' ? ' selected' : '' ?>>Assigned</option>
-                <option value="published"<?= $workflowFilter === 'published' ? ' selected' : '' ?>>Published</option>
-                <option value="follow_up"<?= $workflowFilter === 'follow_up' ? ' selected' : '' ?>>Follow up</option>
+                <?php foreach ($workflowOptions as $workflowValue => $workflowLabel): ?>
+                    <option value="<?= htmlspecialchars((string) $workflowValue) ?>"<?= $workflowFilter === (string) $workflowValue ? ' selected' : '' ?>><?= htmlspecialchars((string) $workflowLabel) ?></option>
+                <?php endforeach; ?>
             </select>
         </label>
         <label>
@@ -274,6 +274,7 @@ function newsroom_editorial_datetime(string $value): string
                         <?php if (!empty($item['status_label'])): ?>
                             <div class="editorial-item__meta"><?= htmlspecialchars((string) $item['status_label']) ?></div>
                         <?php endif; ?>
+                        <div class="editorial-item__meta">Workflow: <?= htmlspecialchars((string) $item['workflow_label']) ?></div>
                     </td>
                     <td>
                         <div class="editorial-score"><?= htmlspecialchars((string) $item['editorial_score']) ?></div>
@@ -316,12 +317,10 @@ function newsroom_editorial_datetime(string $value): string
                         <label class="editorial-inline-control">
                             <span>Workflow</span>
                             <select form="<?= htmlspecialchars($formId) ?>" name="workflow_status">
-                                <?php $workflowStatus = (string) ($item['workflow_status'] ?? 'watch'); ?>
-                                <option value="watch"<?= $workflowStatus === 'watch' ? ' selected' : '' ?>>Watch</option>
-                                <option value="draft"<?= $workflowStatus === 'draft' ? ' selected' : '' ?>>Draft</option>
-                                <option value="assigned"<?= $workflowStatus === 'assigned' ? ' selected' : '' ?>>Assigned</option>
-                                <option value="published"<?= $workflowStatus === 'published' ? ' selected' : '' ?>>Published</option>
-                                <option value="follow_up"<?= $workflowStatus === 'follow_up' ? ' selected' : '' ?>>Follow up</option>
+                                <?php $workflowStatus = (string) ($item['workflow_status'] ?? 'monitor'); ?>
+                                <?php foreach ($workflowOptions as $workflowValue => $workflowLabel): ?>
+                                    <option value="<?= htmlspecialchars((string) $workflowValue) ?>"<?= $workflowStatus === (string) $workflowValue ? ' selected' : '' ?>><?= htmlspecialchars((string) $workflowLabel) ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </label>
                     </td>
@@ -343,6 +342,8 @@ function newsroom_editorial_datetime(string $value): string
                         <?php endif; ?>
                     </td>
                     <td>
+                        <div class="editorial-item__meta">Next step</div>
+                        <p class="editorial-next-action"><?= htmlspecialchars((string) ($item['next_action'] ?? '')) ?></p>
                         <label class="editorial-form__check">
                             <input type="checkbox" form="<?= htmlspecialchars($formId) ?>" name="watch_live" value="1"<?= !empty($item['watch_live']) ? ' checked' : '' ?>>
                             <span>Watch live</span>

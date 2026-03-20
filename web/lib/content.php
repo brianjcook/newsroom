@@ -143,6 +143,74 @@ function newsroom_topic_url(string $slug): string
     return '/topics/' . rawurlencode(trim($slug));
 }
 
+function newsroom_workflow_options(): array
+{
+    return [
+        'monitor' => 'Monitor',
+        'preview_published' => 'Preview published',
+        'watch_live' => 'Watch live',
+        'recap_needed' => 'Recap needed',
+        'minutes_reconcile' => 'Minutes reconcile',
+        'follow_up_story' => 'Follow-up story',
+        'draft' => 'Draft in progress',
+        'assigned' => 'Assigned',
+        'done' => 'Done',
+    ];
+}
+
+function newsroom_normalize_workflow_status(?string $status, array $item = []): string
+{
+    $raw = trim((string) $status);
+    if ($raw === 'watch') {
+        return 'monitor';
+    }
+    if ($raw === 'follow_up') {
+        return 'follow_up_story';
+    }
+    if ($raw === 'published') {
+        if (($item['entity_type'] ?? '') === 'story' && ($item['item_type'] ?? '') === 'meeting_preview') {
+            return 'preview_published';
+        }
+        return 'done';
+    }
+    if ($raw === '') {
+        return ($item['entity_type'] ?? '') === 'community_event' ? 'monitor' : 'done';
+    }
+    return $raw;
+}
+
+function newsroom_workflow_label(string $status): string
+{
+    $options = newsroom_workflow_options();
+    return $options[$status] ?? ucwords(str_replace('_', ' ', $status));
+}
+
+function newsroom_workflow_next_action(array $item): string
+{
+    $status = newsroom_normalize_workflow_status((string) ($item['workflow_status'] ?? ''), $item);
+    switch ($status) {
+        case 'monitor':
+            return 'Keep this item on the desk and watch for a stronger reporting trigger.';
+        case 'preview_published':
+            return 'The preview is live. The next step is to watch the meeting and prepare a recap.';
+        case 'watch_live':
+            return 'This item is flagged for live monitoring or attendance.';
+        case 'recap_needed':
+            return 'Publish a quick post-meeting recap or decision brief.';
+        case 'minutes_reconcile':
+            return 'Compare the published coverage against posted minutes or the official record.';
+        case 'follow_up_story':
+            return 'A second-day or explanatory follow-up story is likely warranted.';
+        case 'draft':
+            return 'A draft is in progress and needs review or publication.';
+        case 'assigned':
+            return 'Reporting responsibility has been assigned.';
+        case 'done':
+        default:
+            return 'No immediate desk action is queued.';
+    }
+}
+
 function newsroom_story_url_from_slug(string $slug): string
 {
     return '/stories/' . rawurlencode($slug);
@@ -1114,6 +1182,9 @@ function newsroom_editorial_items(int $limit = 120): array
         $row['effective_coverage_mode'] = trim((string) ($row['coverage_override'] ?? '')) !== ''
             ? (string) $row['coverage_override']
             : (string) $row['suggested_coverage_mode'];
+        $row['workflow_status'] = newsroom_normalize_workflow_status((string) ($row['workflow_status'] ?? ''), $row);
+        $row['workflow_label'] = newsroom_workflow_label((string) $row['workflow_status']);
+        $row['next_action'] = newsroom_workflow_next_action($row);
         $row['signal_summary'] = newsroom_signal_summary($row['editorial_signals_json'] ?? null);
     }
     unset($row);
@@ -1156,7 +1227,7 @@ function newsroom_update_editorial_override(array $payload): void
         $statement->bindValue(':score_override', $scoreOverride, $scoreOverride === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
         $statement->bindValue(':coverage_override', $coverageOverride !== '' ? $coverageOverride : null, $coverageOverride !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
         $statement->bindValue(':admin_notes', $adminNotes !== '' ? $adminNotes : null, $adminNotes !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $statement->bindValue(':workflow_status', $workflowStatus !== '' ? $workflowStatus : 'published', PDO::PARAM_STR);
+        $statement->bindValue(':workflow_status', $workflowStatus !== '' ? $workflowStatus : 'done', PDO::PARAM_STR);
         $statement->bindValue(':watch_live', $watchLive, PDO::PARAM_INT);
         $statement->bindValue(':follow_up_needed', $followUpNeeded, PDO::PARAM_INT);
         $statement->bindValue(':id', $entityId, PDO::PARAM_INT);
@@ -1179,7 +1250,7 @@ function newsroom_update_editorial_override(array $payload): void
         $statement->bindValue(':score_override', $scoreOverride, $scoreOverride === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
         $statement->bindValue(':coverage_override', $coverageOverride !== '' ? $coverageOverride : null, $coverageOverride !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
         $statement->bindValue(':admin_notes', $adminNotes !== '' ? $adminNotes : null, $adminNotes !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $statement->bindValue(':workflow_status', $workflowStatus !== '' ? $workflowStatus : 'watch', PDO::PARAM_STR);
+        $statement->bindValue(':workflow_status', $workflowStatus !== '' ? $workflowStatus : 'monitor', PDO::PARAM_STR);
         $statement->bindValue(':watch_live', $watchLive, PDO::PARAM_INT);
         $statement->bindValue(':follow_up_needed', $followUpNeeded, PDO::PARAM_INT);
         $statement->bindValue(':is_hidden', $isHidden, PDO::PARAM_INT);

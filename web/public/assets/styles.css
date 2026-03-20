@@ -684,6 +684,12 @@ a:hover {
     text-transform: uppercase;
 }
 
+.editorial-next-action {
+    margin: 6px 0 12px;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
 .editorial-form {
     display: grid;
     gap: 10px;

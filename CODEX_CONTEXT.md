@@ -529,6 +529,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - story pages now show topic chips, a `What Happens Next` section, and topic-aware related coverage/event links
 - event pages now show topic-aware related stories and related events in addition to the stronger brief framing
 - this pass was implemented entirely in the presentation/query layer so it did not require a worker rebuild or content republish
+- Added a fuller newsroom lifecycle model to the desk:
+- workflow options now reflect the intended reporting sequence: `Monitor`, `Preview published`, `Watch live`, `Recap needed`, `Minutes reconcile`, `Follow-up story`, `Draft in progress`, `Assigned`, and `Done`
+- legacy workflow values from earlier passes are normalized into the new labels in the desk UI
+- each desk row now includes a `Next step` note so the workflow state reads like an actionable newsroom queue rather than a generic status field
 - Added lightweight desk protection:
 - `web/bootstrap.php` now supports config-driven editorial credentials and a session-based login gate
 - `/desk` now redirects unauthenticated users to a small login form and preserves access through a session cookie
@@ -551,6 +555,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `1aaf307` - `Add story context and related coverage blocks`
 - `7aa4f9d` - `Extend editorial desk session lifetime`
 - `5157f96` - `Protect editorial desk with session login`
 - `d983b5b` - `Improve event briefs and editorial desk triage`
