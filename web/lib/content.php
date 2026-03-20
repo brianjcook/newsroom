@@ -1386,7 +1386,39 @@ function newsroom_recap_queue_items(int $limit = 60): array
                 WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "minutes"
                 ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
                 LIMIT 1
-            ) AS minutes_url
+            ) AS minutes_url,
+            (
+                SELECT de.structured_json
+                FROM meeting_artifacts ma
+                INNER JOIN (
+                    SELECT de1.*
+                    FROM document_extractions de1
+                    INNER JOIN (
+                        SELECT document_id, MAX(id) AS max_id
+                        FROM document_extractions
+                        GROUP BY document_id
+                    ) latest_extraction ON latest_extraction.max_id = de1.id
+                ) de ON de.document_id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_structured_json,
+            (
+                SELECT de.structured_json
+                FROM meeting_artifacts ma
+                INNER JOIN (
+                    SELECT de1.*
+                    FROM document_extractions de1
+                    INNER JOIN (
+                        SELECT document_id, MAX(id) AS max_id
+                        FROM document_extractions
+                        GROUP BY document_id
+                    ) latest_extraction ON latest_extraction.max_id = de1.id
+                ) de ON de.document_id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "minutes"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS minutes_structured_json
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
@@ -1414,10 +1446,83 @@ function newsroom_recap_queue_items(int $limit = 60): array
         ]);
         $row['workflow_label'] = newsroom_workflow_label((string) $row['workflow_status']);
         $row['next_action'] = newsroom_workflow_next_action($row);
+        $row['recap_scaffold'] = newsroom_recap_scaffold($row);
     }
     unset($row);
 
     return $rows;
+}
+
+function newsroom_recap_scaffold(array $row): array
+{
+    $agendaStructured = newsroom_parse_json($row['agenda_structured_json'] ?? null);
+    $minutesStructured = newsroom_parse_json($row['minutes_structured_json'] ?? null);
+    $agendaHighlights = [];
+    foreach ((array) ($agendaStructured['agenda_highlights'] ?? []) as $item) {
+        $text = trim((string) $item);
+        if ($text !== '') {
+            $agendaHighlights[] = $text;
+        }
+    }
+
+    $minutesHighlights = [];
+    foreach ((array) ($minutesStructured['agenda_highlights'] ?? []) as $item) {
+        $text = trim((string) $item);
+        if ($text !== '') {
+            $minutesHighlights[] = $text;
+        }
+    }
+
+    $leadItems = array_slice($minutesHighlights ?: $agendaHighlights, 0, 3);
+    $bodyName = trim((string) ($row['body_name'] ?? 'The board'));
+    $meetingDate = trim((string) ($row['meeting_date'] ?? ''));
+    $meetingTime = trim((string) ($row['meeting_time'] ?? ''));
+    $location = trim((string) ($row['location_name'] ?? ''));
+
+    $timePhrase = '';
+    if ($meetingDate !== '') {
+        $stamp = strtotime($meetingDate . ($meetingTime !== '' ? ' ' . $meetingTime : ''));
+        if ($stamp !== false) {
+            $timePhrase = date($meetingTime !== '' ? 'F j, Y \a\t g:i A' : 'F j, Y', $stamp);
+        }
+    }
+
+    $lede = '';
+    if ($leadItems) {
+        $lede = $bodyName . ' is expected to focus on ' . newsroom_sentence_list(array_map(static function (string $item): string {
+            return strtolower($item);
+        }, array_slice($leadItems, 0, 2))) . '.';
+    } elseif ($timePhrase !== '') {
+        $lede = $bodyName . ' is scheduled to meet ' . $timePhrase . '.';
+    } else {
+        $lede = $bodyName . ' remains in the recap queue and needs a post-meeting summary.';
+    }
+
+    $verification = [];
+    if ($row['workflow_status'] === 'recap_needed') {
+        $verification[] = 'Confirm whether any votes or decisions actually happened.';
+        $verification[] = 'Check whether the top agenda items were discussed, continued, or amended.';
+    } else {
+        $verification[] = 'Compare the published story against the posted minutes.';
+        $verification[] = 'Check whether any motions, votes, or attendance details need correction.';
+    }
+    if ($location !== '') {
+        $verification[] = 'Verify location details remain correct: ' . $location . '.';
+    }
+
+    $angle = '';
+    if ($leadItems) {
+        $angle = 'Start with the most consequential item: ' . $leadItems[0] . '.';
+    } else {
+        $angle = 'Use the official record to identify the most consequential action taken.';
+    }
+
+    return [
+        'lede' => $lede,
+        'angle' => $angle,
+        'highlights' => $leadItems,
+        'verification' => $verification,
+    ];
 }
 
 function newsroom_update_editorial_override(array $payload): void

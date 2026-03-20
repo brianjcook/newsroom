@@ -84,6 +84,39 @@ function newsroom_recap_datetime(string $value): string
                         <a href="<?= htmlspecialchars((string) $item['minutes_url']) ?>" target="_blank" rel="noopener noreferrer">Open minutes</a>
                     <?php endif; ?>
                 </div>
+                <?php $scaffold = $item['recap_scaffold'] ?? []; ?>
+                <?php if (!empty($scaffold)): ?>
+                    <div class="recap-scaffold">
+                        <div class="recap-scaffold__section">
+                            <strong>Suggested lede</strong>
+                            <p><?= htmlspecialchars((string) ($scaffold['lede'] ?? '')) ?></p>
+                        </div>
+                        <div class="recap-scaffold__section">
+                            <strong>Draft angle</strong>
+                            <p><?= htmlspecialchars((string) ($scaffold['angle'] ?? '')) ?></p>
+                        </div>
+                        <?php if (!empty($scaffold['highlights'])): ?>
+                            <div class="recap-scaffold__section">
+                                <strong>Source highlights</strong>
+                                <ul class="methodology-list">
+                                    <?php foreach ($scaffold['highlights'] as $highlight): ?>
+                                        <li><p><?= htmlspecialchars((string) $highlight) ?></p></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($scaffold['verification'])): ?>
+                            <div class="recap-scaffold__section">
+                                <strong>What to verify</strong>
+                                <ul class="methodology-list">
+                                    <?php foreach ($scaffold['verification'] as $check): ?>
+                                        <li><p><?= htmlspecialchars((string) $check) ?></p></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
                 <?php if (!empty($item['admin_notes'])): ?>
                     <div class="recap-card__notes">
                         <strong>Desk Notes</strong>
