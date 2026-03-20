@@ -164,7 +164,7 @@ function newsroom_pill_style(array $signal): string
         <?php if ($communityEvents): ?>
             <?php foreach ($communityEvents as $event): ?>
                 <article class="story-tease">
-                    <h3><a href="<?= htmlspecialchars($event['source_url']) ?>" target="_blank" rel="noopener noreferrer"><?= htmlspecialchars($event['title']) ?></a></h3>
+                    <h3><a href="<?= htmlspecialchars($event['local_url']) ?>"><?= htmlspecialchars($event['title']) ?></a></h3>
                     <div class="story-meta-row story-meta-row--compact">
                         <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['source_type'] === 'community_event' ? 'Community Event' : ucwords(str_replace('_', ' ', $event['source_type']))) ?></span>
                         <span class="story-card__meta"><?= htmlspecialchars(date('M. j, Y g:i A', strtotime((string) $event['starts_at']))) ?></span>
@@ -175,6 +175,7 @@ function newsroom_pill_style(array $signal): string
                     <?php if (!empty($event['description'])): ?>
                         <p><?= htmlspecialchars((string) $event['description']) ?></p>
                     <?php endif; ?>
+                    <p><a href="<?= htmlspecialchars((string) $event['source_url']) ?>" target="_blank" rel="noopener noreferrer">Official listing</a></p>
                 </article>
             <?php endforeach; ?>
         <?php else: ?>

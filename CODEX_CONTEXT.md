@@ -506,6 +506,8 @@ Build a local-news publishing system that ingests municipal and other local cont
 - desk dates/times now render in human-readable prose format
 - scoring signals now render one-per-line with explicit weights, and score/coverage overrides now sit in the same columns as the default values they override
 - story slugs now derive from the published headline instead of the old governing-body/date/time pattern, with only minimal date suffixes when collisions require disambiguation
+- high-scoring community events now have first-party local pages at `/events/{id}/{slug}` instead of only linking out to the Wareham source page
+- homepage `Around Town`, calendar `Community Calendar`, and desk `Open` links now point to those local event pages while still linking to the official listing from inside the page
 - `web/lib/content.php` now exposes community-event queries, editorial-desk queries, and override update helpers
 - the homepage now includes an `Around Town` section fed by high-scoring community events
 - the calendar page now includes a `Community Calendar` section fed by `community_events`
@@ -524,6 +526,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `pending` - `Add first-party pages for community events`
 - `271d481` - `Generate headline-based story slugs`
 - `d162279` - `Clean desk UI and move public routes to paths`
 - `b137ae0` - `Tune editorial desk scoring and filters`
@@ -598,7 +601,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 
 ## Next priority tasks
 - Decide whether high-scoring `community_events` should remain listings/brief candidates only or should begin auto-generating short preview stories as a second publication track.
-- Decide whether community-event URLs should remain source links only or also get first-party local preview/article pages when coverage mode reaches `brief` or `full_story`.
+- Improve the content quality of first-party community-event pages so they move beyond metadata/listing copy into stronger local-event briefs when source detail is rich enough.
 - Add authentication or at least lightweight protection around `editorial.php` if the desk should not remain publicly accessible.
 - Improve CivicPlus event-description cleanup so fields like registrant counts, ticket boilerplate, and generic placeholders such as `Event Location` are normalized more cleanly in public event summaries.
 - Add explicit filters and sorting tools to the editorial desk so stories, meetings, community events, and override states can be reviewed separately.

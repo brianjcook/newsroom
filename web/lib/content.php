@@ -90,6 +90,20 @@ function newsroom_story_url(array $story): string
     return newsroom_story_url_from_slug((string) ($story['slug'] ?? ''));
 }
 
+function newsroom_community_event_url_from_parts(int $id, string $slug): string
+{
+    $slug = trim($slug);
+    if ($slug === '') {
+        return '/events/' . $id;
+    }
+    return '/events/' . $id . '/' . rawurlencode($slug);
+}
+
+function newsroom_community_event_url(array $event): string
+{
+    return newsroom_community_event_url_from_parts((int) ($event['id'] ?? 0), (string) ($event['slug'] ?? ''));
+}
+
 function newsroom_format_story_type(string $storyType): string
 {
     return ucwords(str_replace('_', ' ', $storyType));
@@ -270,6 +284,7 @@ function newsroom_community_event_presenter(array $row): array
         'id' => (int) $row['id'],
         'title' => (string) $row['title'],
         'slug' => (string) ($row['slug'] ?? ''),
+        'local_url' => newsroom_community_event_url($row),
         'starts_at' => (string) $row['starts_at'],
         'ends_at' => (string) ($row['ends_at'] ?? ''),
         'location_name' => $locationName,
@@ -291,6 +306,42 @@ function newsroom_community_event_presenter(array $row): array
         'admin_notes' => (string) ($row['admin_notes'] ?? ''),
         'is_hidden' => !empty($row['is_hidden']),
     ];
+}
+
+function newsroom_community_event_story_meta(array $event): array
+{
+    $parts = [];
+    if (!empty($event['source_type'])) {
+        $parts[] = ucwords(str_replace('_', ' ', (string) $event['source_type']));
+    }
+    if (!empty($event['source_category'])) {
+        $parts[] = (string) $event['source_category'];
+    }
+    if (!empty($event['effective_coverage_mode'])) {
+        $parts[] = 'Coverage: ' . str_replace('_', ' ', (string) $event['effective_coverage_mode']);
+    }
+    return $parts;
+}
+
+function newsroom_community_event_summary(array $event): string
+{
+    $description = trim((string) ($event['description'] ?? ''));
+    if ($description !== '') {
+        return $description;
+    }
+
+    $startsAt = strtotime((string) ($event['starts_at'] ?? ''));
+    if ($startsAt === false) {
+        return '';
+    }
+
+    $title = trim((string) ($event['title'] ?? 'The event'));
+    $location = trim((string) ($event['location_name'] ?? ''));
+    $summary = $title . ' is scheduled for ' . date('F j, Y \a\t g:i A', $startsAt) . '.';
+    if ($location !== '') {
+        $summary .= ' It is listed for ' . $location . '.';
+    }
+    return $summary;
 }
 
 function newsroom_latest_stories(int $limit = 8): array
@@ -612,6 +663,30 @@ function newsroom_upcoming_community_events(int $limit = 20): array
     return array_map('newsroom_community_event_presenter', $statement->fetchAll());
 }
 
+function newsroom_community_event_by_id(int $id): ?array
+{
+    if (!newsroom_db_available() || $id <= 0) {
+        return null;
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            ce.*,
+            COALESCE(ce.score_override, ce.editorial_score) AS effective_score,
+            COALESCE(NULLIF(ce.coverage_override, ""), ce.suggested_coverage_mode) AS effective_coverage_mode
+         FROM community_events ce
+         WHERE ce.id = :id AND ce.is_hidden = 0
+         LIMIT 1'
+    );
+    $statement->execute([':id' => $id]);
+    $row = $statement->fetch();
+    if (!$row) {
+        return null;
+    }
+
+    return newsroom_community_event_presenter($row);
+}
+
 function newsroom_recent_meeting_recaps(int $limit = 12): array
 {
     if (!newsroom_db_available()) {
@@ -769,7 +844,7 @@ function newsroom_editorial_items(int $limit = 120): array
                 ce.admin_notes,
                 ce.is_hidden AS is_hidden,
                 ce.source_category AS status_label,
-                "" AS public_slug,
+                ce.slug AS public_slug,
                 ce.source_url AS public_url
             FROM community_events ce
         ) editorial_items
@@ -783,6 +858,9 @@ function newsroom_editorial_items(int $limit = 120): array
     foreach ($rows as &$row) {
         if ((string) ($row['entity_type'] ?? '') === 'story' && !empty($row['public_slug'])) {
             $row['public_url'] = newsroom_story_url_from_slug((string) $row['public_slug']);
+        }
+        if ((string) ($row['entity_type'] ?? '') === 'community_event') {
+            $row['public_url'] = newsroom_community_event_url_from_parts((int) ($row['entity_id'] ?? 0), (string) ($row['public_slug'] ?? ''));
         }
         $row['effective_score'] = isset($row['score_override']) && $row['score_override'] !== null
             ? (int) $row['score_override']

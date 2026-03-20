@@ -67,7 +67,7 @@ function newsroom_pill_style(array $signal): string
                             <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['body_name']) ?></span>
                             <span class="story-card__meta"><?= htmlspecialchars(date('g:i A', strtotime((string) $event['starts_at']))) ?></span>
                         </div>
-                        <h3><?= htmlspecialchars($event['title']) ?></h3>
+                        <h3><a href="<?= htmlspecialchars($event['local_url']) ?>"><?= htmlspecialchars($event['title']) ?></a></h3>
                         <p><?= htmlspecialchars(date('l, F j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
                         <?php if (!empty($event['location_name'])): ?>
                             <p><a href="<?= htmlspecialchars((string) $event['location_map_url']) ?>"><?= htmlspecialchars((string) $event['location_name']) ?></a></p>
@@ -124,7 +124,9 @@ function newsroom_pill_style(array $signal): string
                         <?php endif; ?>
                     </div>
                     <div class="calendar-row__source">
-                        <a href="<?= htmlspecialchars((string) $event['source_url']) ?>" target="_blank" rel="noopener noreferrer">Details</a>
+                        <a href="<?= htmlspecialchars((string) $event['local_url']) ?>">Coverage</a>
+                        <br>
+                        <a href="<?= htmlspecialchars((string) $event['source_url']) ?>" target="_blank" rel="noopener noreferrer">Official listing</a>
                     </div>
                 </article>
             <?php endforeach; ?>
