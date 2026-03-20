@@ -568,8 +568,15 @@ Build a local-news publishing system that ingests municipal and other local cont
 - queue views can preset filters and sort order for `Watch live`, `Recap needed`, `Minutes reconcile`, `Follow-up story`, and `Must cover`
 - active queue views now show a focused-queue explainer block
 - workflow rows like `Watch live`, `Recap needed`, and `Minutes reconcile` now get row-level visual emphasis in the table
+- The latest desk polish is also live:
+- score treatment is now more visual, with banded score cards and progress bars
+- form controls now use paper-style inputs/selects that better match the public site
+- `/desk/methodology` now documents the desk rules, score bands, signal families, and workflow lifecycle
+- focused queue views now include queue-specific action links like `Stories Only`, date-order shortcuts, and `Methodology`
 
 ## Recent commits
+- `TO_FILL_A` - `Polish desk visuals and add methodology page`
+- `TO_FILL_B` - `Update context after desk methodology rollout`
 - `4161fab` - `Add preset workflow queue views to editorial desk`
 - `79d0a14` - `Polish editorial desk and sync workflow automation`
 - `1aaf307` - `Add story context and related coverage blocks`

@@ -144,6 +144,46 @@ function newsroom_editorial_queue_url(string $queueKey, array $filters = []): st
     return '/desk?' . http_build_query($query);
 }
 
+function newsroom_editorial_queue_actions(?string $queueFilter): array
+{
+    switch ($queueFilter) {
+        case 'watch_live':
+            return [
+                ['label' => 'Stories Only', 'url' => newsroom_editorial_queue_url('watch_live', ['entity' => 'story'])],
+                ['label' => 'Upcoming First', 'url' => newsroom_editorial_queue_url('watch_live', ['sort' => 'date_asc'])],
+                ['label' => 'Methodology', 'url' => '/desk/methodology'],
+            ];
+        case 'recap_needed':
+            return [
+                ['label' => 'Stories Only', 'url' => newsroom_editorial_queue_url('recap_needed', ['entity' => 'story'])],
+                ['label' => 'Newest First', 'url' => newsroom_editorial_queue_url('recap_needed', ['sort' => 'date_desc'])],
+                ['label' => 'Methodology', 'url' => '/desk/methodology'],
+            ];
+        case 'minutes_reconcile':
+            return [
+                ['label' => 'Stories Only', 'url' => newsroom_editorial_queue_url('minutes_reconcile', ['entity' => 'story'])],
+                ['label' => 'Latest Meetings First', 'url' => newsroom_editorial_queue_url('minutes_reconcile', ['sort' => 'date_desc'])],
+                ['label' => 'Methodology', 'url' => '/desk/methodology'],
+            ];
+        case 'follow_up_story':
+            return [
+                ['label' => 'Highest Score First', 'url' => newsroom_editorial_queue_url('follow_up_story', ['sort' => 'score_desc'])],
+                ['label' => 'Stories Only', 'url' => newsroom_editorial_queue_url('follow_up_story', ['entity' => 'story'])],
+                ['label' => 'Methodology', 'url' => '/desk/methodology'],
+            ];
+        case 'must_cover':
+            return [
+                ['label' => 'Upcoming First', 'url' => newsroom_editorial_queue_url('must_cover', ['sort' => 'date_asc'])],
+                ['label' => 'Stories Only', 'url' => newsroom_editorial_queue_url('must_cover', ['entity' => 'story'])],
+                ['label' => 'Methodology', 'url' => '/desk/methodology'],
+            ];
+        default:
+            return [];
+    }
+}
+
+$queueActions = newsroom_editorial_queue_actions($queueFilter);
+
 function newsroom_editorial_datetime(string $value): string
 {
     $stamp = strtotime($value);
@@ -172,7 +212,7 @@ function newsroom_editorial_datetime(string $value): string
     <header class="masthead">
         <div class="masthead__rail">
             <div class="masthead__meta">Editorial News Desk</div>
-            <div class="masthead__meta"><a href="/desk?logout=1">Log out</a> / <?= date('l, F j, Y') ?></div>
+            <div class="masthead__meta"><a href="/desk/methodology">Methodology</a> / <a href="/desk?logout=1">Log out</a> / <?= date('l, F j, Y') ?></div>
         </div>
         <div class="masthead__core">
             <h1 class="masthead__title"><a href="/" class="masthead__home-link">The Wareham Times</a></h1>
@@ -196,12 +236,20 @@ function newsroom_editorial_datetime(string $value): string
             <div class="editorial-active-queue__label">Focused queue</div>
             <h3><?= htmlspecialchars((string) $activeQueue['label']) ?></h3>
             <p><?= htmlspecialchars((string) $activeQueue['description']) ?></p>
+            <?php if ($queueActions): ?>
+                <div class="editorial-active-queue__actions">
+                    <?php foreach ($queueActions as $action): ?>
+                        <a href="<?= htmlspecialchars((string) $action['url']) ?>"><?= htmlspecialchars((string) $action['label']) ?></a>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </section>
     <?php endif; ?>
 
     <section class="editorial-explainer">
         <p>The current score emphasizes civic impact, public interest, timeliness, and body priority. It subtracts points for routine recurring meetings and low-signal appointment-only agendas.</p>
         <p>The workflow is intended as a newsroom lifecycle: preview published, watch live, recap needed, minutes reconcile, follow-up story, and done.</p>
+        <p><a href="/desk/methodology">View the full methodology and scoring signals.</a></p>
     </section>
 
     <form method="get" class="editorial-filters">
@@ -353,7 +401,12 @@ function newsroom_editorial_datetime(string $value): string
                         <div class="editorial-item__meta-value"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $item['effective_coverage_mode']))) ?></div>
                     </td>
                     <td>
-                        <div class="editorial-score"><?= htmlspecialchars((string) $item['editorial_score']) ?></div>
+                        <?php $scoreBand = newsroom_editorial_score_band((int) $item['effective_score']); ?>
+                        <div class="editorial-score-card editorial-score-card--<?= htmlspecialchars((string) $scoreBand['class']) ?>">
+                            <div class="editorial-score-card__bar"><span style="width: <?= max(0, min(100, (int) $item['effective_score'])) ?>%;"></span></div>
+                            <div class="editorial-score-card__value"><?= htmlspecialchars((string) $item['editorial_score']) ?></div>
+                            <div class="editorial-score-card__band"><?= htmlspecialchars((string) $scoreBand['label']) ?></div>
+                        </div>
                         <div class="editorial-item__meta">Default score</div>
                         <label class="editorial-inline-control">
                             <span>Override</span>

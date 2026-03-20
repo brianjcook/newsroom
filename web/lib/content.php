@@ -315,6 +315,60 @@ function newsroom_editorial_queue_presets(): array
     ];
 }
 
+function newsroom_editorial_methodology(): array
+{
+    return [
+        'score_bands' => [
+            ['label' => 'Must-cover range', 'range' => '75-100', 'meaning' => 'Usually strong enough for a full story or high editorial attention.'],
+            ['label' => 'Brief range', 'range' => '45-74', 'meaning' => 'Often suitable for a short preview, brief, or prominent listing.'],
+            ['label' => 'Calendar-only range', 'range' => '0-44', 'meaning' => 'Usually useful as a listing unless other signals push it higher.'],
+        ],
+        'story_rules' => [
+            ['signal' => 'Public hearing', 'weight' => '+28', 'note' => 'Formal public-hearing items get a strong civic-impact boost.'],
+            ['signal' => 'Town Meeting matter', 'weight' => '+22', 'note' => 'Town Meeting articles and warrant items score high.'],
+            ['signal' => 'Wastewater / sewer', 'weight' => '+22 / +18', 'note' => 'Infrastructure planning and utility items are elevated.'],
+            ['signal' => 'Budget / appropriation', 'weight' => '+20', 'note' => 'Money and spending items rank higher.'],
+            ['signal' => 'School choice / policy review', 'weight' => '+20 / +18', 'note' => 'School-governance issues are boosted.'],
+            ['signal' => 'Tobacco violation', 'weight' => '+18', 'note' => 'Public-health enforcement issues are elevated.'],
+            ['signal' => 'High-interest governing body', 'weight' => '+3 to +5', 'note' => 'Select Board, Planning Board, School Committee, and similar bodies get a body-priority bump.'],
+            ['signal' => 'Why-it-matters context', 'weight' => '+4', 'note' => 'Stories with stronger framing get a modest context bonus.'],
+            ['signal' => 'Appointment-only penalty', 'weight' => '-8', 'note' => 'Pure appointment agendas are pushed down unless they also carry stronger civic issues.'],
+        ],
+        'community_rules' => [
+            ['signal' => 'Annual / recurring tradition', 'weight' => '+24 to +26', 'note' => 'Recurring local traditions are intentionally elevated.'],
+            ['signal' => 'Contest / festival / concert / performance', 'weight' => '+16 to +24', 'note' => 'High-interest community and cultural events score better.'],
+            ['signal' => 'Public hearing / vote / budget / zoning', 'weight' => '+22 to +32', 'note' => 'Civic-impact signals still apply to public-calendar events.'],
+            ['signal' => 'Timeliness bonus', 'weight' => '+3 to +10', 'note' => 'Events happening soon score higher.'],
+            ['signal' => 'Public-interest bonus', 'weight' => '+5 to +6', 'note' => 'Family, cultural, or broad-attendance cues lift the score.'],
+            ['signal' => 'Routine official meeting penalty', 'weight' => '-10 to -18', 'note' => 'Routine recurring meetings get pushed down unless the agenda is notable.'],
+            ['signal' => 'Recurring board meeting penalty', 'weight' => '-8', 'note' => 'Low-signal committee meetings do not automatically outrank community events.'],
+        ],
+        'workflow' => [
+            ['status' => 'Monitor', 'note' => 'Keep on the desk and watch for a stronger reporting trigger.'],
+            ['status' => 'Preview published', 'note' => 'The advance story is live; the next likely step is live monitoring or recap coverage.'],
+            ['status' => 'Watch live', 'note' => 'Flagged for live attendance, Zoom observation, or recording review.'],
+            ['status' => 'Recap needed', 'note' => 'The meeting or event likely happened and now needs a post-event write-up.'],
+            ['status' => 'Minutes reconcile', 'note' => 'Published coverage should be checked against minutes or the official record.'],
+            ['status' => 'Follow-up story', 'note' => 'A second-day, explanatory, or accountability story may be warranted.'],
+            ['status' => 'Done', 'note' => 'No immediate desk action is queued.'],
+        ],
+    ];
+}
+
+function newsroom_editorial_score_band(int $score): array
+{
+    if ($score >= 75) {
+        return ['label' => 'Must Cover', 'class' => 'must-cover'];
+    }
+    if ($score >= 60) {
+        return ['label' => 'High Brief', 'class' => 'high-brief'];
+    }
+    if ($score >= 45) {
+        return ['label' => 'Brief', 'class' => 'brief'];
+    }
+    return ['label' => 'Calendar', 'class' => 'calendar'];
+}
+
 function newsroom_story_url_from_slug(string $slug): string
 {
     return '/stories/' . rawurlencode($slug);
