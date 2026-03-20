@@ -102,6 +102,42 @@ function newsroom_parse_topics($value): array
     return $parsed;
 }
 
+function newsroom_truncate_text(string $value, int $limit = 220): string
+{
+    $value = trim(preg_replace('/\s+/', ' ', $value));
+    if ($value === '' || strlen($value) <= $limit) {
+        return $value;
+    }
+
+    $truncated = substr($value, 0, $limit + 1);
+    $lastSpace = strrpos($truncated, ' ');
+    if ($lastSpace !== false) {
+        $truncated = substr($truncated, 0, $lastSpace);
+    }
+    return rtrim($truncated, " ,.;:-") . '...';
+}
+
+function newsroom_sentence_list(array $items): string
+{
+    $items = array_values(array_filter(array_map(static function ($item): string {
+        return trim((string) $item);
+    }, $items)));
+
+    $count = count($items);
+    if ($count === 0) {
+        return '';
+    }
+    if ($count === 1) {
+        return $items[0];
+    }
+    if ($count === 2) {
+        return $items[0] . ' and ' . $items[1];
+    }
+
+    $last = array_pop($items);
+    return implode(', ', $items) . ', and ' . $last;
+}
+
 function newsroom_topic_url(string $slug): string
 {
     return '/topics/' . rawurlencode(trim($slug));
@@ -358,6 +394,11 @@ function newsroom_community_event_summary(array $event): string
 {
     $description = trim((string) ($event['description'] ?? ''));
     if ($description !== '') {
+        $description = newsroom_truncate_text($description, 220);
+        $startsAt = strtotime((string) ($event['starts_at'] ?? ''));
+        if ($startsAt !== false) {
+            return $description . ' The event is scheduled for ' . date('F j, Y \a\t g:i A', $startsAt) . '.';
+        }
         return $description;
     }
 
@@ -373,6 +414,109 @@ function newsroom_community_event_summary(array $event): string
         $summary .= ' It is listed for ' . $location . '.';
     }
     return $summary;
+}
+
+function newsroom_community_event_focus(array $event): string
+{
+    $description = trim((string) ($event['description'] ?? ''));
+    if ($description !== '') {
+        return newsroom_truncate_text($description, 320);
+    }
+
+    $title = trim((string) ($event['title'] ?? 'The event'));
+    $startsAt = strtotime((string) ($event['starts_at'] ?? ''));
+    $location = trim((string) ($event['location_name'] ?? ''));
+    $parts = [];
+    if ($startsAt !== false) {
+        $parts[] = 'is scheduled for ' . date('F j, Y \a\t g:i A', $startsAt);
+    }
+    if ($location !== '') {
+        $parts[] = 'will take place at ' . $location;
+    }
+    return $title . ($parts ? ' ' . newsroom_sentence_list($parts) . '.' : '.');
+}
+
+function newsroom_community_event_signal_items(array $event, int $limit = 4): array
+{
+    $signals = newsroom_parse_json($event['editorial_signals_json'] ?? null);
+    $items = [];
+    foreach ($signals as $signal) {
+        if (!is_array($signal)) {
+            continue;
+        }
+        $weight = (int) ($signal['weight'] ?? 0);
+        $reason = trim((string) ($signal['reason'] ?? ''));
+        if ($weight <= 0 || $reason === '') {
+            continue;
+        }
+        $items[] = [
+            'reason' => $reason,
+            'weight' => $weight,
+        ];
+    }
+
+    usort($items, static function (array $a, array $b): int {
+        return $b['weight'] <=> $a['weight'];
+    });
+
+    return array_slice($items, 0, $limit);
+}
+
+function newsroom_community_event_brief_intro(array $event): string
+{
+    $title = trim((string) ($event['title'] ?? 'This event'));
+    $startsAt = strtotime((string) ($event['starts_at'] ?? ''));
+    $location = trim((string) ($event['location_name'] ?? ''));
+    $lead = $title;
+
+    if ($startsAt !== false) {
+        $lead .= ' is scheduled for ' . date('F j, Y \a\t g:i A', $startsAt);
+    }
+    if ($location !== '') {
+        $lead .= ' at ' . $location;
+    }
+
+    $focus = trim((string) ($event['description'] ?? ''));
+    if ($focus !== '') {
+        return $lead . '. ' . newsroom_truncate_text($focus, 240);
+    }
+
+    return $lead . '.';
+}
+
+function newsroom_community_event_editorial_note(array $event): string
+{
+    $signals = newsroom_community_event_signal_items($event, 3);
+    if (!$signals) {
+        return 'The editorial desk flagged this listing as a potentially worthwhile local item to watch.';
+    }
+
+    $reasons = array_map(static function (array $signal): string {
+        return strtolower((string) $signal['reason']);
+    }, $signals);
+
+    return 'The editorial desk elevated this event because it suggests ' . newsroom_sentence_list($reasons) . '.';
+}
+
+function newsroom_topic_overview(array $topic, array $bundle): string
+{
+    $storyCount = count($bundle['stories'] ?? []);
+    $eventCount = count($bundle['events'] ?? []);
+    $label = (string) ($topic['label'] ?? 'This topic');
+
+    $parts = [];
+    if ($storyCount > 0) {
+        $parts[] = $storyCount . ' recent story' . ($storyCount === 1 ? '' : 'ies');
+    }
+    if ($eventCount > 0) {
+        $parts[] = $eventCount . ' upcoming event' . ($eventCount === 1 ? '' : 's');
+    }
+
+    if ($parts) {
+        return $label . ' coverage currently includes ' . newsroom_sentence_list($parts) . '.';
+    }
+
+    return $label . ' is tracked as a recurring local coverage area.';
 }
 
 function newsroom_latest_stories(int $limit = 8): array
@@ -989,9 +1133,9 @@ function newsroom_topics_index(int $limit = 40): array
     }
 
     $statement = newsroom_db()->prepare(
-        'SELECT topic_tags_json FROM stories WHERE publish_status = "published"
+        'SELECT "story" AS entity_type, topic_tags_json FROM stories WHERE publish_status = "published"
          UNION ALL
-         SELECT topic_tags_json FROM community_events WHERE is_hidden = 0'
+         SELECT "community_event" AS entity_type, topic_tags_json FROM community_events WHERE is_hidden = 0'
     );
     $statement->execute();
 
@@ -1000,9 +1144,14 @@ function newsroom_topics_index(int $limit = 40): array
         foreach (newsroom_parse_topics($row['topic_tags_json'] ?? null) as $topic) {
             $slug = $topic['slug'];
             if (!isset($counts[$slug])) {
-                $counts[$slug] = ['slug' => $slug, 'label' => $topic['label'], 'count' => 0];
+                $counts[$slug] = ['slug' => $slug, 'label' => $topic['label'], 'count' => 0, 'story_count' => 0, 'event_count' => 0];
             }
             $counts[$slug]['count']++;
+            if (($row['entity_type'] ?? '') === 'community_event') {
+                $counts[$slug]['event_count']++;
+            } else {
+                $counts[$slug]['story_count']++;
+            }
         }
     }
 

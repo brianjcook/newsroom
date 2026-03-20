@@ -25,8 +25,28 @@ $entityFilter = trim((string) ($_GET['entity'] ?? 'all'));
 $coverageFilter = trim((string) ($_GET['coverage'] ?? 'all'));
 $visibilityFilter = trim((string) ($_GET['visibility'] ?? 'all'));
 $workflowFilter = trim((string) ($_GET['workflow'] ?? 'all'));
+$watchFilter = trim((string) ($_GET['watch_live'] ?? 'all'));
+$followUpFilter = trim((string) ($_GET['follow_up'] ?? 'all'));
+$topicFilter = trim((string) ($_GET['topic'] ?? 'all'));
+$bodyFilter = trim((string) ($_GET['body'] ?? 'all'));
+$sortFilter = trim((string) ($_GET['sort'] ?? 'score_desc'));
 
-$items = array_values(array_filter($items, static function (array $item) use ($entityFilter, $coverageFilter, $visibilityFilter, $workflowFilter): bool {
+$topicOptions = [];
+$bodyOptions = [];
+foreach ($items as $item) {
+    $bodyName = trim((string) ($item['body_name'] ?? ''));
+    if ($bodyName !== '') {
+        $bodyOptions[$bodyName] = $bodyName;
+    }
+
+    foreach (newsroom_parse_topics($item['topic_tags_json'] ?? null) as $topic) {
+        $topicOptions[$topic['slug']] = $topic['label'];
+    }
+}
+asort($topicOptions);
+asort($bodyOptions);
+
+$items = array_values(array_filter($items, static function (array $item) use ($entityFilter, $coverageFilter, $visibilityFilter, $workflowFilter, $watchFilter, $followUpFilter, $topicFilter, $bodyFilter): bool {
     if ($entityFilter !== 'all' && (string) $item['entity_type'] !== $entityFilter) {
         return false;
     }
@@ -42,8 +62,45 @@ $items = array_values(array_filter($items, static function (array $item) use ($e
     if ($workflowFilter !== 'all' && (string) ($item['workflow_status'] ?? '') !== $workflowFilter) {
         return false;
     }
+    if ($watchFilter === 'watching' && empty($item['watch_live'])) {
+        return false;
+    }
+    if ($watchFilter === 'not_watching' && !empty($item['watch_live'])) {
+        return false;
+    }
+    if ($followUpFilter === 'needed' && empty($item['follow_up_needed'])) {
+        return false;
+    }
+    if ($followUpFilter === 'not_needed' && !empty($item['follow_up_needed'])) {
+        return false;
+    }
+    if ($bodyFilter !== 'all' && (string) ($item['body_name'] ?? '') !== $bodyFilter) {
+        return false;
+    }
+    if ($topicFilter !== 'all') {
+        $topicSlugs = array_map(static function (array $topic): string {
+            return (string) $topic['slug'];
+        }, newsroom_parse_topics($item['topic_tags_json'] ?? null));
+        if (!in_array($topicFilter, $topicSlugs, true)) {
+            return false;
+        }
+    }
     return true;
 }));
+
+usort($items, static function (array $a, array $b) use ($sortFilter): int {
+    switch ($sortFilter) {
+        case 'score_asc':
+            return ((int) $a['effective_score'] <=> (int) $b['effective_score']) ?: strcmp((string) $a['occurs_at'], (string) $b['occurs_at']);
+        case 'date_desc':
+            return strcmp((string) $b['occurs_at'], (string) $a['occurs_at']) ?: ((int) $b['effective_score'] <=> (int) $a['effective_score']);
+        case 'date_asc':
+            return strcmp((string) $a['occurs_at'], (string) $b['occurs_at']) ?: ((int) $b['effective_score'] <=> (int) $a['effective_score']);
+        case 'score_desc':
+        default:
+            return ((int) $b['effective_score'] <=> (int) $a['effective_score']) ?: strcmp((string) $a['occurs_at'], (string) $b['occurs_at']);
+    }
+});
 
 function newsroom_editorial_datetime(string $value): string
 {
@@ -133,6 +190,49 @@ function newsroom_editorial_datetime(string $value): string
                 <option value="assigned"<?= $workflowFilter === 'assigned' ? ' selected' : '' ?>>Assigned</option>
                 <option value="published"<?= $workflowFilter === 'published' ? ' selected' : '' ?>>Published</option>
                 <option value="follow_up"<?= $workflowFilter === 'follow_up' ? ' selected' : '' ?>>Follow up</option>
+            </select>
+        </label>
+        <label>
+            <span>Watch Live</span>
+            <select name="watch_live">
+                <option value="all"<?= $watchFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <option value="watching"<?= $watchFilter === 'watching' ? ' selected' : '' ?>>Watch live</option>
+                <option value="not_watching"<?= $watchFilter === 'not_watching' ? ' selected' : '' ?>>Not flagged</option>
+            </select>
+        </label>
+        <label>
+            <span>Follow Up</span>
+            <select name="follow_up">
+                <option value="all"<?= $followUpFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <option value="needed"<?= $followUpFilter === 'needed' ? ' selected' : '' ?>>Needed</option>
+                <option value="not_needed"<?= $followUpFilter === 'not_needed' ? ' selected' : '' ?>>Not needed</option>
+            </select>
+        </label>
+        <label>
+            <span>Topic</span>
+            <select name="topic">
+                <option value="all"<?= $topicFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <?php foreach ($topicOptions as $topicSlug => $topicLabel): ?>
+                    <option value="<?= htmlspecialchars((string) $topicSlug) ?>"<?= $topicFilter === (string) $topicSlug ? ' selected' : '' ?>><?= htmlspecialchars((string) $topicLabel) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label>
+            <span>Body</span>
+            <select name="body">
+                <option value="all"<?= $bodyFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <?php foreach ($bodyOptions as $bodyName): ?>
+                    <option value="<?= htmlspecialchars((string) $bodyName) ?>"<?= $bodyFilter === (string) $bodyName ? ' selected' : '' ?>><?= htmlspecialchars((string) $bodyName) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label>
+            <span>Sort</span>
+            <select name="sort">
+                <option value="score_desc"<?= $sortFilter === 'score_desc' ? ' selected' : '' ?>>Score high-low</option>
+                <option value="score_asc"<?= $sortFilter === 'score_asc' ? ' selected' : '' ?>>Score low-high</option>
+                <option value="date_asc"<?= $sortFilter === 'date_asc' ? ' selected' : '' ?>>Date soonest</option>
+                <option value="date_desc"<?= $sortFilter === 'date_desc' ? ' selected' : '' ?>>Date latest</option>
             </select>
         </label>
         <button type="submit">Apply</button>

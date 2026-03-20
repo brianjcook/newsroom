@@ -193,7 +193,7 @@ function newsroom_pill_style(array $signal): string
         <?php foreach ($topics as $topic): ?>
             <article class="story-tease">
                 <h3><a href="<?= htmlspecialchars(newsroom_topic_url((string) $topic['slug'])) ?>"><?= htmlspecialchars((string) $topic['label']) ?></a></h3>
-                <p><?= htmlspecialchars((string) $topic['count']) ?> tagged items across meeting coverage and community events.</p>
+                <p><?= htmlspecialchars((string) $topic['count']) ?> tagged items, including <?= htmlspecialchars((string) ($topic['story_count'] ?? 0)) ?> stories and <?= htmlspecialchars((string) ($topic['event_count'] ?? 0)) ?> events.</p>
             </article>
         <?php endforeach; ?>
     </section>

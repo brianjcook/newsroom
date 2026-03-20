@@ -26,6 +26,10 @@ if ($eventId <= 0 && strpos($requestPath, 'events/') === 0) {
 $event = $eventId > 0 ? newsroom_community_event_by_id($eventId) : null;
 $metaBits = $event ? newsroom_community_event_story_meta($event) : [];
 $summary = $event ? newsroom_community_event_summary($event) : '';
+$focus = $event ? newsroom_community_event_focus($event) : '';
+$briefIntro = $event ? newsroom_community_event_brief_intro($event) : '';
+$signalItems = $event ? newsroom_community_event_signal_items($event) : [];
+$editorialNote = $event ? newsroom_community_event_editorial_note($event) : '';
 
 http_response_code($event ? 200 : 404);
 ?>
@@ -69,6 +73,13 @@ http_response_code($event ? 200 : 404);
                     <span class="signal-pill" style="<?= htmlspecialchars(sprintf('--pill-bg:%s; --pill-fg:%s; --pill-border:%s;', $event['body_signal']['bg'], $event['body_signal']['fg'], $event['body_signal']['border'])) ?>"><?= htmlspecialchars($event['source_type'] === 'community_event' ? 'Community Event' : ucwords(str_replace('_', ' ', $event['source_type']))) ?></span>
                 </div>
                 <div class="story-dek"><?= htmlspecialchars($summary) ?></div>
+                <?php if (!empty($event['topics'])): ?>
+                    <div class="topic-chip-row topic-chip-row--story">
+                        <?php foreach ($event['topics'] as $topic): ?>
+                            <a class="topic-chip" href="<?= htmlspecialchars(newsroom_topic_url((string) $topic['slug'])) ?>"><?= htmlspecialchars((string) $topic['label']) ?></a>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
                 <div class="story-information">
                     <div class="story-information__row">
                         <span class="story-information__label">Date &amp; Time</span>
@@ -102,13 +113,19 @@ http_response_code($event ? 200 : 404);
                     </div>
                 </div>
 
-                <p><?= htmlspecialchars($summary) ?></p>
+                <p><?= htmlspecialchars($briefIntro) ?></p>
+                <?php if ($focus !== ''): ?>
+                    <h3>What to Know</h3>
+                    <p><?= htmlspecialchars($focus) ?></p>
+                <?php endif; ?>
+                <?php if ($editorialNote !== ''): ?>
+                    <h3>Why It Stands Out</h3>
+                    <p><?= htmlspecialchars($editorialNote) ?></p>
+                <?php endif; ?>
                 <?php if (!empty($event['description'])): ?>
                     <h3>Event Details</h3>
                     <p><?= htmlspecialchars((string) $event['description']) ?></p>
                 <?php endif; ?>
-                <h3>Why It Stands Out</h3>
-                <p>This event was surfaced by the editorial desk as a story-worthy or brief-worthy item from Wareham's public calendar. The local listing remains the source of record.</p>
             <?php else: ?>
                 <h2 class="story-headline">Event not found</h2>
                 <p class="empty-state">The requested event could not be found or is no longer available.</p>
@@ -124,6 +141,9 @@ http_response_code($event ? 200 : 404);
                     <?php if (!empty($event['source_category'])): ?>
                         <li class="footnotes__item"><?= htmlspecialchars((string) $event['source_category']) ?></li>
                     <?php endif; ?>
+                    <?php foreach ($signalItems as $signal): ?>
+                        <li class="footnotes__item"><?= htmlspecialchars((string) $signal['reason']) ?> (<?= htmlspecialchars(sprintf('%+d', (int) $signal['weight'])) ?>)</li>
+                    <?php endforeach; ?>
                 </ol>
             <?php else: ?>
                 <p class="empty-state">Event facts will appear here when a listing is available.</p>

@@ -322,6 +322,10 @@ a:hover {
     line-height: 1.6;
 }
 
+.topic-chip-row--story {
+    margin: -2px 0 16px;
+}
+
 .story-masonry {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

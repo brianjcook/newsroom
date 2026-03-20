@@ -23,6 +23,7 @@ $indexMode = $slug === '';
 $topics = $indexMode ? newsroom_topics_index() : [];
 $bundle = $indexMode ? ['topic' => null, 'stories' => [], 'events' => []] : newsroom_topic_bundle($slug);
 $topic = $bundle['topic'] ?? null;
+$overview = (!$indexMode && $topic) ? newsroom_topic_overview($topic, $bundle) : '';
 
 http_response_code($indexMode || $topic ? 200 : 404);
 ?>
@@ -58,22 +59,28 @@ http_response_code($indexMode || $topic ? 200 : 404);
 
     <?php if ($indexMode): ?>
         <h2 class="section-heading">Topics</h2>
+        <p class="section-intro">Browse coverage by the recurring issues that keep surfacing in Wareham meetings, public records, and community-calendar items.</p>
         <section class="story-masonry">
             <?php foreach ($topics as $topicItem): ?>
                 <article class="story-tease">
                     <h3><a href="<?= htmlspecialchars(newsroom_topic_url((string) $topicItem['slug'])) ?>"><?= htmlspecialchars((string) $topicItem['label']) ?></a></h3>
-                    <p><?= htmlspecialchars((string) $topicItem['count']) ?> tagged items across stories and events.</p>
+                    <p><?= htmlspecialchars((string) $topicItem['count']) ?> tagged items, including <?= htmlspecialchars((string) ($topicItem['story_count'] ?? 0)) ?> stories and <?= htmlspecialchars((string) ($topicItem['event_count'] ?? 0)) ?> events.</p>
                 </article>
             <?php endforeach; ?>
         </section>
     <?php elseif ($topic): ?>
         <h2 class="section-heading"><?= htmlspecialchars((string) $topic['label']) ?></h2>
+        <p class="section-intro"><?= htmlspecialchars($overview) ?></p>
         <section class="front-page">
             <section class="lead-story">
                 <div class="eyebrow">Recent Coverage</div>
                 <?php if ($bundle['stories']): ?>
                     <?php $lead = $bundle['stories'][0]; ?>
                     <h2><a href="<?= htmlspecialchars(newsroom_story_url($lead)) ?>"><?= htmlspecialchars((string) $lead['headline']) ?></a></h2>
+                    <div class="story-meta-row story-meta-row--compact">
+                        <span class="signal-pill" style="<?= htmlspecialchars(sprintf('--pill-bg:%s; --pill-fg:%s; --pill-border:%s;', $lead['meta']['body_signal']['bg'], $lead['meta']['body_signal']['fg'], $lead['meta']['body_signal']['border'])) ?>"><?= htmlspecialchars((string) $lead['meta']['body_name']) ?></span>
+                        <span class="story-card__meta"><?= htmlspecialchars((string) $lead['meta']['meeting_datetime']) ?></span>
+                    </div>
                     <p class="lead-story__summary"><?= htmlspecialchars((string) ($lead['meta']['summary_text'] ?? $lead['summary'] ?? '')) ?></p>
                 <?php else: ?>
                     <p class="empty-state">No published stories are currently tagged to this topic.</p>
@@ -84,6 +91,10 @@ http_response_code($indexMode || $topic ? 200 : 404);
                 <?php foreach (array_slice($bundle['stories'], 1, 6) as $story): ?>
                     <article class="rail-story">
                         <h3><a href="<?= htmlspecialchars(newsroom_story_url($story)) ?>"><?= htmlspecialchars((string) $story['headline']) ?></a></h3>
+                        <div class="story-meta-row story-meta-row--compact">
+                            <span class="signal-pill" style="<?= htmlspecialchars(sprintf('--pill-bg:%s; --pill-fg:%s; --pill-border:%s;', $story['meta']['body_signal']['bg'], $story['meta']['body_signal']['fg'], $story['meta']['body_signal']['border'])) ?>"><?= htmlspecialchars((string) $story['meta']['body_name']) ?></span>
+                            <span class="story-card__meta"><?= htmlspecialchars((string) $story['meta']['meeting_datetime']) ?></span>
+                        </div>
                         <p><?= htmlspecialchars((string) ($story['meta']['summary_text'] ?? $story['summary'] ?? '')) ?></p>
                     </article>
                 <?php endforeach; ?>
@@ -95,8 +106,11 @@ http_response_code($indexMode || $topic ? 200 : 404);
                         <article class="event-item">
                             <strong><a href="<?= htmlspecialchars((string) $event['local_url']) ?>"><?= htmlspecialchars((string) $event['title']) ?></a></strong>
                             <p class="event-item__datetime"><?= htmlspecialchars(date('M. j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
+                            <?php if (!empty($event['location_name'])): ?>
+                                <p><?= htmlspecialchars((string) $event['location_name']) ?></p>
+                            <?php endif; ?>
                             <?php if (!empty($event['description'])): ?>
-                                <p class="event-item__summary"><?= htmlspecialchars((string) $event['description']) ?></p>
+                                <p class="event-item__summary"><?= htmlspecialchars(newsroom_truncate_text((string) $event['description'], 180)) ?></p>
                             <?php endif; ?>
                         </article>
                     <?php endforeach; ?>
