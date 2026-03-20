@@ -570,7 +570,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - workflow rows like `Watch live`, `Recap needed`, and `Minutes reconcile` now get row-level visual emphasis in the table
 
 ## Recent commits
-- `TO_FILL` - `Add preset workflow queue views to editorial desk`
+- `4161fab` - `Add preset workflow queue views to editorial desk`
 - `79d0a14` - `Polish editorial desk and sync workflow automation`
 - `1aaf307` - `Add story context and related coverage blocks`
 - `7aa4f9d` - `Extend editorial desk session lifetime`
