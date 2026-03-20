@@ -523,7 +523,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
-- `pending` - `Clean desk presentation and move public URLs to path routes`
+- `d162279` - `Clean desk UI and move public routes to paths`
 - `b137ae0` - `Tune editorial desk scoring and filters`
 - `6e06e28` - `Add editorial scoring and public calendar desk`
 - `9f6f6ad` - `Refine hearing and appointment story quality`
