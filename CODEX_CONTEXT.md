@@ -525,6 +525,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - community-event pages now render as short local briefs with a stronger summary, a `What to Know` section, an editorial note, surfaced positive score signals, and linked topic chips
 - topic pages now behave more like lightweight beat pages, with a topic-overview intro, richer lead-story metadata, cleaner upcoming-event summaries, and topic-index counts split between stories and events
 - the editorial desk now has practical triage filters for `watch_live`, `follow_up_needed`, topic, body, and sort order in addition to the earlier entity/coverage/visibility/workflow filters
+- Added a story-context/crosslink pass:
+- story pages now show topic chips, a `What Happens Next` section, and topic-aware related coverage/event links
+- event pages now show topic-aware related stories and related events in addition to the stronger brief framing
+- this pass was implemented entirely in the presentation/query layer so it did not require a worker rebuild or content republish
 - Added lightweight desk protection:
 - `web/bootstrap.php` now supports config-driven editorial credentials and a session-based login gate
 - `/desk` now redirects unauthenticated users to a small login form and preserves access through a session cookie
@@ -547,6 +551,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `7aa4f9d` - `Extend editorial desk session lifetime`
 - `5157f96` - `Protect editorial desk with session login`
 - `d983b5b` - `Improve event briefs and editorial desk triage`
 - `6565acf` - `Update context after workflow and topic rollout`

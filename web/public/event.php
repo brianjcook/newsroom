@@ -30,6 +30,7 @@ $focus = $event ? newsroom_community_event_focus($event) : '';
 $briefIntro = $event ? newsroom_community_event_brief_intro($event) : '';
 $signalItems = $event ? newsroom_community_event_signal_items($event) : [];
 $editorialNote = $event ? newsroom_community_event_editorial_note($event) : '';
+$relatedBundle = $event ? newsroom_event_related_bundle($event) : ['topic' => null, 'stories' => [], 'events' => []];
 
 http_response_code($event ? 200 : 404);
 ?>
@@ -125,6 +126,25 @@ http_response_code($event ? 200 : 404);
                 <?php if (!empty($event['description'])): ?>
                     <h3>Event Details</h3>
                     <p><?= htmlspecialchars((string) $event['description']) ?></p>
+                <?php endif; ?>
+                <?php if (!empty($relatedBundle['topic']) && (!empty($relatedBundle['stories']) || !empty($relatedBundle['events']))): ?>
+                    <h3>Related Coverage</h3>
+                    <p>This item is also part of <a href="<?= htmlspecialchars(newsroom_topic_url((string) $relatedBundle['topic']['slug'])) ?>"><?= htmlspecialchars((string) $relatedBundle['topic']['label']) ?></a> coverage.</p>
+                    <?php if (!empty($relatedBundle['stories'])): ?>
+                        <ul class="related-list">
+                            <?php foreach ($relatedBundle['stories'] as $relatedStory): ?>
+                                <li><a href="<?= htmlspecialchars(newsroom_story_url($relatedStory)) ?>"><?= htmlspecialchars((string) $relatedStory['headline']) ?></a></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                    <?php if (!empty($relatedBundle['events'])): ?>
+                        <h3>More on This Topic</h3>
+                        <ul class="related-list">
+                            <?php foreach ($relatedBundle['events'] as $relatedEvent): ?>
+                                <li><a href="<?= htmlspecialchars((string) $relatedEvent['local_url']) ?>"><?= htmlspecialchars((string) $relatedEvent['title']) ?></a></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
                 <?php endif; ?>
             <?php else: ?>
                 <h2 class="story-headline">Event not found</h2>

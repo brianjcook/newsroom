@@ -519,6 +519,68 @@ function newsroom_topic_overview(array $topic, array $bundle): string
     return $label . ' is tracked as a recurring local coverage area.';
 }
 
+function newsroom_story_next_steps(array $story): string
+{
+    $storyType = (string) ($story['story_type'] ?? '');
+    $meetingDate = trim((string) ($story['meeting_date'] ?? ''));
+    $meetingTime = trim((string) ($story['meeting_time'] ?? ''));
+    $bodyName = trim((string) ($story['meta']['body_name'] ?? $story['body_name'] ?? 'the board'));
+    $when = newsroom_format_meeting_datetime($meetingDate !== '' ? $meetingDate : null, $meetingTime !== '' ? $meetingTime : null, '');
+
+    if ($storyType === 'meeting_preview') {
+        if ($when !== '') {
+            return 'The next step is the meeting itself: ' . $bodyName . ' is scheduled for ' . $when . '. After that, the newsroom can compare the discussion, votes, and any posted minutes against the preview.';
+        }
+        return 'The next step is the meeting itself, followed by any votes, follow-up actions, and posted minutes.';
+    }
+
+    if ($storyType === 'minutes_recap') {
+        return 'The next step is to watch for follow-up votes, implementation steps, or agenda items that bring the issue back before ' . $bodyName . '.';
+    }
+
+    return 'The next step is to watch for follow-up actions, later agenda items, or posted records that advance the issue.';
+}
+
+function newsroom_story_related_bundle(array $story, int $storyLimit = 4, int $eventLimit = 4): array
+{
+    $topics = newsroom_parse_topics($story['topic_tags_json'] ?? null);
+    if (!$topics || !newsroom_db_available()) {
+        return ['topic' => null, 'stories' => [], 'events' => []];
+    }
+
+    $primaryTopic = $topics[0];
+    $bundle = newsroom_topic_bundle((string) $primaryTopic['slug'], $storyLimit + 1, $eventLimit);
+    $relatedStories = array_values(array_filter($bundle['stories'], static function (array $candidate) use ($story): bool {
+        return (int) ($candidate['id'] ?? 0) !== (int) ($story['id'] ?? 0);
+    }));
+
+    return [
+        'topic' => $primaryTopic,
+        'stories' => array_slice($relatedStories, 0, $storyLimit),
+        'events' => array_slice($bundle['events'], 0, $eventLimit),
+    ];
+}
+
+function newsroom_event_related_bundle(array $event, int $storyLimit = 4, int $eventLimit = 4): array
+{
+    $topics = newsroom_parse_topics($event['topic_tags_json'] ?? null);
+    if (!$topics || !newsroom_db_available()) {
+        return ['topic' => null, 'stories' => [], 'events' => []];
+    }
+
+    $primaryTopic = $topics[0];
+    $bundle = newsroom_topic_bundle((string) $primaryTopic['slug'], $storyLimit, $eventLimit + 1);
+    $relatedEvents = array_values(array_filter($bundle['events'], static function (array $candidate) use ($event): bool {
+        return (int) ($candidate['id'] ?? 0) !== (int) ($event['id'] ?? 0);
+    }));
+
+    return [
+        'topic' => $primaryTopic,
+        'stories' => array_slice($bundle['stories'], 0, $storyLimit),
+        'events' => array_slice($relatedEvents, 0, $eventLimit),
+    ];
+}
+
 function newsroom_latest_stories(int $limit = 8): array
 {
     if (!newsroom_db_available()) {

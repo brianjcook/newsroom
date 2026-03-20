@@ -21,6 +21,8 @@ if ($slug === '' && strpos($requestPath, 'stories/') === 0) {
 $story = $slug !== '' ? newsroom_story_by_slug($slug) : null;
 $citations = $story ? newsroom_story_citations((int) $story['id']) : [];
 $storyDate = $story ? (string) ($story['display_date'] ?? $story['published_at']) : null;
+$relatedBundle = $story ? newsroom_story_related_bundle($story) : ['topic' => null, 'stories' => [], 'events' => []];
+$nextSteps = $story ? newsroom_story_next_steps($story) : '';
 
 function newsroom_pill_style(array $signal): string
 {
@@ -73,6 +75,13 @@ http_response_code($story ? 200 : 404);
                 <div class="story-meta-row story-meta-row--story">
                     <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
                 </div>
+                <?php if (!empty($story['topics'])): ?>
+                    <div class="topic-chip-row topic-chip-row--story">
+                        <?php foreach ($story['topics'] as $topic): ?>
+                            <a class="topic-chip" href="<?= htmlspecialchars(newsroom_topic_url((string) $topic['slug'])) ?>"><?= htmlspecialchars((string) $topic['label']) ?></a>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
                 <div class="story-dek"><?= htmlspecialchars((string) ($story['dek'] ?? '')) ?></div>
                 <div class="story-information">
                     <div class="story-information__row">
@@ -130,6 +139,29 @@ http_response_code($story ? 200 : 404);
                     <?php endif; ?>
                 </div>
                 <div><?= $story['body_html'] ?></div>
+                <?php if ($nextSteps !== ''): ?>
+                    <h3>What Happens Next</h3>
+                    <p><?= htmlspecialchars($nextSteps) ?></p>
+                <?php endif; ?>
+                <?php if (!empty($relatedBundle['topic']) && (!empty($relatedBundle['stories']) || !empty($relatedBundle['events']))): ?>
+                    <h3>Related Coverage</h3>
+                    <p>This story is also part of <a href="<?= htmlspecialchars(newsroom_topic_url((string) $relatedBundle['topic']['slug'])) ?>"><?= htmlspecialchars((string) $relatedBundle['topic']['label']) ?></a> coverage.</p>
+                    <?php if (!empty($relatedBundle['stories'])): ?>
+                        <ul class="related-list">
+                            <?php foreach ($relatedBundle['stories'] as $relatedStory): ?>
+                                <li><a href="<?= htmlspecialchars(newsroom_story_url($relatedStory)) ?>"><?= htmlspecialchars((string) $relatedStory['headline']) ?></a></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                    <?php if (!empty($relatedBundle['events'])): ?>
+                        <h3>Related Upcoming Events</h3>
+                        <ul class="related-list">
+                            <?php foreach ($relatedBundle['events'] as $relatedEvent): ?>
+                                <li><a href="<?= htmlspecialchars((string) $relatedEvent['local_url']) ?>"><?= htmlspecialchars((string) $relatedEvent['title']) ?></a></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                <?php endif; ?>
             <?php else: ?>
                 <h2 class="story-headline">Story not found</h2>
                 <p class="empty-state">The requested story could not be found or has not been published.</p>

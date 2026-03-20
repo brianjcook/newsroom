@@ -326,6 +326,16 @@ a:hover {
     margin: -2px 0 16px;
 }
 
+.related-list {
+    margin: 10px 0 18px;
+    padding-left: 18px;
+}
+
+.related-list li {
+    margin-bottom: 8px;
+    line-height: 1.6;
+}
+
 .story-masonry {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
