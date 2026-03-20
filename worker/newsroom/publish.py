@@ -174,7 +174,7 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
-PUBLISHER_RENDER_VERSION = "2026-03-19-render-v6-hearings-style"
+PUBLISHER_RENDER_VERSION = "2026-03-19-render-v8-address-style"
 
 
 def _slugify(value: str) -> str:
@@ -639,6 +639,25 @@ def _normalize_candidate_name(text: str) -> str:
     return name.title()
 
 
+def _normalize_street_types(text: str) -> str:
+    value = " ".join(str(text or "").split())
+    if not value:
+        return ""
+    replacements = [
+        (r"\bRd\.?(?=\s|,|$)", "Road"),
+        (r"\bAve\.?(?=\s|,|$)", "Avenue"),
+        (r"\bHwy\.?(?=\s|,|$)", "Highway"),
+        (r"\bLn\.?(?=\s|,|$)", "Lane"),
+        (r"\bBlvd\.?(?=\s|,|$)", "Boulevard"),
+        (r"\bSt\.?(?=\s|,|$)", "Street"),
+        (r"\bDr\.?(?=\s|,|$)", "Drive"),
+    ]
+    for pattern, replacement in replacements:
+        value = re.sub(pattern, replacement, value, flags=re.IGNORECASE)
+    value = re.sub(r"\b(Road|Avenue|Highway|Lane|Boulevard|Street|Drive)\.(?=\s|,|$)", r"\1", value)
+    return re.sub(r"\s+", " ", value).strip(" ,.;:-")
+
+
 def _appointment_sentence(target: str, candidate: str = "", kind: str = "") -> str:
     if candidate and kind == "application":
         return "Members are expected to consider {} application to the {}.".format(
@@ -758,7 +777,7 @@ def _headline_phrase(text: str) -> str:
     if "238 & 240 sandwich road" in lowered and "site plan review" in lowered:
         return "Sandwich Road Site Plan Review"
     if ("3031 cran hwy" in lowered or "3031 cranberry hwy" in lowered) and "site plan review" in lowered:
-        return "3031 Cran Hwy. Site Plan Review"
+        return "3031 Cran Highway Site Plan Review"
     if "citizen petition" in lowered and "zoning bylaw article 9" in lowered:
         return "Zoning Bylaw Citizen Petition"
     if "comcast draft renewal license" in lowered:
@@ -1161,10 +1180,7 @@ def _zoning_case_summary(text: str) -> Dict[str, str]:
             address = address_match.group(0).strip(" ,.;:-")
 
     if address:
-        address = address.title()
-    address = re.sub(r"\bAve\b\.?$", "Ave.", address, flags=re.IGNORECASE)
-    address = re.sub(r"\bBlvd\b\.?$", "Blvd.", address, flags=re.IGNORECASE)
-    address = re.sub(r"\bHwy\b\.?$", "Hwy.", address, flags=re.IGNORECASE)
+        address = _normalize_street_types(address.title())
 
     headline = ""
     summary = ""
@@ -1218,7 +1234,7 @@ def _normalize_focus_phrase(text: str) -> str:
     if "238 & 240 sandwich road" in lowered and "site plan review" in lowered:
         return "Sandwich Road site plan review"
     if ("3031 cran hwy" in lowered or "3031 cranberry hwy" in lowered) and "site plan review" in lowered:
-        return "3031 Cran Hwy. site plan review"
+        return "3031 Cran Highway site plan review"
     if "citizen petition" in lowered and "zoning bylaw article 9" in lowered:
         return "zoning bylaw citizen petition"
     zoning_summary = _zoning_case_summary(cleaned)
@@ -1235,7 +1251,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"relocate bus stop.*indian neck road", "Indian Neck Road bus stop relocation"),
         (r"off site parking", "off-site parking petition"),
         (r"238\s*&\s*240 sandwich road.*site plan review", "Sandwich Road site plan review"),
-        (r"3031 cran(?:berry)? hwy.*site plan review", "3031 Cran Hwy. site plan review"),
+        (r"3031 cran(?:berry)? hwy.*site plan review", "3031 Cran Highway site plan review"),
         (r"citizen petition.*zoning bylaw article 9", "zoning bylaw citizen petition"),
         (r"comcast draft renewal license", "Comcast draft renewal license"),
         (r"discussion with cable attorney", "cable counsel update"),
@@ -1436,7 +1452,7 @@ def _display_location(value: str) -> str:
         location = re.sub(r"\bMa\b", "MA", location)
         location = re.sub(r"\bRm\b\.?", "Rm.", location)
         location = re.sub(r"\bFy(\d+)\b", r"FY\1", location)
-    return location
+    return _normalize_street_types(location)
 
 
 def _looks_garbled(text: str) -> bool:
@@ -1712,7 +1728,7 @@ def _preview_headline_phrase(body_name: str, focus_items: List[Dict[str, object]
         if "238 & 240 sandwich road" in first_text and "site plan review" in first_text:
             return "Sandwich Road Site Plan"
         if ("3031 cran hwy" in first_text or "3031 cranberry hwy" in first_text) and "site plan review" in first_text:
-            return "3031 Cran Hwy. Site Plan"
+            return "3031 Cran Highway Site Plan"
         if "citizen petition" in first_text and "zoning bylaw article 9" in first_text:
             return "Zoning Bylaw Citizen Petition"
         if "site plan review" in lowered_phrase:
@@ -2076,7 +2092,7 @@ def _focus_sentence(item: Dict[str, object]) -> str:
         if "238 & 240 sandwich road" in lowered and "site plan review" in lowered:
             return "The board is expected to review a site plan proposal at 238 and 240 Sandwich Road."
         if ("3031 cran hwy" in lowered or "3031 cranberry hwy" in lowered) and "site plan review" in lowered:
-            return "The board is expected to review a site plan proposal at 3031 Cranberry Highway."
+            return "The board is expected to review a site plan proposal at 3031 Cran Highway."
         if "citizen petition" in lowered and "zoning bylaw article 9" in lowered:
             return "The board is also expected to review a citizen petition to amend the zoning bylaw's off-site parking rules."
         if "fearing tavern" in lowered:

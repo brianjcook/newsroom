@@ -76,7 +76,29 @@ function newsroom_display_location(?string $locationName): ?string
         $location = preg_replace('/\bFy(\d+)/', 'FY$1', $location);
     }
 
-    return preg_replace('/\s+/', ' ', $location);
+    return newsroom_normalize_street_types((string) preg_replace('/\s+/', ' ', $location));
+}
+
+function newsroom_normalize_street_types(string $value): string
+{
+    $value = trim(preg_replace('/\s+/', ' ', $value));
+    if ($value === '') {
+        return '';
+    }
+
+    $patterns = [
+        '/\bRd\.?(?=\s|,|$)/i' => 'Road',
+        '/\bAve\.?(?=\s|,|$)/i' => 'Avenue',
+        '/\bHwy\.?(?=\s|,|$)/i' => 'Highway',
+        '/\bLn\.?(?=\s|,|$)/i' => 'Lane',
+        '/\bBlvd\.?(?=\s|,|$)/i' => 'Boulevard',
+        '/\bSt\.?(?=\s|,|$)/i' => 'Street',
+        '/\bDr\.?(?=\s|,|$)/i' => 'Drive',
+    ];
+
+    $value = (string) preg_replace(array_keys($patterns), array_values($patterns), $value);
+    $value = (string) preg_replace('/\b(Road|Avenue|Highway|Lane|Boulevard|Street|Drive)\.(?=\s|,|$)/i', '$1', $value);
+    return trim($value, " ,.;:-");
 }
 
 function newsroom_format_meeting_datetime(?string $date, ?string $time, string $fallback = ''): string

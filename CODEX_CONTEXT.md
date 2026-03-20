@@ -463,6 +463,22 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `conservation-commission-meeting-preview-2026-03-18-1800` now uses `Public hearings are expected to focus on ...`
 - `zoning-board-of-appeals-meeting-preview-2026-01-28-1830` now uses the same public-hearing framing
 - `appointing-authority-meeting-preview-2025-06-24-1615` now shows `Capital Planning Committee and Finance Committee appointments`, removes the orphan `appoint him` raw bullet, and uses cleaner appointment-focused `What matters most` sentences
+- Added a public-facing address-style normalization pass across the Python publisher and PHP presentation layer:
+- story output is now versioned as `2026-03-19-render-v8-address-style`
+- street types are now spelled out consistently in public copy and metadata:
+- `Road`
+- `Avenue`
+- `Highway`
+- `Lane`
+- `Boulevard`
+- `Street`
+- `Drive`
+- location/meta presentation in `web/lib/content.php` now normalizes these forms for story pages, homepage cards, and calendar/event displays
+- publisher-generated copy in `worker/newsroom/publish.py` now applies the same normalization so republished stories no longer mix `Rd.` / `Hwy.` / `Ave.` with spelled-out forms
+- verified live:
+- `board-of-health-meeting-preview-2026-03-18-1700` now shows `54 Marion Road`
+- `select-board-meeting-preview-2026-03-17-1900` now shows `48 Marion Road`
+- `planning-board-meeting-preview-2026-02-23-1800` now uses `3031 Cran Highway`
 - Latest successful production run:
 - `run_id`: `85`
 - `items_discovered`: `380`
@@ -477,6 +493,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `9f6f6ad` - `Refine hearing and appointment story quality`
 - `2909d09` - `Refine appointment story parsing and focus ranking`
 - `8a8cc25` - `Track style guide reference`
 - `1dedd4d` - `Apply style guide mechanics to story copy`
@@ -545,6 +562,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
+- Keep normalizing residual address phrasing in generated summaries where street names themselves may still be abbreviated in source-grounded raw agenda text.
 - Continue improving public-hearing ranking so boards like Planning Board and ZBA promote the most consequential hearings first and demote lower-signal ANR/admin items further.
 - Keep improving appointing-authority and named-person stories so candidate-specific lines can surface more naturally while still staying source-grounded and style-safe.
 - Improve raw agenda cleanup on remaining messy bodies whose public lists still expose OCR residue, low-value workshop/admin lines, or repeated petition metadata.
