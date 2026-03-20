@@ -1,0 +1,38 @@
+CREATE TABLE IF NOT EXISTS community_events (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    external_uid VARCHAR(191) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    slug VARCHAR(191) DEFAULT NULL,
+    starts_at DATETIME NOT NULL,
+    ends_at DATETIME DEFAULT NULL,
+    location_name VARCHAR(255) DEFAULT NULL,
+    address_text VARCHAR(512) DEFAULT NULL,
+    body_name VARCHAR(255) DEFAULT NULL,
+    source_url VARCHAR(512) NOT NULL,
+    source_category VARCHAR(128) DEFAULT NULL,
+    source_type VARCHAR(64) NOT NULL DEFAULT 'community_event',
+    description TEXT,
+    editorial_score INT NOT NULL DEFAULT 0,
+    editorial_signals_json JSON DEFAULT NULL,
+    suggested_coverage_mode VARCHAR(32) NOT NULL DEFAULT 'calendar_only',
+    score_override INT DEFAULT NULL,
+    coverage_override VARCHAR(32) DEFAULT NULL,
+    admin_notes TEXT,
+    is_hidden TINYINT(1) NOT NULL DEFAULT 0,
+    raw_meta_json JSON DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_community_events_external_uid (external_uid),
+    KEY idx_community_events_starts_at (starts_at),
+    KEY idx_community_events_editorial_score (editorial_score),
+    KEY idx_community_events_source_type (source_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE stories
+    ADD COLUMN editorial_score INT NOT NULL DEFAULT 0 AFTER summary,
+    ADD COLUMN editorial_signals_json JSON DEFAULT NULL AFTER editorial_score,
+    ADD COLUMN suggested_coverage_mode VARCHAR(32) NOT NULL DEFAULT 'brief' AFTER editorial_signals_json,
+    ADD COLUMN score_override INT DEFAULT NULL AFTER suggested_coverage_mode,
+    ADD COLUMN coverage_override VARCHAR(32) DEFAULT NULL AFTER score_override,
+    ADD COLUMN admin_notes TEXT AFTER coverage_override;

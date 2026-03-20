@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from pymysql.connections import Connection
 
+from .editorial import score_story
 from .modeling import artifact_priority, canonical_event_title, derive_story_dates, is_calendar_artifact, is_public_story_artifact
 
 
@@ -2802,9 +2803,21 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             artifact_posted_at,
             published_at,
         )
+        editorial = score_story(
+            {
+                "headline": headline,
+                "summary": summary,
+                "body_text": body_text,
+                "story_type": story_type,
+                "body_name": meeting["governing_body"],
+            }
+        )
+        editorial_score = int(editorial["score"])
+        editorial_signals_json = json.dumps(editorial["signals"])
+        suggested_coverage_mode = str(editorial["coverage_mode"])
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT id, slug, published_at, publish_status, source_basis_json FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
+                "SELECT id, slug, published_at, publish_status, source_basis_json, editorial_score, suggested_coverage_mode, editorial_signals_json FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
                 (meeting["id"], story_type),
             )
             existing_story = cursor.fetchone()
@@ -2849,6 +2862,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 and basis_matches
                 and existing_story.get("publish_status") == "published"
                 and existing_story.get("slug") == desired_existing_slug
+                and int(existing_story.get("editorial_score") or 0) == editorial_score
+                and (existing_story.get("suggested_coverage_mode") or "") == suggested_coverage_mode
+                and (existing_story.get("editorial_signals_json") or "") == editorial_signals_json
             ):
                 continue
 
@@ -2880,6 +2896,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         headline = %s,
                         dek = %s,
                         summary = %s,
+                        editorial_score = %s,
+                        editorial_signals_json = %s,
+                        suggested_coverage_mode = %s,
                         body_html = %s,
                         body_text = %s,
                         publish_status = 'published',
@@ -2895,6 +2914,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         headline,
                         dek,
                         summary,
+                        editorial_score,
+                        editorial_signals_json,
+                        suggested_coverage_mode,
                         story_body_html,
                         story_body_text,
                         existing_published_at,
@@ -2917,6 +2939,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         headline,
                         dek,
                         summary,
+                        editorial_score,
+                        editorial_signals_json,
+                        suggested_coverage_mode,
                         body_html,
                         body_text,
                         tone_profile,
@@ -2925,7 +2950,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         display_date,
                         sort_date,
                         source_basis_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', %s, %s, %s, %s)
                     """,
                     (
                         meeting["id"],
@@ -2935,6 +2960,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         headline,
                         dek,
                         summary,
+                        editorial_score,
+                        editorial_signals_json,
+                        suggested_coverage_mode,
                         body_html,
                         body_text,
                         published_at,

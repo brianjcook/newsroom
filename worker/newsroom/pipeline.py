@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 from typing import Dict, List
 
+from .community_calendar import sync_community_calendar
 from .config import load_config
 from .artifacts import sync_meeting_artifacts
 from .db import connect
@@ -95,6 +96,7 @@ def run_daily() -> Dict[str, object]:
         events_created = 0
         events_updated = 0
         artifacts_synced = 0
+        community_events_synced = 0
 
         try:
             with connection.cursor() as cursor:
@@ -110,6 +112,7 @@ def run_daily() -> Dict[str, object]:
             if config.source_discovery_enabled:
                 items = discover_wareham_agenda_center(config)
                 discovered_count = upsert_source_items(connection, int(source["id"]), items)
+                community_events_synced = sync_community_calendar(config, connection)
             else:
                 warnings.append("Source discovery disabled by configuration.")
 
@@ -159,6 +162,7 @@ def run_daily() -> Dict[str, object]:
                 "warnings": warnings,
                 "errors": errors,
                 "artifacts_synced": artifacts_synced,
+                "community_events_synced": community_events_synced,
             }
         except Exception as exc:
             errors.append(str(exc))

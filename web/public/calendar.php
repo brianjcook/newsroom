@@ -14,6 +14,7 @@ require_once $contentPath;
 
 $config = newsroom_config();
 $events = newsroom_upcoming_events(50);
+$communityEvents = newsroom_upcoming_community_events(30);
 $recentRecaps = newsroom_recent_meeting_recaps(18);
 
 function newsroom_pill_style(array $signal): string
@@ -53,6 +54,7 @@ function newsroom_pill_style(array $signal): string
     <nav class="nav">
         <a href="/">Home</a>
         <a href="/calendar.php">Calendar</a>
+        <a href="/editorial.php">Desk</a>
         <a href="/status.php">Status</a>
     </nav>
 
@@ -98,6 +100,40 @@ function newsroom_pill_style(array $signal): string
             <article class="calendar-row">
                 <h3>No events yet</h3>
                 <p class="empty-state">Official meeting listings will appear after the daily pipeline discovers Wareham source material.</p>
+            </article>
+        <?php endif; ?>
+    </section>
+
+    <h2 class="section-heading">Community Calendar</h2>
+    <section class="calendar-ledger">
+        <?php if ($communityEvents): ?>
+            <?php foreach ($communityEvents as $event): ?>
+                <article class="calendar-row">
+                    <div class="calendar-row__when"><?= htmlspecialchars(date('D', strtotime((string) $event['starts_at']))) ?><span><?= htmlspecialchars(date('M j', strtotime((string) $event['starts_at']))) ?></span></div>
+                    <div class="calendar-row__body">
+                        <div class="story-meta-row story-meta-row--compact">
+                            <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['source_type'] === 'community_event' ? 'Community Event' : ucwords(str_replace('_', ' ', $event['source_type']))) ?></span>
+                            <span class="story-card__meta"><?= htmlspecialchars(date('g:i A', strtotime((string) $event['starts_at']))) ?></span>
+                            <span class="story-card__meta">Score <?= htmlspecialchars((string) $event['effective_score']) ?></span>
+                        </div>
+                        <h3><?= htmlspecialchars($event['title']) ?></h3>
+                        <p><?= htmlspecialchars(date('l, F j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
+                        <?php if (!empty($event['location_name'])): ?>
+                            <p><?= htmlspecialchars((string) $event['location_name']) ?></p>
+                        <?php endif; ?>
+                        <?php if (!empty($event['description'])): ?>
+                            <p class="calendar-row__summary"><?= htmlspecialchars((string) $event['description']) ?></p>
+                        <?php endif; ?>
+                    </div>
+                    <div class="calendar-row__source">
+                        <a href="<?= htmlspecialchars((string) $event['source_url']) ?>" target="_blank" rel="noopener noreferrer">Details</a>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <article class="calendar-row">
+                <h3>No community events yet</h3>
+                <p class="empty-state">Town calendar events will appear here after the public-calendar sync runs.</p>
             </article>
         <?php endif; ?>
     </section>

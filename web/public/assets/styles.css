@@ -477,6 +477,117 @@ a:hover {
     border-top: 4px solid var(--rule-strong);
 }
 
+.editorial-save-note {
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-family: var(--meta);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.editorial-table-wrap {
+    margin-top: 18px;
+    overflow-x: auto;
+    border-top: 4px solid var(--rule-strong);
+}
+
+.editorial-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1120px;
+}
+
+.editorial-table th,
+.editorial-table td {
+    padding: 14px 12px;
+    vertical-align: top;
+    border-bottom: 1px solid var(--rule);
+}
+
+.editorial-table th {
+    font-family: var(--sans);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+}
+
+.editorial-item__title {
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.editorial-item__meta,
+.editorial-table__when,
+.editorial-signals,
+.editorial-form label span {
+    color: var(--muted);
+    font-family: var(--meta);
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.editorial-item__meta + .editorial-item__meta {
+    margin-top: 4px;
+}
+
+.editorial-score {
+    font-family: var(--data);
+    font-size: 1.3rem;
+}
+
+.editorial-signals {
+    line-height: 1.7;
+    text-transform: none;
+    letter-spacing: 0.01em;
+}
+
+.editorial-form {
+    display: grid;
+    gap: 10px;
+}
+
+.editorial-form label {
+    display: grid;
+    gap: 5px;
+}
+
+.editorial-form input[type="number"],
+.editorial-form select,
+.editorial-form textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+}
+
+.editorial-form__check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.editorial-form__check span {
+    margin: 0;
+}
+
+.editorial-form button {
+    width: fit-content;
+    padding: 8px 14px;
+    border: 1px solid var(--rule-strong);
+    background: var(--paper-deep);
+    color: var(--ink);
+    font-family: var(--meta);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
 .calendar-row {
     display: grid;
     grid-template-columns: 88px minmax(0, 1fr) 100px;

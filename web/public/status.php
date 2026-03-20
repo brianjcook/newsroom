@@ -43,6 +43,7 @@ $diagnostics = newsroom_diagnostic_items();
     <nav class="nav">
         <a href="/">Home</a>
         <a href="/calendar.php">Calendar</a>
+        <a href="/editorial.php">Desk</a>
         <a href="/status.php">Status</a>
     </nav>
 

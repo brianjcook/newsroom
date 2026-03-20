@@ -15,6 +15,7 @@ require_once $contentPath;
 $config = newsroom_config();
 $stories = newsroom_latest_stories();
 $events = newsroom_upcoming_events();
+$communityEvents = newsroom_storyworthy_community_events(4);
 $lead = $stories[0] ?? null;
 $secondaryStories = array_slice($stories, 1);
 
@@ -55,6 +56,7 @@ function newsroom_pill_style(array $signal): string
     <nav class="nav">
         <a href="/">Home</a>
         <a href="/calendar.php">Calendar</a>
+        <a href="/editorial.php">Desk</a>
         <a href="/status.php">Status</a>
     </nav>
 
@@ -154,6 +156,33 @@ function newsroom_pill_style(array $signal): string
                 <div class="story-card__meta">Status</div>
                 <h3>Initial site scaffold</h3>
                 <p>The public site is connected to the database schema and ready for published stories and official meeting listings.</p>
+            </article>
+        <?php endif; ?>
+    </section>
+
+    <h2 class="section-heading">Around Town</h2>
+    <p class="section-intro">Events from the Wareham public calendar that the editorial desk currently ranks as especially newsworthy or broadly interesting.</p>
+    <section class="story-masonry story-masonry--events">
+        <?php if ($communityEvents): ?>
+            <?php foreach ($communityEvents as $event): ?>
+                <article class="story-tease">
+                    <h3><a href="<?= htmlspecialchars($event['source_url']) ?>" target="_blank" rel="noopener noreferrer"><?= htmlspecialchars($event['title']) ?></a></h3>
+                    <div class="story-meta-row story-meta-row--compact">
+                        <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['source_type'] === 'community_event' ? 'Community Event' : ucwords(str_replace('_', ' ', $event['source_type']))) ?></span>
+                        <span class="story-card__meta"><?= htmlspecialchars(date('M. j, Y g:i A', strtotime((string) $event['starts_at']))) ?></span>
+                    </div>
+                    <?php if (!empty($event['location_name'])): ?>
+                        <p><?= htmlspecialchars((string) $event['location_name']) ?></p>
+                    <?php endif; ?>
+                    <?php if (!empty($event['description'])): ?>
+                        <p><?= htmlspecialchars((string) $event['description']) ?></p>
+                    <?php endif; ?>
+                </article>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <article class="story-tease">
+                <h3>No community events ranked yet</h3>
+                <p class="empty-state">Story-worthy public-calendar events will appear here once the editorial scoring sync has run.</p>
             </article>
         <?php endif; ?>
     </section>

@@ -57,6 +57,29 @@ function newsroom_parse_json($value): array
     return is_array($decoded) ? $decoded : [];
 }
 
+function newsroom_signal_summary($value): string
+{
+    $signals = newsroom_parse_json($value);
+    if (!$signals) {
+        return '';
+    }
+
+    $parts = [];
+    foreach (array_slice($signals, 0, 4) as $signal) {
+        if (!is_array($signal)) {
+            continue;
+        }
+        $reason = trim((string) ($signal['reason'] ?? ''));
+        $weight = (int) ($signal['weight'] ?? 0);
+        if ($reason === '') {
+            continue;
+        }
+        $parts[] = sprintf('%s (%+d)', $reason, $weight);
+    }
+
+    return implode('; ', $parts);
+}
+
 function newsroom_format_story_type(string $storyType): string
 {
     return ucwords(str_replace('_', ' ', $storyType));
@@ -224,6 +247,40 @@ function newsroom_event_presenter(array $row): array
 function newsroom_recent_story_presenter(array $row): array
 {
     return array_merge($row, ['meta' => newsroom_story_meta_presenter($row)]);
+}
+
+function newsroom_community_event_presenter(array $row): array
+{
+    $sourceType = trim((string) ($row['source_type'] ?? 'community_event'));
+    $bodyName = trim((string) ($row['body_name'] ?? ''));
+    $signal = newsroom_body_signal($bodyName !== '' ? $bodyName : ucwords(str_replace('_', ' ', $sourceType)));
+    $locationName = newsroom_display_location((string) ($row['address_text'] ?? $row['location_name'] ?? ''));
+
+    return [
+        'id' => (int) $row['id'],
+        'title' => (string) $row['title'],
+        'slug' => (string) ($row['slug'] ?? ''),
+        'starts_at' => (string) $row['starts_at'],
+        'ends_at' => (string) ($row['ends_at'] ?? ''),
+        'location_name' => $locationName,
+        'location_map_url' => newsroom_google_maps_url($locationName),
+        'source_url' => (string) $row['source_url'],
+        'source_category' => (string) ($row['source_category'] ?? ''),
+        'source_type' => $sourceType,
+        'body_name' => $bodyName,
+        'body_signal' => $signal,
+        'description' => trim((string) ($row['description'] ?? '')),
+        'editorial_score' => (int) ($row['editorial_score'] ?? 0),
+        'effective_score' => isset($row['effective_score']) ? (int) $row['effective_score'] : (int) ($row['score_override'] ?? $row['editorial_score'] ?? 0),
+        'suggested_coverage_mode' => (string) ($row['suggested_coverage_mode'] ?? 'calendar_only'),
+        'effective_coverage_mode' => (string) ($row['effective_coverage_mode'] ?? ($row['coverage_override'] ?? $row['suggested_coverage_mode'] ?? 'calendar_only')),
+        'signal_summary' => newsroom_signal_summary($row['editorial_signals_json'] ?? null),
+        'editorial_signals_json' => (string) ($row['editorial_signals_json'] ?? ''),
+        'score_override' => isset($row['score_override']) ? (int) $row['score_override'] : null,
+        'coverage_override' => (string) ($row['coverage_override'] ?? ''),
+        'admin_notes' => (string) ($row['admin_notes'] ?? ''),
+        'is_hidden' => !empty($row['is_hidden']),
+    ];
 }
 
 function newsroom_latest_stories(int $limit = 8): array
@@ -498,6 +555,53 @@ function newsroom_upcoming_events(int $limit = 10): array
     return array_map('newsroom_event_presenter', $statement->fetchAll());
 }
 
+function newsroom_storyworthy_community_events(int $limit = 6): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            ce.*,
+            COALESCE(ce.score_override, ce.editorial_score) AS effective_score,
+            COALESCE(NULLIF(ce.coverage_override, ""), ce.suggested_coverage_mode) AS effective_coverage_mode
+         FROM community_events ce
+         WHERE ce.is_hidden = 0
+           AND ce.starts_at >= NOW()
+           AND COALESCE(NULLIF(ce.coverage_override, ""), ce.suggested_coverage_mode) IN ("brief", "full_story")
+         ORDER BY COALESCE(ce.score_override, ce.editorial_score) DESC, ce.starts_at ASC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return array_map('newsroom_community_event_presenter', $statement->fetchAll());
+}
+
+function newsroom_upcoming_community_events(int $limit = 20): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            ce.*,
+            COALESCE(ce.score_override, ce.editorial_score) AS effective_score,
+            COALESCE(NULLIF(ce.coverage_override, ""), ce.suggested_coverage_mode) AS effective_coverage_mode
+         FROM community_events ce
+         WHERE ce.is_hidden = 0
+           AND ce.starts_at >= NOW()
+         ORDER BY ce.starts_at ASC, COALESCE(ce.score_override, ce.editorial_score) DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return array_map('newsroom_community_event_presenter', $statement->fetchAll());
+}
+
 function newsroom_recent_meeting_recaps(int $limit = 12): array
 {
     if (!newsroom_db_available()) {
@@ -609,4 +713,123 @@ function newsroom_diagnostic_items(int $limit = 20): array
     $statement->execute();
 
     return $statement->fetchAll();
+}
+
+function newsroom_editorial_items(int $limit = 120): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT * FROM (
+            SELECT
+                "story" AS entity_type,
+                s.id AS entity_id,
+                s.headline AS title,
+                s.story_type AS item_type,
+                COALESCE(gb.normalized_name, m.governing_body, "") AS body_name,
+                COALESCE(s.sort_date, s.display_date, s.published_at) AS occurs_at,
+                s.editorial_score,
+                s.editorial_signals_json,
+                s.suggested_coverage_mode,
+                s.score_override,
+                s.coverage_override,
+                s.admin_notes,
+                0 AS is_hidden,
+                s.publish_status AS status_label,
+                CONCAT("/story.php?slug=", s.slug) AS public_url
+            FROM stories s
+            LEFT JOIN meetings m ON m.id = s.meeting_id
+            LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
+            UNION ALL
+            SELECT
+                "community_event" AS entity_type,
+                ce.id AS entity_id,
+                ce.title AS title,
+                ce.source_type AS item_type,
+                COALESCE(ce.body_name, ce.source_category, "") AS body_name,
+                ce.starts_at AS occurs_at,
+                ce.editorial_score,
+                ce.editorial_signals_json,
+                ce.suggested_coverage_mode,
+                ce.score_override,
+                ce.coverage_override,
+                ce.admin_notes,
+                ce.is_hidden AS is_hidden,
+                ce.source_category AS status_label,
+                ce.source_url AS public_url
+            FROM community_events ce
+        ) editorial_items
+        ORDER BY COALESCE(score_override, editorial_score) DESC, occurs_at ASC, entity_type ASC
+        LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    $rows = $statement->fetchAll();
+    foreach ($rows as &$row) {
+        $row['effective_score'] = isset($row['score_override']) && $row['score_override'] !== null
+            ? (int) $row['score_override']
+            : (int) $row['editorial_score'];
+        $row['effective_coverage_mode'] = trim((string) ($row['coverage_override'] ?? '')) !== ''
+            ? (string) $row['coverage_override']
+            : (string) $row['suggested_coverage_mode'];
+        $row['signal_summary'] = newsroom_signal_summary($row['editorial_signals_json'] ?? null);
+    }
+    unset($row);
+
+    return $rows;
+}
+
+function newsroom_update_editorial_override(array $payload): void
+{
+    if (!newsroom_db_available()) {
+        return;
+    }
+
+    $entityType = (string) ($payload['entity_type'] ?? '');
+    $entityId = (int) ($payload['entity_id'] ?? 0);
+    $scoreOverrideRaw = trim((string) ($payload['score_override'] ?? ''));
+    $coverageOverride = trim((string) ($payload['coverage_override'] ?? ''));
+    $adminNotes = trim((string) ($payload['admin_notes'] ?? ''));
+    $isHidden = !empty($payload['is_hidden']) ? 1 : 0;
+    $scoreOverride = $scoreOverrideRaw === '' ? null : (int) $scoreOverrideRaw;
+
+    if ($entityId <= 0) {
+        return;
+    }
+
+    if ($entityType === 'story') {
+        $statement = newsroom_db()->prepare(
+            'UPDATE stories
+             SET score_override = :score_override,
+                 coverage_override = :coverage_override,
+                 admin_notes = :admin_notes
+             WHERE id = :id'
+        );
+        $statement->bindValue(':score_override', $scoreOverride, $scoreOverride === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $statement->bindValue(':coverage_override', $coverageOverride !== '' ? $coverageOverride : null, $coverageOverride !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $statement->bindValue(':admin_notes', $adminNotes !== '' ? $adminNotes : null, $adminNotes !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $statement->bindValue(':id', $entityId, PDO::PARAM_INT);
+        $statement->execute();
+        return;
+    }
+
+    if ($entityType === 'community_event') {
+        $statement = newsroom_db()->prepare(
+            'UPDATE community_events
+             SET score_override = :score_override,
+                 coverage_override = :coverage_override,
+                 admin_notes = :admin_notes,
+                 is_hidden = :is_hidden
+             WHERE id = :id'
+        );
+        $statement->bindValue(':score_override', $scoreOverride, $scoreOverride === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $statement->bindValue(':coverage_override', $coverageOverride !== '' ? $coverageOverride : null, $coverageOverride !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $statement->bindValue(':admin_notes', $adminNotes !== '' ? $adminNotes : null, $adminNotes !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $statement->bindValue(':is_hidden', $isHidden, PDO::PARAM_INT);
+        $statement->bindValue(':id', $entityId, PDO::PARAM_INT);
+        $statement->execute();
+    }
 }
