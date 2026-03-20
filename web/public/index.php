@@ -113,7 +113,7 @@ function newsroom_pill_style(array $signal): string
                             <div class="story-meta-row story-meta-row--compact">
                                 <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['body_name']) ?></span>
                             </div>
-                            <p><?= htmlspecialchars(date('M. j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
+                            <p class="event-item__datetime"><?= htmlspecialchars(date('M. j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
                             <?php if (!empty($event['location_name'])): ?>
                                 <p><?= htmlspecialchars((string) $event['location_name']) ?></p>
                             <?php endif; ?>
@@ -135,7 +135,8 @@ function newsroom_pill_style(array $signal): string
         </aside>
     </section>
 
-    <h2 class="section-heading">From the Town</h2>
+    <h2 class="section-heading">More Meeting Coverage</h2>
+    <p class="section-intro">Recent automated coverage drawn from Wareham agendas, minutes, and other town meeting records.</p>
     <section class="story-masonry">
         <?php if ($secondaryStories): ?>
             <?php foreach ($secondaryStories as $story): ?>

@@ -479,6 +479,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `board-of-health-meeting-preview-2026-03-18-1700` now shows `54 Marion Road`
 - `select-board-meeting-preview-2026-03-17-1900` now shows `48 Marion Road`
 - `planning-board-meeting-preview-2026-02-23-1800` now uses `3031 Cran Highway`
+- Added a small homepage presentation pass:
+- `Upcoming Meetings` date/time lines now use the monospace metadata font
+- the old `From the Town` label is now `More Meeting Coverage`
+- that section now includes a short explainer clarifying that it is recent automated coverage from Wareham agendas, minutes, and other town records
+- the lower story grid now uses equal-height cards per row instead of masonry-style column stacking
 - Latest successful production run:
 - `run_id`: `85`
 - `items_discovered`: `380`
