@@ -577,6 +577,8 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `/desk/recaps` now provides a working board for `Recap needed` and `Minutes reconcile` stories
 - the recap board brings together the published story, official agenda link, official minutes link when available, and desk notes in one place
 - `Recap needed` and `Minutes reconcile` queue views now link directly into that recap board
+- The public calendar fatal on null local story links is fixed:
+- upcoming and community calendar headlines now safely fall back to plain text when a local coverage URL does not exist yet
 
 ## Recent commits
 - `02d9546` - `Add recap workflow board to editorial desk`

@@ -68,10 +68,22 @@ function newsroom_pill_style(array $signal): string
                             <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['body_name']) ?></span>
                             <span class="story-card__meta"><?= htmlspecialchars(date('g:i A', strtotime((string) $event['starts_at']))) ?></span>
                         </div>
-                        <h3><a href="<?= htmlspecialchars($event['local_url']) ?>"><?= htmlspecialchars($event['title']) ?></a></h3>
+                        <h3>
+                            <?php if (!empty($event['local_url'])): ?>
+                                <a href="<?= htmlspecialchars((string) $event['local_url']) ?>"><?= htmlspecialchars((string) $event['title']) ?></a>
+                            <?php else: ?>
+                                <?= htmlspecialchars((string) $event['title']) ?>
+                            <?php endif; ?>
+                        </h3>
                         <p><?= htmlspecialchars(date('l, F j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
                         <?php if (!empty($event['location_name'])): ?>
-                            <p><a href="<?= htmlspecialchars((string) $event['location_map_url']) ?>"><?= htmlspecialchars((string) $event['location_name']) ?></a></p>
+                            <p>
+                                <?php if (!empty($event['location_map_url'])): ?>
+                                    <a href="<?= htmlspecialchars((string) $event['location_map_url']) ?>"><?= htmlspecialchars((string) $event['location_name']) ?></a>
+                                <?php else: ?>
+                                    <?= htmlspecialchars((string) $event['location_name']) ?>
+                                <?php endif; ?>
+                            </p>
                         <?php endif; ?>
                         <?php if (!empty($event['remote']['join_url']) || !empty($event['remote']['webinar_id']) || !empty($event['remote']['passcode'])): ?>
                             <div class="meeting-facts">
@@ -115,7 +127,13 @@ function newsroom_pill_style(array $signal): string
                             <span class="story-card__meta"><?= htmlspecialchars(date('g:i A', strtotime((string) $event['starts_at']))) ?></span>
                             <span class="story-card__meta">Score <?= htmlspecialchars((string) $event['effective_score']) ?></span>
                         </div>
-                        <h3><?= htmlspecialchars($event['title']) ?></h3>
+                        <h3>
+                            <?php if (!empty($event['local_url'])): ?>
+                                <a href="<?= htmlspecialchars((string) $event['local_url']) ?>"><?= htmlspecialchars((string) $event['title']) ?></a>
+                            <?php else: ?>
+                                <?= htmlspecialchars((string) $event['title']) ?>
+                            <?php endif; ?>
+                        </h3>
                         <p><?= htmlspecialchars(date('l, F j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
                         <?php if (!empty($event['location_name'])): ?>
                             <p><?= htmlspecialchars((string) $event['location_name']) ?></p>
