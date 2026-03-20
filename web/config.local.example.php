@@ -8,4 +8,6 @@ return [
     'NEWSROOM_DB_PASSWORD' => 'replace_me',
     'NEWSROOM_SITE_NAME' => 'Wareham Times',
     'NEWSROOM_SITE_URL' => 'https://warehamtimes.com',
+    'NEWSROOM_EDITORIAL_USER' => 'editor',
+    'NEWSROOM_EDITORIAL_PASSWORD' => 'replace_me',
 ];

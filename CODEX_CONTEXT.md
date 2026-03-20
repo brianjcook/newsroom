@@ -525,6 +525,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - community-event pages now render as short local briefs with a stronger summary, a `What to Know` section, an editorial note, surfaced positive score signals, and linked topic chips
 - topic pages now behave more like lightweight beat pages, with a topic-overview intro, richer lead-story metadata, cleaner upcoming-event summaries, and topic-index counts split between stories and events
 - the editorial desk now has practical triage filters for `watch_live`, `follow_up_needed`, topic, body, and sort order in addition to the earlier entity/coverage/visibility/workflow filters
+- Added lightweight desk protection:
+- `web/bootstrap.php` now supports config-driven editorial credentials and a session-based login gate
+- `/desk` now redirects unauthenticated users to a small login form and preserves access through a session cookie
+- Freehostia CGI stripped HTTP Basic Auth headers in practice, so the final live implementation is form/session-based rather than Basic Auth
+- Because production is deployed in a flat root layout, changes to `web/public/*`, `web/lib/*`, and `web/bootstrap.php` must also be mirrored to `/home/www/warehamtimes.com/*`, `/home/www/warehamtimes.com/lib/*`, and `/home/www/warehamtimes.com/bootstrap.php` on the host
 - Latest successful production run:
 - `run_id`: `92`
 - `items_discovered`: `380`
@@ -540,6 +545,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `d983b5b` - `Improve event briefs and editorial desk triage`
 - `6565acf` - `Update context after workflow and topic rollout`
 - `bdf563d` - `Add newsroom workflow states and topic pages`
 - `03136a9` - `Update context after editorial desk rollout`
@@ -624,10 +630,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
-- Add authentication or at least lightweight protection around `editorial.php` if the desk should not remain publicly accessible.
 - Decide whether high-scoring `community_events` should remain listings/brief candidates only or should begin auto-generating short preview stories as a second publication track.
 - Continue improving the content quality of first-party community-event pages so the strongest items can move from short briefs into fuller local previews or follow-up stories when source detail is rich enough.
 - Decide whether topic pages should remain lightweight archives or evolve into curated topic hubs with summaries, timelines, key-documents blocks, and recurring background context.
+- Consider adding a logout affordance and/or a second protected editor role if the desk will be used regularly.
 - Improve CivicPlus event-description cleanup so fields like registrant counts, ticket boilerplate, and generic placeholders such as `Event Location` are normalized more cleanly in public event summaries.
 - Keep normalizing residual address phrasing in generated summaries where street names themselves may still be abbreviated in source-grounded raw agenda text.
 - Continue improving public-hearing ranking so boards like Planning Board and ZBA promote the most consequential hearings first and demote lower-signal ANR/admin items further.

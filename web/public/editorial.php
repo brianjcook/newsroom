@@ -12,6 +12,8 @@ $contentPath = file_exists(__DIR__ . '/../lib/content.php')
 require_once $bootstrapPath;
 require_once $contentPath;
 
+newsroom_require_editorial_login();
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     newsroom_update_editorial_override($_POST);
     header('Location: /desk?saved=1');
