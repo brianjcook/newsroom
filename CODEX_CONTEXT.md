@@ -526,7 +526,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
-- `pending` - `Add first-party pages for community events`
+- `f9f3c26` - `Add first-party pages for community events`
 - `271d481` - `Generate headline-based story slugs`
 - `d162279` - `Clean desk UI and move public routes to paths`
 - `b137ae0` - `Tune editorial desk scoring and filters`
