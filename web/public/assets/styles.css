@@ -1057,6 +1057,28 @@ a:hover {
     line-height: 1.65;
 }
 
+.draft-workspace {
+    display: grid;
+    gap: 18px;
+    margin-top: 18px;
+}
+
+.draft-workspace__block {
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(198, 183, 166, 0.45);
+}
+
+.draft-workspace__copy {
+    margin: 0;
+    padding: 16px;
+    background: rgba(255,255,255,0.34);
+    border: 1px solid var(--rule);
+    white-space: pre-wrap;
+    font-family: var(--serif);
+    font-size: 1rem;
+    line-height: 1.75;
+}
+
 .methodology-card__title {
     margin: 0 0 14px;
     font-family: var(--sans);

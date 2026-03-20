@@ -76,6 +76,7 @@ function newsroom_recap_datetime(string $value): string
                 </div>
                 <p class="editorial-next-action"><?= htmlspecialchars((string) $item['next_action']) ?></p>
                 <div class="editorial-active-queue__actions">
+                    <a href="/desk/recaps/<?= htmlspecialchars((string) $item['id']) ?>">Draft workspace</a>
                     <a href="<?= htmlspecialchars((string) $item['public_url']) ?>">Open story</a>
                     <?php if (!empty($item['agenda_url'])): ?>
                         <a href="<?= htmlspecialchars((string) $item['agenda_url']) ?>" target="_blank" rel="noopener noreferrer">Open agenda</a>

@@ -582,6 +582,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - a draft angle
 - top source highlights
 - a short verification checklist keyed to either `Recap needed` or `Minutes reconcile`
+- The recap workflow now includes a single-item draft workspace:
+- `/desk/recaps/{id}` expands an item into a fuller draft shell with a proposed recap headline, dek, body outline, source links, and verification notes
+- the recap board now links directly into that draft workspace for each queued story
 - The public calendar fatal on null local story links is fixed:
 - upcoming and community calendar headlines now safely fall back to plain text when a local coverage URL does not exist yet
 

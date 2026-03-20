@@ -1453,6 +1453,104 @@ function newsroom_recap_queue_items(int $limit = 60): array
     return $rows;
 }
 
+function newsroom_recap_queue_item(int $id): ?array
+{
+    if (!newsroom_db_available() || $id <= 0) {
+        return null;
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            s.id,
+            s.slug,
+            s.headline,
+            s.summary,
+            s.story_type,
+            s.workflow_status,
+            s.watch_live,
+            s.follow_up_needed,
+            s.admin_notes,
+            s.display_date,
+            s.published_at,
+            COALESCE(s.sort_date, s.display_date, s.published_at) AS occurs_at,
+            COALESCE(gb.normalized_name, m.governing_body, "") AS body_name,
+            m.meeting_date,
+            TIME_FORMAT(m.meeting_time, "%H:%i:%s") AS meeting_time,
+            m.location_name,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_url,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "minutes"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS minutes_url,
+            (
+                SELECT de.structured_json
+                FROM meeting_artifacts ma
+                INNER JOIN (
+                    SELECT de1.*
+                    FROM document_extractions de1
+                    INNER JOIN (
+                        SELECT document_id, MAX(id) AS max_id
+                        FROM document_extractions
+                        GROUP BY document_id
+                    ) latest_extraction ON latest_extraction.max_id = de1.id
+                ) de ON de.document_id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_structured_json,
+            (
+                SELECT de.structured_json
+                FROM meeting_artifacts ma
+                INNER JOIN (
+                    SELECT de1.*
+                    FROM document_extractions de1
+                    INNER JOIN (
+                        SELECT document_id, MAX(id) AS max_id
+                        FROM document_extractions
+                        GROUP BY document_id
+                    ) latest_extraction ON latest_extraction.max_id = de1.id
+                ) de ON de.document_id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "minutes"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS minutes_structured_json
+         FROM stories s
+         LEFT JOIN meetings m ON m.id = s.meeting_id
+         LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
+         WHERE s.id = :id AND s.publish_status = "published"
+         LIMIT 1'
+    );
+    $statement->bindValue(':id', $id, PDO::PARAM_INT);
+    $statement->execute();
+    $row = $statement->fetch();
+    if (!$row) {
+        return null;
+    }
+
+    $row['public_url'] = newsroom_story_url_from_slug((string) ($row['slug'] ?? ''));
+    $row['workflow_status'] = newsroom_normalize_workflow_status((string) ($row['workflow_status'] ?? ''), [
+        'entity_type' => 'story',
+        'item_type' => (string) ($row['story_type'] ?? ''),
+    ]);
+    $row['workflow_label'] = newsroom_workflow_label((string) $row['workflow_status']);
+    $row['next_action'] = newsroom_workflow_next_action($row);
+    $row['recap_scaffold'] = newsroom_recap_scaffold($row);
+    $row['draft_workspace'] = newsroom_recap_draft_workspace($row);
+
+    return $row;
+}
+
 function newsroom_recap_scaffold(array $row): array
 {
     $agendaStructured = newsroom_parse_json($row['agenda_structured_json'] ?? null);
@@ -1522,6 +1620,60 @@ function newsroom_recap_scaffold(array $row): array
         'angle' => $angle,
         'highlights' => $leadItems,
         'verification' => $verification,
+    ];
+}
+
+function newsroom_recap_draft_workspace(array $row): array
+{
+    $scaffold = $row['recap_scaffold'] ?? newsroom_recap_scaffold($row);
+    $bodyName = trim((string) ($row['body_name'] ?? 'Board'));
+    $meetingDate = trim((string) ($row['meeting_date'] ?? ''));
+    $meetingTime = trim((string) ($row['meeting_time'] ?? ''));
+    $location = trim((string) ($row['location_name'] ?? ''));
+
+    $datetimeLine = '';
+    if ($meetingDate !== '') {
+        $stamp = strtotime($meetingDate . ($meetingTime !== '' ? ' ' . $meetingTime : ''));
+        if ($stamp !== false) {
+            $datetimeLine = date($meetingTime !== '' ? 'F j, Y \a\t g:i A' : 'F j, Y', $stamp);
+        }
+    }
+
+    $headline = trim((string) ($row['headline'] ?? ''));
+    if ($headline !== '') {
+        $headline = preg_replace('/\bto (Discuss|Review|Hear|Meet and Consider|Consider)\b/i', 'holds', $headline) ?: $headline;
+    }
+    if ($headline === '') {
+        $headline = $bodyName . ' meeting recap';
+    }
+
+    $dekParts = [];
+    if ($datetimeLine !== '') {
+        $dekParts[] = $bodyName . ' met ' . strtolower($datetimeLine);
+    }
+    if ($location !== '') {
+        $dekParts[] = 'at ' . $location;
+    }
+    $dek = ucfirst(trim(implode(' ', $dekParts))) . '.';
+    if ($dek === '.') {
+        $dek = 'Use the official record to confirm the key outcome from this meeting.';
+    }
+
+    $bodySections = [];
+    $bodySections[] = "Lede\n" . trim((string) ($scaffold['lede'] ?? ''));
+    $bodySections[] = "What happened\n- Confirm the main action taken.\n- Note whether the board voted, continued the matter, or only discussed it.";
+    if (!empty($scaffold['highlights'])) {
+        $bodySections[] = "Top items to cover\n- " . implode("\n- ", array_map('strval', (array) $scaffold['highlights']));
+    }
+    if (!empty($scaffold['verification'])) {
+        $bodySections[] = "What to verify\n- " . implode("\n- ", array_map('strval', (array) $scaffold['verification']));
+    }
+    $bodySections[] = "What happens next\n- Note any continued hearing, follow-up vote, future meeting date, or implementation step.";
+
+    return [
+        'headline' => $headline,
+        'dek' => $dek,
+        'body' => implode("\n\n", $bodySections),
     ];
 }
 
