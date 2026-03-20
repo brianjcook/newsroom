@@ -580,7 +580,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 
 ## Recent commits
 - `02d9546` - `Add recap workflow board to editorial desk`
-- `PENDING2` - `Update context after recap workflow rollout`
+- `fdb9831` - `Update context after recap workflow rollout`
 - `97e47c1` - `Polish desk visuals and add methodology page`
 - `1b10cba` - `Update context after desk methodology rollout`
 - `4161fab` - `Add preset workflow queue views to editorial desk`
