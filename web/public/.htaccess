@@ -9,3 +9,12 @@ RewriteCond %{HTTPS} !=on
 RewriteRule ^ https://www.warehamtimes.com%{REQUEST_URI} [L,R=301]
 
 DirectoryIndex index.php
+
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+RewriteRule ^calendar/?$ calendar.php [L,QSA]
+RewriteRule ^status/?$ status.php [L,QSA]
+RewriteRule ^desk/?$ editorial.php [L,QSA]
+RewriteRule ^stories/([^/]+)/?$ story.php?slug=$1 [L,QSA]

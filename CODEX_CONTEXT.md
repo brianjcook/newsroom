@@ -497,6 +497,14 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `web/public/editorial.php` adds a first editorial desk view with visible score breakdowns and override controls
 - the editorial desk now includes basic filters for entity, suggested coverage mode, and visibility plus a short explainer of the current scoring logic
 - story-score weighting was tightened after the first rollout so the top of the desk is less saturated; high-signal civic stories now cluster more around the low-80s than a flat wall of `100`
+- public navigation is now cleaner:
+- main navigation now only links to `Home` and `Calendar`
+- utility/admin surfaces remain available at `/desk` and `/status` but are no longer linked from the main public nav
+- public story URLs are now path-based at `/stories/{slug}` instead of query-parameter links
+- clean utility routes now exist for `/calendar`, `/desk`, and `/status`
+- the desk is now branded as `Editorial News Desk`
+- desk dates/times now render in human-readable prose format
+- scoring signals now render one-per-line with explicit weights, and score/coverage overrides now sit in the same columns as the default values they override
 - `web/lib/content.php` now exposes community-event queries, editorial-desk queries, and override update helpers
 - the homepage now includes an `Around Town` section fed by high-scoring community events
 - the calendar page now includes a `Community Calendar` section fed by `community_events`
@@ -515,6 +523,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `warnings`: `["No pending source items were available for fetch/extract."]`
 
 ## Recent commits
+- `pending` - `Clean desk presentation and move public URLs to path routes`
 - `b137ae0` - `Tune editorial desk scoring and filters`
 - `6e06e28` - `Add editorial scoring and public calendar desk`
 - `9f6f6ad` - `Refine hearing and appointment story quality`
@@ -624,7 +633,6 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Improve agenda-item summarization so even fully extracted lines are rewritten into clearer plain-language bullets when they are still too procedural or verbose.
 - Expand diagnostics into a more useful editorial/ops view instead of raw warnings.
 - Decide on and implement a repeatable on-host trigger, preferably cron-based rather than ad hoc admin endpoints.
-- Move public URLs from query-parameter patterns toward descriptive path-based routing.
 - Improve generated headlines, summaries, and meeting/location normalization against live Wareham examples.
 - Continue refining templated but structurally correct previews, especially Zoning Board of Appeals, Planning Board, Conservation Commission, and older School Committee stories.
 - Continue improving summaries and body copy for structurally correct stories whose headlines are now better but whose secondary lines still read like cleaned agenda text.

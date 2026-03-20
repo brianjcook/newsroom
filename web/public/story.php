@@ -13,7 +13,11 @@ require_once $bootstrapPath;
 require_once $contentPath;
 
 $config = newsroom_config();
+$requestPath = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
 $slug = isset($_GET['slug']) ? (string) $_GET['slug'] : '';
+if ($slug === '' && strpos($requestPath, 'stories/') === 0) {
+    $slug = rawurldecode(substr($requestPath, strlen('stories/')));
+}
 $story = $slug !== '' ? newsroom_story_by_slug($slug) : null;
 $citations = $story ? newsroom_story_citations((int) $story['id']) : [];
 $storyDate = $story ? (string) ($story['display_date'] ?? $story['published_at']) : null;
@@ -46,7 +50,7 @@ http_response_code($story ? 200 : 404);
     <header class="masthead">
         <div class="masthead__rail">
             <div class="masthead__meta">Wareham, Massachusetts</div>
-            <div class="masthead__meta"><a href="/status.php">Status</a></div>
+            <div class="masthead__meta"><?= $storyDate ? htmlspecialchars(date('l, F j, Y', strtotime((string) $storyDate))) : htmlspecialchars(date('l, F j, Y')) ?></div>
         </div>
         <div class="masthead__core">
             <h1 class="masthead__title"><a href="/" class="masthead__home-link">The Wareham Times</a></h1>
@@ -56,9 +60,7 @@ http_response_code($story ? 200 : 404);
 
     <nav class="nav">
         <a href="/">Home</a>
-        <a href="/calendar.php">Calendar</a>
-        <a href="/editorial.php">Desk</a>
-        <a href="/status.php">Status</a>
+        <a href="/calendar">Calendar</a>
     </nav>
 
     <div class="story-layout">

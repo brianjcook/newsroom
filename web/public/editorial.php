@@ -14,7 +14,7 @@ require_once $contentPath;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     newsroom_update_editorial_override($_POST);
-    header('Location: /editorial.php?saved=1');
+    header('Location: /desk?saved=1');
     exit;
 }
 
@@ -40,13 +40,25 @@ $items = array_values(array_filter($items, static function (array $item) use ($e
     }
     return true;
 }));
+
+function newsroom_editorial_datetime(string $value): string
+{
+    $stamp = strtotime($value);
+    if ($stamp === false) {
+        return $value;
+    }
+    if (date('H:i:s', $stamp) === '00:00:00') {
+        return date('F j, Y', $stamp);
+    }
+    return date('F j, Y g:i A', $stamp);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Editorial Desk | <?= htmlspecialchars($config['site_name']) ?></title>
+    <title>Editorial News Desk | <?= htmlspecialchars($config['site_name']) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Datatype:wght@400;500;700&family=Fira+Code:wght@400;500;700&family=Manufacturing+Consent&family=Merriweather:wght@300;400;700&family=Roboto+Condensed:wght@400;700&display=swap" rel="stylesheet">
@@ -56,7 +68,7 @@ $items = array_values(array_filter($items, static function (array $item) use ($e
 <div class="page">
     <header class="masthead">
         <div class="masthead__rail">
-            <div class="masthead__meta">Editorial Desk</div>
+            <div class="masthead__meta">Editorial News Desk</div>
             <div class="masthead__meta"><?= date('l, F j, Y') ?></div>
         </div>
         <div class="masthead__core">
@@ -67,9 +79,7 @@ $items = array_values(array_filter($items, static function (array $item) use ($e
 
     <nav class="nav">
         <a href="/">Home</a>
-        <a href="/calendar.php">Calendar</a>
-        <a href="/editorial.php">Desk</a>
-        <a href="/status.php">Status</a>
+        <a href="/calendar">Calendar</a>
     </nav>
 
     <h2 class="section-heading">Newsworthiness Queue</h2>
@@ -121,13 +131,14 @@ $items = array_values(array_filter($items, static function (array $item) use ($e
                 <th>Type</th>
                 <th>Score</th>
                 <th>Signals</th>
-                <th>Suggested</th>
-                <th>Override</th>
+                <th>Coverage</th>
+                <th>Notes</th>
             </tr>
             </thead>
             <tbody>
             <?php foreach ($items as $item): ?>
                 <tr>
+                    <?php $formId = 'editorial-item-' . (string) $item['entity_type'] . '-' . (string) $item['entity_id']; ?>
                     <td>
                         <div class="editorial-item__title"><?= htmlspecialchars((string) $item['title']) ?></div>
                         <?php if (!empty($item['body_name'])): ?>
@@ -137,7 +148,7 @@ $items = array_values(array_filter($items, static function (array $item) use ($e
                             <div class="editorial-item__meta"><a href="<?= htmlspecialchars((string) $item['public_url']) ?>"<?= $item['entity_type'] === 'community_event' ? ' target="_blank" rel="noopener noreferrer"' : '' ?>>Open</a></div>
                         <?php endif; ?>
                     </td>
-                    <td class="editorial-table__when"><?= htmlspecialchars((string) $item['occurs_at']) ?></td>
+                    <td class="editorial-table__when"><?= htmlspecialchars(newsroom_editorial_datetime((string) $item['occurs_at'])) ?></td>
                     <td>
                         <div class="editorial-item__meta"><?= htmlspecialchars((string) $item['entity_type']) ?></div>
                         <div><?= htmlspecialchars((string) $item['item_type']) ?></div>
@@ -146,50 +157,65 @@ $items = array_values(array_filter($items, static function (array $item) use ($e
                         <?php endif; ?>
                     </td>
                     <td>
-                        <div class="editorial-score"><?= htmlspecialchars((string) $item['effective_score']) ?></div>
+                        <div class="editorial-score"><?= htmlspecialchars((string) $item['editorial_score']) ?></div>
+                        <div class="editorial-item__meta">base score</div>
+                        <label class="editorial-inline-control">
+                            <span>Override</span>
+                            <input type="number" form="<?= htmlspecialchars($formId) ?>" name="score_override" min="0" max="100" value="<?= htmlspecialchars($item['score_override'] === null ? '' : (string) $item['score_override']) ?>">
+                        </label>
                         <?php if ($item['score_override'] !== null && $item['score_override'] !== ''): ?>
-                            <div class="editorial-item__meta">base <?= htmlspecialchars((string) $item['editorial_score']) ?></div>
+                            <div class="editorial-item__meta">effective <?= htmlspecialchars((string) $item['effective_score']) ?></div>
                         <?php endif; ?>
                     </td>
                     <td>
-                        <div class="editorial-signals"><?= htmlspecialchars((string) $item['signal_summary']) ?></div>
+                        <?php $signals = newsroom_parse_json($item['editorial_signals_json'] ?? null); ?>
+                        <?php if ($signals): ?>
+                            <ul class="editorial-signal-list">
+                                <?php foreach ($signals as $signal): ?>
+                                    <?php if (!is_array($signal)) { continue; } ?>
+                                    <li>
+                                        <span class="editorial-signal-list__reason"><?= htmlspecialchars((string) ($signal['reason'] ?? 'Signal')) ?></span>
+                                        <span class="editorial-signal-list__weight"><?= htmlspecialchars(sprintf('%+d', (int) ($signal['weight'] ?? 0))) ?></span>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php else: ?>
+                            <div class="editorial-item__meta">No scoring signals</div>
+                        <?php endif; ?>
                     </td>
                     <td>
-                        <div><?= htmlspecialchars((string) $item['effective_coverage_mode']) ?></div>
+                        <div><?= htmlspecialchars((string) $item['suggested_coverage_mode']) ?></div>
+                        <div class="editorial-item__meta">suggested coverage</div>
+                        <label class="editorial-inline-control">
+                            <span>Override</span>
+                            <select form="<?= htmlspecialchars($formId) ?>" name="coverage_override">
+                                <option value=""<?= empty($item['coverage_override']) ? ' selected' : '' ?>>Use suggested</option>
+                                <option value="calendar_only"<?= (string) $item['coverage_override'] === 'calendar_only' ? ' selected' : '' ?>>Calendar only</option>
+                                <option value="brief"<?= (string) $item['coverage_override'] === 'brief' ? ' selected' : '' ?>>Brief</option>
+                                <option value="full_story"<?= (string) $item['coverage_override'] === 'full_story' ? ' selected' : '' ?>>Full story</option>
+                                <option value="must_cover"<?= (string) $item['coverage_override'] === 'must_cover' ? ' selected' : '' ?>>Must cover</option>
+                            </select>
+                        </label>
                         <?php if (!empty($item['coverage_override'])): ?>
-                            <div class="editorial-item__meta">base <?= htmlspecialchars((string) $item['suggested_coverage_mode']) ?></div>
+                            <div class="editorial-item__meta">effective <?= htmlspecialchars((string) $item['effective_coverage_mode']) ?></div>
                         <?php endif; ?>
                     </td>
                     <td>
-                        <form method="post" class="editorial-form">
+                        <?php if ($item['entity_type'] === 'community_event'): ?>
+                            <label class="editorial-form__check">
+                                <input type="checkbox" form="<?= htmlspecialchars($formId) ?>" name="is_hidden" value="1"<?= !empty($item['is_hidden']) ? ' checked' : '' ?>>
+                                <span>Hide from public event surfacing</span>
+                            </label>
+                        <?php endif; ?>
+                        <label class="editorial-inline-control">
+                            <span>Notes</span>
+                            <textarea form="<?= htmlspecialchars($formId) ?>" name="admin_notes" rows="4"><?= htmlspecialchars((string) ($item['admin_notes'] ?? '')) ?></textarea>
+                        </label>
+                        <form method="post" class="editorial-form" id="<?= htmlspecialchars($formId) ?>">
                             <input type="hidden" name="entity_type" value="<?= htmlspecialchars((string) $item['entity_type']) ?>">
                             <input type="hidden" name="entity_id" value="<?= htmlspecialchars((string) $item['entity_id']) ?>">
-                            <label>
-                                <span>Score</span>
-                                <input type="number" name="score_override" min="0" max="100" value="<?= htmlspecialchars($item['score_override'] === null ? '' : (string) $item['score_override']) ?>">
-                            </label>
-                            <label>
-                                <span>Coverage</span>
-                                <select name="coverage_override">
-                                    <option value=""<?= empty($item['coverage_override']) ? ' selected' : '' ?>>Use suggested</option>
-                                    <option value="calendar_only"<?= (string) $item['coverage_override'] === 'calendar_only' ? ' selected' : '' ?>>Calendar only</option>
-                                    <option value="brief"<?= (string) $item['coverage_override'] === 'brief' ? ' selected' : '' ?>>Brief</option>
-                                    <option value="full_story"<?= (string) $item['coverage_override'] === 'full_story' ? ' selected' : '' ?>>Full story</option>
-                                    <option value="must_cover"<?= (string) $item['coverage_override'] === 'must_cover' ? ' selected' : '' ?>>Must cover</option>
-                                </select>
-                            </label>
-                            <?php if ($item['entity_type'] === 'community_event'): ?>
-                                <label class="editorial-form__check">
-                                    <input type="checkbox" name="is_hidden" value="1"<?= !empty($item['is_hidden']) ? ' checked' : '' ?>>
-                                    <span>Hide</span>
-                                </label>
-                            <?php endif; ?>
-                            <label>
-                                <span>Notes</span>
-                                <textarea name="admin_notes" rows="3"><?= htmlspecialchars((string) ($item['admin_notes'] ?? '')) ?></textarea>
-                            </label>
-                            <button type="submit">Save</button>
                         </form>
+                        <button type="submit" form="<?= htmlspecialchars($formId) ?>">Save</button>
                     </td>
                 </tr>
             <?php endforeach; ?>

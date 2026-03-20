@@ -53,9 +53,7 @@ function newsroom_pill_style(array $signal): string
 
     <nav class="nav">
         <a href="/">Home</a>
-        <a href="/calendar.php">Calendar</a>
-        <a href="/editorial.php">Desk</a>
-        <a href="/status.php">Status</a>
+        <a href="/calendar">Calendar</a>
     </nav>
 
     <h2 class="section-heading">Upcoming Meetings</h2>
@@ -147,7 +145,7 @@ function newsroom_pill_style(array $signal): string
                         <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
                         <span class="story-card__meta"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
                     </div>
-                    <h3><a href="/story.php?slug=<?= urlencode($story['slug']) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
+                    <h3><a href="<?= htmlspecialchars(newsroom_story_url($story)) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
                     <?php if (!empty($story['meta']['location_name'])): ?>
                         <p><?= htmlspecialchars((string) $story['meta']['location_name']) ?></p>
                     <?php endif; ?>

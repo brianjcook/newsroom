@@ -80,6 +80,16 @@ function newsroom_signal_summary($value): string
     return implode('; ', $parts);
 }
 
+function newsroom_story_url_from_slug(string $slug): string
+{
+    return '/stories/' . rawurlencode($slug);
+}
+
+function newsroom_story_url(array $story): string
+{
+    return newsroom_story_url_from_slug((string) ($story['slug'] ?? ''));
+}
+
 function newsroom_format_story_type(string $storyType): string
 {
     return ucwords(str_replace('_', ' ', $storyType));
@@ -738,7 +748,8 @@ function newsroom_editorial_items(int $limit = 120): array
                 s.admin_notes,
                 0 AS is_hidden,
                 s.publish_status AS status_label,
-                CONCAT("/story.php?slug=", s.slug) AS public_url
+                s.slug AS public_slug,
+                "" AS public_url
             FROM stories s
             LEFT JOIN meetings m ON m.id = s.meeting_id
             LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
@@ -758,6 +769,7 @@ function newsroom_editorial_items(int $limit = 120): array
                 ce.admin_notes,
                 ce.is_hidden AS is_hidden,
                 ce.source_category AS status_label,
+                "" AS public_slug,
                 ce.source_url AS public_url
             FROM community_events ce
         ) editorial_items
@@ -769,6 +781,9 @@ function newsroom_editorial_items(int $limit = 120): array
 
     $rows = $statement->fetchAll();
     foreach ($rows as &$row) {
+        if ((string) ($row['entity_type'] ?? '') === 'story' && !empty($row['public_slug'])) {
+            $row['public_url'] = newsroom_story_url_from_slug((string) $row['public_slug']);
+        }
         $row['effective_score'] = isset($row['score_override']) && $row['score_override'] !== null
             ? (int) $row['score_override']
             : (int) $row['editorial_score'];

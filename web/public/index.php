@@ -55,16 +55,14 @@ function newsroom_pill_style(array $signal): string
 
     <nav class="nav">
         <a href="/">Home</a>
-        <a href="/calendar.php">Calendar</a>
-        <a href="/editorial.php">Desk</a>
-        <a href="/status.php">Status</a>
+        <a href="/calendar">Calendar</a>
     </nav>
 
     <section class="front-page">
         <article class="lead-story">
             <div class="eyebrow">Lead Story</div>
             <?php if ($lead): ?>
-                <h2><a href="/story.php?slug=<?= urlencode($lead['slug']) ?>"><?= htmlspecialchars($lead['headline']) ?></a></h2>
+                <h2><a href="<?= htmlspecialchars(newsroom_story_url($lead)) ?>"><?= htmlspecialchars($lead['headline']) ?></a></h2>
                 <div class="story-meta-row">
                     <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($lead['meta']['body_signal'])) ?>"><?= htmlspecialchars($lead['meta']['body_name']) ?></span>
                     <span class="story-meta-row__date"><?= htmlspecialchars($lead['meta']['meeting_datetime']) ?></span>
@@ -88,7 +86,7 @@ function newsroom_pill_style(array $signal): string
             <?php if ($secondaryStories): ?>
                 <?php foreach (array_slice($secondaryStories, 0, 3) as $story): ?>
                     <article class="rail-story">
-                        <h3><a href="/story.php?slug=<?= urlencode($story['slug']) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
+                        <h3><a href="<?= htmlspecialchars(newsroom_story_url($story)) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
                         <div class="story-meta-row story-meta-row--compact">
                             <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
                             <span class="story-card__meta"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
@@ -143,7 +141,7 @@ function newsroom_pill_style(array $signal): string
         <?php if ($secondaryStories): ?>
             <?php foreach ($secondaryStories as $story): ?>
                 <article class="story-tease">
-                    <h3><a href="/story.php?slug=<?= urlencode($story['slug']) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
+                    <h3><a href="<?= htmlspecialchars(newsroom_story_url($story)) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
                     <div class="story-meta-row story-meta-row--compact">
                         <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
                         <span class="story-card__meta"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
