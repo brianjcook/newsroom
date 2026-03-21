@@ -634,6 +634,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Verified that a recap quick action creates a live follow-up record in production; the first created item is `Zoning Board of Appeals to Hear 17 Atlantic Avenue Permit Request follow-up`
 
 ## Recent commits
+- `540689d` - `Update context after newsroom operations rollout`
 - `1eeea15` - `Add newsroom operations workflows and archive`
 - `02d9546` - `Add recap workflow board to editorial desk`
 - `fdb9831` - `Update context after recap workflow rollout`
@@ -729,12 +730,6 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
-- Commit and push the current newsroom-operations phase:
-- archive/search
-- follow-up queue and workspace
-- live-watch board
-- quick recap actions
-- public labels/bylines/event tiers/homepage hierarchy
 - Decide whether follow-up items should eventually become first-class public stories/pages or remain desk-only planning objects.
 - Consider adding editable byline/public-label overrides to the editorial desk instead of only default newsroom-derived values.
 - Tighten archive result ranking so the first page feels more editorially useful and less strictly date-driven.
