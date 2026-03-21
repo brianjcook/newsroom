@@ -634,6 +634,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Verified that a recap quick action creates a live follow-up record in production; the first created item is `Zoning Board of Appeals to Hear 17 Atlantic Avenue Permit Request follow-up`
 
 ## Recent commits
+- `1eeea15` - `Add newsroom operations workflows and archive`
 - `02d9546` - `Add recap workflow board to editorial desk`
 - `fdb9831` - `Update context after recap workflow rollout`
 - `97e47c1` - `Polish desk visuals and add methodology page`
