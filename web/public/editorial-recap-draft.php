@@ -16,7 +16,20 @@ newsroom_require_editorial_login();
 
 $config = newsroom_config();
 $id = (int) ($_GET['id'] ?? 0);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $id > 0) {
+    newsroom_update_recap_draft(
+        $id,
+        (string) ($_POST['draft_headline'] ?? ''),
+        (string) ($_POST['draft_dek'] ?? ''),
+        (string) ($_POST['draft_body'] ?? '')
+    );
+    header('Location: /desk/recaps/' . $id . '?saved=1');
+    exit;
+}
+
 $item = newsroom_recap_queue_item($id);
+$saved = isset($_GET['saved']) && $_GET['saved'] === '1';
 
 function newsroom_recap_draft_datetime(?string $meetingDate, ?string $meetingTime): string
 {
@@ -63,6 +76,14 @@ function newsroom_recap_draft_datetime(?string $meetingDate, ?string $meetingTim
     <?php if ($item): ?>
         <?php $draft = $item['draft_workspace'] ?? []; ?>
         <?php $scaffold = $item['recap_scaffold'] ?? []; ?>
+        <?php
+        $draftHeadline = trim((string) ($item['draft_headline'] ?? '')) !== '' ? (string) $item['draft_headline'] : (string) ($draft['headline'] ?? '');
+        $draftDek = trim((string) ($item['draft_dek'] ?? '')) !== '' ? (string) $item['draft_dek'] : (string) ($draft['dek'] ?? '');
+        $draftBody = trim((string) ($item['draft_body'] ?? '')) !== '' ? (string) $item['draft_body'] : (string) ($draft['body'] ?? '');
+        ?>
+        <?php if ($saved): ?>
+            <p class="editorial-save-note">Draft workspace saved.</p>
+        <?php endif; ?>
         <section class="story-layout">
             <article>
                 <div class="story-meta-row story-meta-row--compact">
@@ -75,18 +96,32 @@ function newsroom_recap_draft_datetime(?string $meetingDate, ?string $meetingTim
                     <?php endif; ?>
                 </div>
 
-                <h2 class="story-headline"><?= htmlspecialchars((string) ($draft['headline'] ?? 'Recap draft')) ?></h2>
-                <div class="story-dek"><?= htmlspecialchars((string) ($draft['dek'] ?? '')) ?></div>
+                <h2 class="story-headline"><?= htmlspecialchars($draftHeadline !== '' ? $draftHeadline : 'Recap draft') ?></h2>
+                <div class="story-dek"><?= htmlspecialchars($draftDek) ?></div>
 
                 <section class="draft-workspace">
                     <div class="draft-workspace__block">
-                        <h3 class="section-heading section-heading--tight">Draft Shell</h3>
-                        <pre class="draft-workspace__copy"><?= htmlspecialchars((string) ($draft['body'] ?? '')) ?></pre>
+                        <h3 class="section-heading section-heading--tight">Editable Draft</h3>
+                        <form method="post" class="draft-workspace__form">
+                            <label class="editorial-inline-control">
+                                <span>Draft Headline</span>
+                                <input type="text" name="draft_headline" value="<?= htmlspecialchars($draftHeadline) ?>">
+                            </label>
+                            <label class="editorial-inline-control">
+                                <span>Draft Dek</span>
+                                <textarea name="draft_dek" rows="3"><?= htmlspecialchars($draftDek) ?></textarea>
+                            </label>
+                            <label class="editorial-inline-control">
+                                <span>Draft Body</span>
+                                <textarea name="draft_body" rows="16"><?= htmlspecialchars($draftBody) ?></textarea>
+                            </label>
+                            <button type="submit">Save Draft</button>
+                        </form>
                     </div>
 
                     <div class="draft-workspace__block">
-                        <h3 class="section-heading section-heading--tight">Current Story Summary</h3>
-                        <p><?= htmlspecialchars((string) ($item['summary'] ?? '')) ?></p>
+                        <h3 class="section-heading section-heading--tight">Generated Shell</h3>
+                        <pre class="draft-workspace__copy"><?= htmlspecialchars((string) ($draft['body'] ?? '')) ?></pre>
                     </div>
                 </section>
             </article>
@@ -145,6 +180,14 @@ function newsroom_recap_draft_datetime(?string $meetingDate, ?string $meetingTim
                         <p><?= htmlspecialchars((string) $item['admin_notes']) ?></p>
                     </section>
                 <?php endif; ?>
+
+                <section class="draft-workspace__block">
+                    <h3 class="section-heading section-heading--tight">Current Story Summary</h3>
+                    <p><?= htmlspecialchars((string) ($item['summary'] ?? '')) ?></p>
+                    <?php if (!empty($item['draft_updated_at'])): ?>
+                        <p class="editorial-item__meta">Last saved <?= htmlspecialchars((string) $item['draft_updated_at']) ?></p>
+                    <?php endif; ?>
+                </section>
             </aside>
         </section>
     <?php else: ?>

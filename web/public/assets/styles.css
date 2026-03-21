@@ -1079,6 +1079,39 @@ a:hover {
     line-height: 1.75;
 }
 
+.draft-workspace__form {
+    display: grid;
+    gap: 14px;
+}
+
+.draft-workspace__form input[type="text"],
+.draft-workspace__form textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--rule);
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.65), rgba(255,255,255,0.2)),
+        var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 0.98rem;
+    line-height: 1.65;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+}
+
+.draft-workspace__form button {
+    width: fit-content;
+    padding: 10px 16px;
+    border: 1px solid var(--rule-strong);
+    background: var(--paper-deep);
+    color: var(--ink);
+    font-family: var(--meta);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
 .methodology-card__title {
     margin: 0 0 14px;
     font-family: var(--sans);

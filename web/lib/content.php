@@ -1359,6 +1359,10 @@ function newsroom_recap_queue_items(int $limit = 60): array
             s.slug,
             s.headline,
             s.summary,
+            s.draft_headline,
+            s.draft_dek,
+            s.draft_body,
+            s.draft_updated_at,
             s.story_type,
             s.workflow_status,
             s.watch_live,
@@ -1675,6 +1679,27 @@ function newsroom_recap_draft_workspace(array $row): array
         'dek' => $dek,
         'body' => implode("\n\n", $bodySections),
     ];
+}
+
+function newsroom_update_recap_draft(int $storyId, string $headline, string $dek, string $body): void
+{
+    if (!newsroom_db_available() || $storyId <= 0) {
+        return;
+    }
+
+    $statement = newsroom_db()->prepare(
+        'UPDATE stories
+         SET draft_headline = :headline,
+             draft_dek = :dek,
+             draft_body = :body,
+             draft_updated_at = NOW()
+         WHERE id = :id'
+    );
+    $statement->bindValue(':headline', trim($headline) !== '' ? trim($headline) : null, trim($headline) !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    $statement->bindValue(':dek', trim($dek) !== '' ? trim($dek) : null, trim($dek) !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    $statement->bindValue(':body', trim($body) !== '' ? trim($body) : null, trim($body) !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    $statement->bindValue(':id', $storyId, PDO::PARAM_INT);
+    $statement->execute();
 }
 
 function newsroom_update_editorial_override(array $payload): void
