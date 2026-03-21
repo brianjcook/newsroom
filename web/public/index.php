@@ -16,9 +16,13 @@ $config = newsroom_config();
 $stories = newsroom_latest_stories();
 $events = newsroom_upcoming_events();
 $communityEvents = newsroom_storyworthy_community_events(4);
-$topics = newsroom_topics_index(6);
+$topics = newsroom_topic_spotlights(6);
+$priorityStories = newsroom_homepage_priority_stories(4);
+$recentRecaps = newsroom_recent_meeting_recaps(3);
 $lead = $stories[0] ?? null;
 $secondaryStories = array_slice($stories, 1);
+$spotlightEvent = $communityEvents[0] ?? null;
+$communityBriefs = array_slice($communityEvents, 1);
 
 function newsroom_pill_style(array $signal): string
 {
@@ -58,6 +62,7 @@ function newsroom_pill_style(array $signal): string
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
+        <a href="/archive">Archive</a>
     </nav>
 
     <section class="front-page">
@@ -65,7 +70,9 @@ function newsroom_pill_style(array $signal): string
             <div class="eyebrow">Lead Story</div>
             <?php if ($lead): ?>
                 <h2><a href="<?= htmlspecialchars(newsroom_story_url($lead)) ?>"><?= htmlspecialchars($lead['headline']) ?></a></h2>
+                <div class="story-byline story-byline--compact">By <?= htmlspecialchars((string) $lead['byline']['name']) ?></div>
                 <div class="story-meta-row">
+                    <span class="signal-pill"><?= htmlspecialchars((string) $lead['label']) ?></span>
                     <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($lead['meta']['body_signal'])) ?>"><?= htmlspecialchars($lead['meta']['body_name']) ?></span>
                     <span class="story-meta-row__date"><?= htmlspecialchars($lead['meta']['meeting_datetime']) ?></span>
                 </div>
@@ -90,6 +97,7 @@ function newsroom_pill_style(array $signal): string
                     <article class="rail-story">
                         <h3><a href="<?= htmlspecialchars(newsroom_story_url($story)) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
                         <div class="story-meta-row story-meta-row--compact">
+                            <span class="signal-pill"><?= htmlspecialchars((string) $story['label']) ?></span>
                             <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
                             <span class="story-card__meta"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
                         </div>
@@ -137,6 +145,35 @@ function newsroom_pill_style(array $signal): string
         </aside>
     </section>
 
+    <h2 class="section-heading">Desk Priorities</h2>
+    <section class="story-masonry story-masonry--tight">
+        <?php foreach ($priorityStories as $story): ?>
+            <article class="story-tease">
+                <div class="story-meta-row story-meta-row--compact">
+                    <span class="signal-pill"><?= htmlspecialchars((string) $story['label']) ?></span>
+                    <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
+                </div>
+                <h3><a href="<?= htmlspecialchars(newsroom_story_url($story)) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
+                <p class="archive-result__byline">By <?= htmlspecialchars((string) $story['byline']['name']) ?></p>
+                <p><?= htmlspecialchars((string) ($story['meta']['summary_text'] ?? $story['summary'] ?? $story['dek'] ?? '')) ?></p>
+            </article>
+        <?php endforeach; ?>
+    </section>
+
+    <h2 class="section-heading">Recent Recaps</h2>
+    <section class="story-masonry story-masonry--tight">
+        <?php foreach ($recentRecaps as $story): ?>
+            <article class="story-tease">
+                <div class="story-meta-row story-meta-row--compact">
+                    <span class="signal-pill"><?= htmlspecialchars((string) $story['label']) ?></span>
+                    <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
+                </div>
+                <h3><a href="<?= htmlspecialchars(newsroom_story_url($story)) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
+                <p><?= htmlspecialchars((string) ($story['meta']['summary_text'] ?? $story['summary'] ?? '')) ?></p>
+            </article>
+        <?php endforeach; ?>
+    </section>
+
     <h2 class="section-heading">More Meeting Coverage</h2>
     <p class="section-intro">Recent automated coverage drawn from Wareham agendas, minutes, and other town meeting records.</p>
     <section class="story-masonry">
@@ -145,6 +182,7 @@ function newsroom_pill_style(array $signal): string
                 <article class="story-tease">
                     <h3><a href="<?= htmlspecialchars(newsroom_story_url($story)) ?>"><?= htmlspecialchars($story['headline']) ?></a></h3>
                     <div class="story-meta-row story-meta-row--compact">
+                        <span class="signal-pill"><?= htmlspecialchars((string) $story['label']) ?></span>
                         <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
                         <span class="story-card__meta"><?= htmlspecialchars($story['meta']['meeting_datetime']) ?></span>
                     </div>
@@ -162,24 +200,40 @@ function newsroom_pill_style(array $signal): string
 
     <h2 class="section-heading">Around Town</h2>
     <p class="section-intro">Events from the Wareham public calendar that the editorial desk currently ranks as especially newsworthy or broadly interesting.</p>
-    <section class="story-masonry story-masonry--events">
-        <?php if ($communityEvents): ?>
-            <?php foreach ($communityEvents as $event): ?>
-                <article class="story-tease">
-                    <h3><a href="<?= htmlspecialchars($event['local_url']) ?>"><?= htmlspecialchars($event['title']) ?></a></h3>
-                    <div class="story-meta-row story-meta-row--compact">
-                        <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['source_type'] === 'community_event' ? 'Community Event' : ucwords(str_replace('_', ' ', $event['source_type']))) ?></span>
-                        <span class="story-card__meta"><?= htmlspecialchars(date('M. j, Y g:i A', strtotime((string) $event['starts_at']))) ?></span>
-                    </div>
-                    <?php if (!empty($event['location_name'])): ?>
-                        <p><?= htmlspecialchars((string) $event['location_name']) ?></p>
-                    <?php endif; ?>
-                    <?php if (!empty($event['description'])): ?>
-                        <p><?= htmlspecialchars((string) $event['description']) ?></p>
-                    <?php endif; ?>
-                    <p><a href="<?= htmlspecialchars((string) $event['source_url']) ?>" target="_blank" rel="noopener noreferrer">Official listing</a></p>
+    <section class="front-page front-page--community">
+        <?php if ($spotlightEvent): ?>
+            <article class="lead-story">
+                <div class="eyebrow"><?= htmlspecialchars((string) $spotlightEvent['label']) ?></div>
+                <h2><a href="<?= htmlspecialchars($spotlightEvent['local_url']) ?>"><?= htmlspecialchars($spotlightEvent['title']) ?></a></h2>
+                <div class="story-byline story-byline--compact">By <?= htmlspecialchars((string) $spotlightEvent['byline']['name']) ?></div>
+                <div class="story-meta-row">
+                    <span class="signal-pill"><?= htmlspecialchars((string) $spotlightEvent['event_tier']['label']) ?></span>
+                    <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($spotlightEvent['body_signal'])) ?>"><?= htmlspecialchars($spotlightEvent['source_type'] === 'community_event' ? 'Community Event' : ucwords(str_replace('_', ' ', $spotlightEvent['source_type']))) ?></span>
+                    <span class="story-meta-row__date"><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $spotlightEvent['starts_at']))) ?></span>
+                </div>
+                <p class="lead-story__summary"><?= htmlspecialchars((string) newsroom_community_event_summary($spotlightEvent)) ?></p>
+            </article>
+            <section class="news-rail">
+                <h2 class="section-heading section-heading--tight">Community Briefs</h2>
+                <?php foreach ($communityBriefs as $event): ?>
+                    <article class="rail-story">
+                        <h3><a href="<?= htmlspecialchars($event['local_url']) ?>"><?= htmlspecialchars($event['title']) ?></a></h3>
+                        <div class="story-meta-row story-meta-row--compact">
+                            <span class="signal-pill"><?= htmlspecialchars((string) $event['label']) ?></span>
+                            <span class="story-card__meta"><?= htmlspecialchars(date('M. j, Y g:i A', strtotime((string) $event['starts_at']))) ?></span>
+                        </div>
+                        <p><?= htmlspecialchars((string) newsroom_truncate_text((string) ($event['description'] ?? ''), 180)) ?></p>
+                    </article>
+                <?php endforeach; ?>
+            </section>
+            <aside class="agenda-ledger">
+                <h2 class="section-heading section-heading--tight">Event Tiers</h2>
+                <article class="event-item">
+                    <strong><?= htmlspecialchars((string) $spotlightEvent['event_tier']['label']) ?></strong>
+                    <p><?= htmlspecialchars((string) $spotlightEvent['event_tier']['summary']) ?></p>
+                    <p><a href="<?= htmlspecialchars((string) $spotlightEvent['source_url']) ?>" target="_blank" rel="noopener noreferrer">Official listing</a></p>
                 </article>
-            <?php endforeach; ?>
+            </aside>
         <?php else: ?>
             <article class="story-tease">
                 <h3>No community events ranked yet</h3>
@@ -193,6 +247,7 @@ function newsroom_pill_style(array $signal): string
         <?php foreach ($topics as $topic): ?>
             <article class="story-tease">
                 <h3><a href="<?= htmlspecialchars(newsroom_topic_url((string) $topic['slug'])) ?>"><?= htmlspecialchars((string) $topic['label']) ?></a></h3>
+                <p><?= htmlspecialchars((string) ($topic['intro'] ?? '')) ?></p>
                 <p><?= htmlspecialchars((string) $topic['count']) ?> tagged items, including <?= htmlspecialchars((string) ($topic['story_count'] ?? 0)) ?> stories and <?= htmlspecialchars((string) ($topic['event_count'] ?? 0)) ?> events.</p>
             </article>
         <?php endforeach; ?>

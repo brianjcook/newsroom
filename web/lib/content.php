@@ -398,6 +398,110 @@ function newsroom_format_story_type(string $storyType): string
     return ucwords(str_replace('_', ' ', $storyType));
 }
 
+function newsroom_story_label(array $story): string
+{
+    $custom = trim((string) ($story['public_label'] ?? ''));
+    if ($custom !== '') {
+        return $custom;
+    }
+
+    switch ((string) ($story['story_type'] ?? '')) {
+        case 'meeting_preview':
+            return 'Preview';
+        case 'minutes_recap':
+            return 'Recap';
+        default:
+            return 'Local Report';
+    }
+}
+
+function newsroom_story_byline(array $story): array
+{
+    $name = trim((string) ($story['byline_name'] ?? ''));
+    $title = trim((string) ($story['byline_title'] ?? ''));
+
+    return [
+        'name' => $name !== '' ? $name : 'Wareham Times News Desk',
+        'title' => $title !== '' ? $title : 'Automated civic reporting',
+    ];
+}
+
+function newsroom_event_tier_data(array $event): array
+{
+    $stored = trim((string) ($event['event_tier'] ?? ''));
+    $mode = trim((string) ($event['effective_coverage_mode'] ?? $event['suggested_coverage_mode'] ?? 'calendar_only'));
+    $score = (int) ($event['effective_score'] ?? $event['editorial_score'] ?? 0);
+
+    $tier = $stored;
+    if ($tier === '') {
+        if ($mode === 'full_story' && $score >= 80) {
+            $tier = 'spotlight';
+        } elseif ($mode === 'full_story') {
+            $tier = 'feature_brief';
+        } elseif ($mode === 'brief') {
+            $tier = 'community_brief';
+        } else {
+            $tier = 'listing';
+        }
+    }
+
+    $map = [
+        'spotlight' => ['label' => 'Event Spotlight', 'summary' => 'A high-interest event that merits prominent advance coverage.'],
+        'feature_brief' => ['label' => 'Event Brief', 'summary' => 'A stronger community event that should read like a short local preview.'],
+        'community_brief' => ['label' => 'Community Brief', 'summary' => 'A worthwhile local event that merits a concise first-party page.'],
+        'listing' => ['label' => 'Calendar Listing', 'summary' => 'A useful public listing that is still being tracked on the desk.'],
+    ];
+
+    return array_merge(['key' => $tier], $map[$tier] ?? $map['listing']);
+}
+
+function newsroom_event_label(array $event): string
+{
+    $custom = trim((string) ($event['public_label'] ?? ''));
+    if ($custom !== '') {
+        return $custom;
+    }
+
+    $tier = newsroom_event_tier_data($event);
+    return (string) $tier['label'];
+}
+
+function newsroom_event_byline(array $event): array
+{
+    $name = trim((string) ($event['byline_name'] ?? ''));
+    $title = trim((string) ($event['byline_title'] ?? ''));
+
+    return [
+        'name' => $name !== '' ? $name : 'Wareham Times News Desk',
+        'title' => $title !== '' ? $title : 'Community and civic listings desk',
+    ];
+}
+
+function newsroom_topic_intro_text(string $slug, string $label, array $bundle = []): string
+{
+    $map = [
+        'wastewater' => 'Wastewater coverage follows sewer expansion, financing, regulatory pressure, and the long-running decisions that shape where Wareham can grow.',
+        'sewer' => 'Sewer coverage tracks bills, infrastructure planning, neighborhood impacts, and the routine governance decisions behind wastewater service.',
+        'town-meeting' => 'Town Meeting coverage follows warrant articles, spending requests, bylaw changes, and the debates that shape the town’s formal decisions.',
+        'budget' => 'Budget coverage tracks how Wareham plans to spend money, where departments make their case, and which votes move public dollars.',
+        'policy' => 'Policy coverage tracks the rules, revisions, and governance changes that quietly reshape how town and school bodies operate.',
+        'schools' => 'Schools coverage follows School Committee votes, district planning, policy changes, and the recurring issues that affect Wareham students and families.',
+        'development' => 'Development coverage follows site plans, permits, and board reviews tied to new construction, redevelopment, and land-use change.',
+        'zoning' => 'Zoning coverage follows permit requests, appeals, variances, and the regulatory decisions that determine what can be built where.',
+        'housing' => 'Housing coverage follows affordable-housing plans, redevelopment, town-owned parcels, and public decisions that affect where people can live.',
+        'public-health' => 'Public Health coverage tracks Board of Health hearings, enforcement actions, septic and tobacco cases, and other health-related local decisions.',
+        'environment' => 'Environment coverage follows conservation hearings, stormwater issues, open-space decisions, and projects that affect Wareham’s land and water.',
+        'community-life' => 'Community Life coverage highlights the local events, traditions, and civic gatherings that shape Wareham outside formal government meetings.',
+        'arts-culture' => 'Arts & Culture coverage follows performances, festivals, and public programs that give Wareham’s civic life some texture.',
+    ];
+
+    if (isset($map[$slug])) {
+        return $map[$slug];
+    }
+
+    return newsroom_topic_overview(['label' => $label, 'slug' => $slug], $bundle);
+}
+
 function newsroom_display_location(?string $locationName): ?string
 {
     $location = trim((string) $locationName);
@@ -562,6 +666,8 @@ function newsroom_recent_story_presenter(array $row): array
     return array_merge($row, [
         'meta' => newsroom_story_meta_presenter($row),
         'topics' => newsroom_parse_topics($row['topic_tags_json'] ?? null),
+        'label' => newsroom_story_label($row),
+        'byline' => newsroom_story_byline($row),
     ]);
 }
 
@@ -598,6 +704,10 @@ function newsroom_community_event_presenter(array $row): array
         'coverage_override' => (string) ($row['coverage_override'] ?? ''),
         'admin_notes' => (string) ($row['admin_notes'] ?? ''),
         'is_hidden' => !empty($row['is_hidden']),
+        'label' => newsroom_event_label($row),
+        'byline' => newsroom_event_byline($row),
+        'event_tier' => newsroom_event_tier_data($row),
+        'live_prep_notes' => (string) ($row['live_prep_notes'] ?? ''),
     ];
 }
 
@@ -908,10 +1018,14 @@ function newsroom_story_by_slug(string $slug): ?array
             s.id,
             s.slug,
             s.story_type,
+            s.public_label,
+            s.byline_name,
+            s.byline_title,
             s.headline,
             s.dek,
             s.summary,
             s.body_html,
+            s.topic_tags_json,
             s.published_at,
             s.display_date,
             m.meeting_date,
@@ -977,6 +1091,9 @@ function newsroom_story_by_slug(string $slug): ?array
     }
 
     $story['meta'] = newsroom_story_meta_presenter($story);
+    $story['topics'] = newsroom_parse_topics($story['topic_tags_json'] ?? null);
+    $story['label'] = newsroom_story_label($story);
+    $story['byline'] = newsroom_story_byline($story);
     return $story;
 }
 
@@ -1877,4 +1994,570 @@ function newsroom_topic_bundle(string $slug, int $storyLimit = 20, int $eventLim
     }
 
     return ['topic' => $topic, 'stories' => $stories, 'events' => $events];
+}
+
+function newsroom_homepage_priority_stories(int $limit = 4): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            s.id,
+            s.slug,
+            s.story_type,
+            s.public_label,
+            s.byline_name,
+            s.byline_title,
+            s.headline,
+            s.dek,
+            s.summary,
+            s.topic_tags_json,
+            s.editorial_score,
+            s.score_override,
+            s.coverage_override,
+            s.suggested_coverage_mode,
+            s.workflow_status,
+            s.watch_live,
+            s.follow_up_needed,
+            s.published_at,
+            s.display_date,
+            s.sort_date,
+            m.meeting_date,
+            TIME_FORMAT(m.meeting_time, "%H:%i:%s") AS meeting_time,
+            m.location_name,
+            COALESCE(gb.normalized_name, m.governing_body) AS body_name
+         FROM stories s
+         LEFT JOIN meetings m ON m.id = s.meeting_id
+         LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
+         WHERE s.publish_status = "published"
+           AND (
+                s.watch_live = 1
+                OR s.follow_up_needed = 1
+                OR COALESCE(s.score_override, s.editorial_score) >= 72
+           )
+         ORDER BY
+            CASE WHEN s.watch_live = 1 THEN 0 ELSE 1 END,
+            CASE WHEN s.follow_up_needed = 1 THEN 0 ELSE 1 END,
+            COALESCE(s.score_override, s.editorial_score) DESC,
+            COALESCE(s.sort_date, s.display_date, s.published_at) DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return array_map('newsroom_recent_story_presenter', $statement->fetchAll());
+}
+
+function newsroom_topic_spotlights(int $limit = 6): array
+{
+    $topics = newsroom_topics_index($limit);
+    foreach ($topics as &$topic) {
+        $bundle = newsroom_topic_bundle((string) $topic['slug'], 1, 1);
+        $topic['intro'] = newsroom_topic_intro_text((string) $topic['slug'], (string) $topic['label'], $bundle);
+    }
+    unset($topic);
+
+    return array_slice($topics, 0, $limit);
+}
+
+function newsroom_archive_filter_options(): array
+{
+    $topics = newsroom_topics_index();
+    $topicOptions = [];
+    foreach ($topics as $topic) {
+        $topicOptions[(string) $topic['slug']] = (string) $topic['label'];
+    }
+    asort($topicOptions);
+
+    $bodyOptions = [];
+    if (newsroom_db_available()) {
+        $statement = newsroom_db()->query(
+            'SELECT body_name FROM (
+                SELECT COALESCE(gb.normalized_name, m.governing_body, "") AS body_name
+                FROM stories s
+                LEFT JOIN meetings m ON m.id = s.meeting_id
+                LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
+                WHERE s.publish_status = "published"
+                UNION
+                SELECT COALESCE(body_name, source_category, "") AS body_name
+                FROM community_events
+                WHERE is_hidden = 0
+            ) options
+            WHERE body_name <> ""
+            ORDER BY body_name ASC'
+        );
+        foreach ($statement->fetchAll() as $row) {
+            $bodyOptions[(string) $row['body_name']] = (string) $row['body_name'];
+        }
+    }
+
+    return [
+        'topics' => $topicOptions,
+        'bodies' => $bodyOptions,
+        'story_types' => [
+            'meeting_preview' => 'Meeting preview',
+            'minutes_recap' => 'Minutes recap',
+            'community_event' => 'Community event',
+        ],
+    ];
+}
+
+function newsroom_archive_results(array $filters = [], int $limit = 100): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $query = trim((string) ($filters['q'] ?? ''));
+    $entity = trim((string) ($filters['entity'] ?? 'all'));
+    $topic = trim((string) ($filters['topic'] ?? 'all'));
+    $body = trim((string) ($filters['body'] ?? 'all'));
+    $storyType = trim((string) ($filters['story_type'] ?? 'all'));
+
+    $sql = '
+        SELECT * FROM (
+            SELECT
+                "story" AS entity_type,
+                s.id AS entity_id,
+                s.slug AS slug,
+                s.headline AS title,
+                s.story_type AS item_type,
+                s.public_label,
+                s.byline_name,
+                s.byline_title,
+                s.summary AS summary_text,
+                COALESCE(gb.normalized_name, m.governing_body, "") AS body_name,
+                COALESCE(s.sort_date, s.display_date, s.published_at) AS occurs_at,
+                s.topic_tags_json,
+                s.editorial_score,
+                s.score_override,
+                COALESCE(NULLIF(s.coverage_override, ""), s.suggested_coverage_mode) AS effective_coverage_mode
+            FROM stories s
+            LEFT JOIN meetings m ON m.id = s.meeting_id
+            LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
+            WHERE s.publish_status = "published"
+            UNION ALL
+            SELECT
+                "community_event" AS entity_type,
+                ce.id AS entity_id,
+                ce.slug AS slug,
+                ce.title AS title,
+                "community_event" AS item_type,
+                ce.public_label,
+                ce.byline_name,
+                ce.byline_title,
+                ce.description AS summary_text,
+                COALESCE(ce.body_name, ce.source_category, "") AS body_name,
+                ce.starts_at AS occurs_at,
+                ce.topic_tags_json,
+                ce.editorial_score,
+                ce.score_override,
+                COALESCE(NULLIF(ce.coverage_override, ""), ce.suggested_coverage_mode) AS effective_coverage_mode
+            FROM community_events ce
+            WHERE ce.is_hidden = 0
+        ) archive_items
+        WHERE 1 = 1';
+
+    $params = [];
+    if ($entity !== 'all') {
+        $sql .= ' AND entity_type = :entity';
+        $params[':entity'] = $entity;
+    }
+    if ($storyType !== 'all') {
+        if ($storyType === 'community_event') {
+            $sql .= ' AND entity_type = "community_event"';
+        } else {
+            $sql .= ' AND item_type = :story_type';
+            $params[':story_type'] = $storyType;
+        }
+    }
+    if ($body !== 'all') {
+        $sql .= ' AND body_name = :body';
+        $params[':body'] = $body;
+    }
+    if ($topic !== 'all') {
+        $sql .= ' AND topic_tags_json LIKE :topic';
+        $params[':topic'] = '%"slug":"' . str_replace(['%', '_'], ['\\%', '\\_'], $topic) . '"%';
+    }
+    if ($query !== '') {
+        $sql .= ' AND (title LIKE :query OR summary_text LIKE :query OR body_name LIKE :query)';
+        $params[':query'] = '%' . $query . '%';
+    }
+
+    $sql .= ' ORDER BY occurs_at DESC, COALESCE(score_override, editorial_score) DESC LIMIT :limit';
+    $statement = newsroom_db()->prepare($sql);
+    foreach ($params as $key => $value) {
+        $statement->bindValue($key, $value, PDO::PARAM_STR);
+    }
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    $rows = $statement->fetchAll();
+    foreach ($rows as &$row) {
+        $row['effective_score'] = isset($row['score_override']) && $row['score_override'] !== null ? (int) $row['score_override'] : (int) $row['editorial_score'];
+        $row['topics'] = newsroom_parse_topics($row['topic_tags_json'] ?? null);
+        if ((string) $row['entity_type'] === 'story') {
+            $row['public_url'] = newsroom_story_url_from_slug((string) $row['slug']);
+            $row['label'] = newsroom_story_label($row);
+            $row['byline'] = newsroom_story_byline($row);
+        } else {
+            $row['public_url'] = newsroom_community_event_url_from_parts((int) $row['entity_id'], (string) $row['slug']);
+            $row['label'] = newsroom_event_label($row);
+            $row['byline'] = newsroom_event_byline($row);
+            $row['event_tier'] = newsroom_event_tier_data($row);
+        }
+    }
+    unset($row);
+
+    return $rows;
+}
+
+function newsroom_follow_up_slug(string $title, int $id = 0): string
+{
+    $slug = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '-', $title), '-'));
+    if ($slug === '') {
+        $slug = 'follow-up';
+    }
+    return $id > 0 ? $slug . '-' . $id : $slug;
+}
+
+function newsroom_upsert_follow_up_from_story(int $storyId, string $priority = 'normal'): ?int
+{
+    if (!newsroom_db_available() || $storyId <= 0) {
+        return null;
+    }
+
+    $check = newsroom_db()->prepare(
+        'SELECT id FROM follow_up_items
+         WHERE source_story_id = :story_id
+           AND workflow_status <> "done"
+         ORDER BY id DESC
+         LIMIT 1'
+    );
+    $check->execute([':story_id' => $storyId]);
+    $existing = $check->fetch();
+    if ($existing) {
+        return (int) $existing['id'];
+    }
+
+    $story = newsroom_recap_queue_item($storyId);
+    if (!$story) {
+        $storyStatement = newsroom_db()->prepare(
+            'SELECT id, slug, headline, topic_tags_json FROM stories WHERE id = :id LIMIT 1'
+        );
+        $storyStatement->execute([':id' => $storyId]);
+        $story = $storyStatement->fetch() ?: null;
+    }
+    if (!$story) {
+        return null;
+    }
+
+    $title = trim((string) ($story['headline'] ?? '')) . ' follow-up';
+    $topicTagsJson = isset($story['topic_tags_json']) ? (string) $story['topic_tags_json'] : json_encode($story['topics'] ?? []);
+
+    $insert = newsroom_db()->prepare(
+        'INSERT INTO follow_up_items (
+            source_story_id,
+            source_story_slug,
+            title,
+            slug,
+            topic_tags_json,
+            workflow_status,
+            priority,
+            notes,
+            draft_body
+        ) VALUES (
+            :source_story_id,
+            :source_story_slug,
+            :title,
+            :slug,
+            :topic_tags_json,
+            "draft",
+            :priority,
+            :notes,
+            :draft_body
+        )'
+    );
+    $insert->execute([
+        ':source_story_id' => $storyId,
+        ':source_story_slug' => (string) ($story['slug'] ?? ''),
+        ':title' => $title,
+        ':slug' => newsroom_follow_up_slug($title),
+        ':topic_tags_json' => $topicTagsJson ?: json_encode([]),
+        ':priority' => $priority,
+        ':notes' => 'Generated from recap workspace.',
+        ':draft_body' => "Follow-up angle\n- What changed after the meeting?\n- Who is affected?\n- What comes next?\n",
+    ]);
+
+    return (int) newsroom_db()->lastInsertId();
+}
+
+function newsroom_follow_up_items(int $limit = 60): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            fu.*,
+            s.headline AS source_headline,
+            s.slug AS source_slug,
+            s.summary AS source_summary,
+            s.workflow_status AS source_workflow_status
+         FROM follow_up_items fu
+         INNER JOIN stories s ON s.id = fu.source_story_id
+         ORDER BY
+            CASE fu.workflow_status
+                WHEN "watch_live" THEN 0
+                WHEN "assigned" THEN 1
+                WHEN "draft" THEN 2
+                WHEN "done" THEN 4
+                ELSE 3
+            END,
+            CASE fu.priority
+                WHEN "must_cover" THEN 0
+                WHEN "high" THEN 1
+                ELSE 2
+            END,
+            fu.updated_at DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+    $rows = $statement->fetchAll();
+    foreach ($rows as &$row) {
+        $row['public_url'] = newsroom_story_url_from_slug((string) ($row['source_slug'] ?? ''));
+        $row['topics'] = newsroom_parse_topics($row['topic_tags_json'] ?? null);
+    }
+    unset($row);
+
+    return $rows;
+}
+
+function newsroom_follow_up_item(int $id): ?array
+{
+    if (!newsroom_db_available() || $id <= 0) {
+        return null;
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            fu.*,
+            s.headline AS source_headline,
+            s.slug AS source_slug,
+            s.summary AS source_summary,
+            s.workflow_status AS source_workflow_status
+         FROM follow_up_items fu
+         INNER JOIN stories s ON s.id = fu.source_story_id
+         WHERE fu.id = :id
+         LIMIT 1'
+    );
+    $statement->execute([':id' => $id]);
+    $row = $statement->fetch();
+    if (!$row) {
+        return null;
+    }
+    $row['public_url'] = newsroom_story_url_from_slug((string) ($row['source_slug'] ?? ''));
+    $row['topics'] = newsroom_parse_topics($row['topic_tags_json'] ?? null);
+    return $row;
+}
+
+function newsroom_save_follow_up_item(int $id, array $payload): void
+{
+    if (!newsroom_db_available() || $id <= 0) {
+        return;
+    }
+
+    $title = trim((string) ($payload['title'] ?? ''));
+    $status = trim((string) ($payload['workflow_status'] ?? 'draft'));
+    $priority = trim((string) ($payload['priority'] ?? 'normal'));
+    $notes = trim((string) ($payload['notes'] ?? ''));
+    $draftBody = trim((string) ($payload['draft_body'] ?? ''));
+
+    $statement = newsroom_db()->prepare(
+        'UPDATE follow_up_items
+         SET title = :title,
+             slug = :slug,
+             workflow_status = :workflow_status,
+             priority = :priority,
+             notes = :notes,
+             draft_body = :draft_body
+         WHERE id = :id'
+    );
+    $statement->execute([
+        ':title' => $title !== '' ? $title : 'Follow-up story',
+        ':slug' => newsroom_follow_up_slug($title !== '' ? $title : 'Follow-up story', $id),
+        ':workflow_status' => $status !== '' ? $status : 'draft',
+        ':priority' => $priority !== '' ? $priority : 'normal',
+        ':notes' => $notes !== '' ? $notes : null,
+        ':draft_body' => $draftBody !== '' ? $draftBody : null,
+        ':id' => $id,
+    ]);
+}
+
+function newsroom_apply_recap_action(int $storyId, string $action): ?int
+{
+    if (!newsroom_db_available() || $storyId <= 0) {
+        return null;
+    }
+
+    switch ($action) {
+        case 'mark_done':
+            newsroom_db()->prepare(
+                'UPDATE stories
+                 SET workflow_status = "done", follow_up_needed = 0
+                 WHERE id = :id'
+            )->execute([':id' => $storyId]);
+            return null;
+        case 'minutes_reconciled':
+            newsroom_db()->prepare(
+                'UPDATE stories
+                 SET workflow_status = "done"
+                 WHERE id = :id'
+            )->execute([':id' => $storyId]);
+            return null;
+        case 'queue_watch':
+            newsroom_db()->prepare(
+                'UPDATE stories
+                 SET watch_live = 1,
+                     follow_up_needed = 1,
+                     workflow_status = "follow_up_story"
+                 WHERE id = :id'
+            )->execute([':id' => $storyId]);
+            return newsroom_upsert_follow_up_from_story($storyId, 'must_cover');
+        case 'create_follow_up':
+            newsroom_db()->prepare(
+                'UPDATE stories
+                 SET follow_up_needed = 1,
+                     workflow_status = "follow_up_story"
+                 WHERE id = :id'
+            )->execute([':id' => $storyId]);
+            return newsroom_upsert_follow_up_from_story($storyId, 'high');
+        default:
+            return null;
+    }
+}
+
+function newsroom_live_watch_queue(int $limit = 40): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            s.id,
+            s.slug,
+            s.headline,
+            s.summary,
+            s.story_type,
+            s.public_label,
+            s.byline_name,
+            s.byline_title,
+            s.live_prep_notes,
+            s.workflow_status,
+            s.watch_live,
+            s.follow_up_needed,
+            m.meeting_date,
+            TIME_FORMAT(m.meeting_time, "%H:%i:%s") AS meeting_time,
+            m.location_name,
+            COALESCE(gb.normalized_name, m.governing_body) AS body_name,
+            (
+                SELECT COALESCE(d.document_url, ma.source_url)
+                FROM meeting_artifacts ma
+                LEFT JOIN documents d ON d.id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_url,
+            (
+                SELECT de.structured_json
+                FROM meeting_artifacts ma
+                INNER JOIN (
+                    SELECT de1.*
+                    FROM document_extractions de1
+                    INNER JOIN (
+                        SELECT document_id, MAX(id) AS max_id
+                        FROM document_extractions
+                        GROUP BY document_id
+                    ) latest_extraction ON latest_extraction.max_id = de1.id
+                ) de ON de.document_id = ma.document_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_structured_json,
+            (
+                SELECT si.raw_meta_json
+                FROM meeting_artifacts ma
+                INNER JOIN source_items si ON si.id = ma.source_item_id
+                WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
+                ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
+                LIMIT 1
+            ) AS agenda_source_meta_json
+         FROM stories s
+         LEFT JOIN meetings m ON m.id = s.meeting_id
+         LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
+         WHERE s.publish_status = "published"
+           AND s.watch_live = 1
+         ORDER BY m.meeting_date ASC, m.meeting_time ASC, s.id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+    $rows = array_map('newsroom_recent_story_presenter', $statement->fetchAll());
+    foreach ($rows as &$row) {
+        $row['live_prep'] = newsroom_live_watch_prep($row);
+    }
+    unset($row);
+    return $rows;
+}
+
+function newsroom_live_watch_prep(array $story): array
+{
+    $remote = $story['meta']['remote'] ?? [];
+    $location = trim((string) ($story['meta']['location_name'] ?? ''));
+    $sourceType = 'Official website';
+    if (!empty($remote['join_url'])) {
+        $sourceType = 'Zoom';
+    } elseif (!empty($story['meta']['agenda_url']) && stripos((string) $story['meta']['agenda_url'], 'youtube') !== false) {
+        $sourceType = 'YouTube';
+    }
+
+    $checks = [
+        'Verify the meeting start time and any room or venue change.',
+        'Open the agenda before the meeting starts and note the top issues.',
+        'Watch for motions, votes, continuances, and explicit next steps.',
+    ];
+    if (!empty($remote['join_url'])) {
+        $checks[] = 'Join the public Zoom a few minutes early and confirm the posted ID and passcode work.';
+    }
+    if ($location !== '') {
+        $checks[] = 'Confirm whether the meeting is hybrid and whether the posted location still matches the agenda.';
+    }
+
+    return [
+        'source_type' => $sourceType,
+        'checklist' => $checks,
+    ];
+}
+
+function newsroom_save_live_prep_notes(string $entityType, int $id, string $notes): void
+{
+    if (!newsroom_db_available() || $id <= 0) {
+        return;
+    }
+
+    if ($entityType === 'story') {
+        $statement = newsroom_db()->prepare('UPDATE stories SET live_prep_notes = :notes WHERE id = :id');
+        $statement->execute([':notes' => trim($notes) !== '' ? trim($notes) : null, ':id' => $id]);
+        return;
+    }
+
+    if ($entityType === 'community_event') {
+        $statement = newsroom_db()->prepare('UPDATE community_events SET live_prep_notes = :notes WHERE id = :id');
+        $statement->execute([':notes' => trim($notes) !== '' ? trim($notes) : null, ':id' => $id]);
+    }
 }

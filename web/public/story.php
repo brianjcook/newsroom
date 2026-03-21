@@ -64,6 +64,7 @@ http_response_code($story ? 200 : 404);
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
+        <a href="/archive">Archive</a>
     </nav>
 
     <div class="story-layout">
@@ -72,7 +73,9 @@ http_response_code($story ? 200 : 404);
                 <div class="eyebrow"><?= htmlspecialchars(str_replace('_', ' ', $story['story_type'])) ?></div>
                 <div class="story-filed-meta"><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $storyDate))) ?></div>
                 <h2 class="story-headline"><?= htmlspecialchars($story['headline']) ?></h2>
+                <div class="story-byline">By <?= htmlspecialchars((string) ($story['byline']['name'] ?? 'Wareham Times News Desk')) ?><?php if (!empty($story['byline']['title'])): ?> <span><?= htmlspecialchars((string) $story['byline']['title']) ?></span><?php endif; ?></div>
                 <div class="story-meta-row story-meta-row--story">
+                    <span class="signal-pill"><?= htmlspecialchars((string) ($story['label'] ?? newsroom_story_label($story))) ?></span>
                     <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($story['meta']['body_signal'])) ?>"><?= htmlspecialchars($story['meta']['body_name']) ?></span>
                 </div>
                 <?php if (!empty($story['topics'])): ?>

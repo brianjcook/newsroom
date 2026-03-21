@@ -23,7 +23,7 @@ $indexMode = $slug === '';
 $topics = $indexMode ? newsroom_topics_index() : [];
 $bundle = $indexMode ? ['topic' => null, 'stories' => [], 'events' => []] : newsroom_topic_bundle($slug);
 $topic = $bundle['topic'] ?? null;
-$overview = (!$indexMode && $topic) ? newsroom_topic_overview($topic, $bundle) : '';
+$overview = (!$indexMode && $topic) ? newsroom_topic_intro_text((string) $topic['slug'], (string) $topic['label'], $bundle) : '';
 
 http_response_code($indexMode || $topic ? 200 : 404);
 ?>
@@ -55,6 +55,7 @@ http_response_code($indexMode || $topic ? 200 : 404);
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
+        <a href="/archive">Archive</a>
     </nav>
 
     <?php if ($indexMode): ?>
@@ -64,6 +65,7 @@ http_response_code($indexMode || $topic ? 200 : 404);
             <?php foreach ($topics as $topicItem): ?>
                 <article class="story-tease">
                     <h3><a href="<?= htmlspecialchars(newsroom_topic_url((string) $topicItem['slug'])) ?>"><?= htmlspecialchars((string) $topicItem['label']) ?></a></h3>
+                    <p><?= htmlspecialchars(newsroom_topic_intro_text((string) $topicItem['slug'], (string) $topicItem['label'])) ?></p>
                     <p><?= htmlspecialchars((string) $topicItem['count']) ?> tagged items, including <?= htmlspecialchars((string) ($topicItem['story_count'] ?? 0)) ?> stories and <?= htmlspecialchars((string) ($topicItem['event_count'] ?? 0)) ?> events.</p>
                 </article>
             <?php endforeach; ?>
@@ -78,6 +80,7 @@ http_response_code($indexMode || $topic ? 200 : 404);
                     <?php $lead = $bundle['stories'][0]; ?>
                     <h2><a href="<?= htmlspecialchars(newsroom_story_url($lead)) ?>"><?= htmlspecialchars((string) $lead['headline']) ?></a></h2>
                     <div class="story-meta-row story-meta-row--compact">
+                        <span class="signal-pill"><?= htmlspecialchars((string) $lead['label']) ?></span>
                         <span class="signal-pill" style="<?= htmlspecialchars(sprintf('--pill-bg:%s; --pill-fg:%s; --pill-border:%s;', $lead['meta']['body_signal']['bg'], $lead['meta']['body_signal']['fg'], $lead['meta']['body_signal']['border'])) ?>"><?= htmlspecialchars((string) $lead['meta']['body_name']) ?></span>
                         <span class="story-card__meta"><?= htmlspecialchars((string) $lead['meta']['meeting_datetime']) ?></span>
                     </div>
@@ -92,6 +95,7 @@ http_response_code($indexMode || $topic ? 200 : 404);
                     <article class="rail-story">
                         <h3><a href="<?= htmlspecialchars(newsroom_story_url($story)) ?>"><?= htmlspecialchars((string) $story['headline']) ?></a></h3>
                         <div class="story-meta-row story-meta-row--compact">
+                            <span class="signal-pill"><?= htmlspecialchars((string) $story['label']) ?></span>
                             <span class="signal-pill" style="<?= htmlspecialchars(sprintf('--pill-bg:%s; --pill-fg:%s; --pill-border:%s;', $story['meta']['body_signal']['bg'], $story['meta']['body_signal']['fg'], $story['meta']['body_signal']['border'])) ?>"><?= htmlspecialchars((string) $story['meta']['body_name']) ?></span>
                             <span class="story-card__meta"><?= htmlspecialchars((string) $story['meta']['meeting_datetime']) ?></span>
                         </div>
@@ -104,6 +108,9 @@ http_response_code($indexMode || $topic ? 200 : 404);
                 <?php if ($bundle['events']): ?>
                     <?php foreach ($bundle['events'] as $event): ?>
                         <article class="event-item">
+                            <div class="story-meta-row story-meta-row--compact">
+                                <span class="signal-pill"><?= htmlspecialchars((string) ($event['label'] ?? 'Community Event')) ?></span>
+                            </div>
                             <strong><a href="<?= htmlspecialchars((string) $event['local_url']) ?>"><?= htmlspecialchars((string) $event['title']) ?></a></strong>
                             <p class="event-item__datetime"><?= htmlspecialchars(date('M. j, Y g:i A', strtotime((string) $event['starts_at']))) ?></p>
                             <?php if (!empty($event['location_name'])): ?>

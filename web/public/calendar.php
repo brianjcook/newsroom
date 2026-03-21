@@ -55,6 +55,7 @@ function newsroom_pill_style(array $signal): string
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
+        <a href="/archive">Archive</a>
     </nav>
 
     <h2 class="section-heading">Upcoming Meetings</h2>
@@ -65,6 +66,7 @@ function newsroom_pill_style(array $signal): string
                     <div class="calendar-row__when"><?= htmlspecialchars(date('D', strtotime((string) $event['starts_at']))) ?><span><?= htmlspecialchars(date('M j', strtotime((string) $event['starts_at']))) ?></span></div>
                     <div class="calendar-row__body">
                         <div class="story-meta-row story-meta-row--compact">
+                            <span class="signal-pill"><?= htmlspecialchars((string) ($event['label'] ?? 'Preview')) ?></span>
                             <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['body_name']) ?></span>
                             <span class="story-card__meta"><?= htmlspecialchars(date('g:i A', strtotime((string) $event['starts_at']))) ?></span>
                         </div>
@@ -123,6 +125,7 @@ function newsroom_pill_style(array $signal): string
                     <div class="calendar-row__when"><?= htmlspecialchars(date('D', strtotime((string) $event['starts_at']))) ?><span><?= htmlspecialchars(date('M j', strtotime((string) $event['starts_at']))) ?></span></div>
                     <div class="calendar-row__body">
                         <div class="story-meta-row story-meta-row--compact">
+                            <span class="signal-pill"><?= htmlspecialchars((string) ($event['label'] ?? 'Community Event')) ?></span>
                             <span class="signal-pill" style="<?= htmlspecialchars(newsroom_pill_style($event['body_signal'])) ?>"><?= htmlspecialchars($event['source_type'] === 'community_event' ? 'Community Event' : ucwords(str_replace('_', ' ', $event['source_type']))) ?></span>
                             <span class="story-card__meta"><?= htmlspecialchars(date('g:i A', strtotime((string) $event['starts_at']))) ?></span>
                             <span class="story-card__meta">Score <?= htmlspecialchars((string) $event['effective_score']) ?></span>

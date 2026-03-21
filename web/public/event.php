@@ -62,6 +62,7 @@ http_response_code($event ? 200 : 404);
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
+        <a href="/archive">Archive</a>
     </nav>
 
     <div class="story-layout">
@@ -70,7 +71,9 @@ http_response_code($event ? 200 : 404);
                 <div class="eyebrow">Community Event</div>
                 <div class="story-filed-meta"><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $event['starts_at']))) ?></div>
                 <h2 class="story-headline"><?= htmlspecialchars($event['title']) ?></h2>
+                <div class="story-byline">By <?= htmlspecialchars((string) ($event['byline']['name'] ?? 'Wareham Times News Desk')) ?><?php if (!empty($event['byline']['title'])): ?> <span><?= htmlspecialchars((string) $event['byline']['title']) ?></span><?php endif; ?></div>
                 <div class="story-meta-row story-meta-row--story">
+                    <span class="signal-pill"><?= htmlspecialchars((string) ($event['label'] ?? 'Community Event')) ?></span>
                     <span class="signal-pill" style="<?= htmlspecialchars(sprintf('--pill-bg:%s; --pill-fg:%s; --pill-border:%s;', $event['body_signal']['bg'], $event['body_signal']['fg'], $event['body_signal']['border'])) ?>"><?= htmlspecialchars($event['source_type'] === 'community_event' ? 'Community Event' : ucwords(str_replace('_', ' ', $event['source_type']))) ?></span>
                 </div>
                 <div class="story-dek"><?= htmlspecialchars($summary) ?></div>
@@ -102,6 +105,7 @@ http_response_code($event ? 200 : 404);
                         <div class="story-information__row">
                             <span class="story-information__label">Editorial</span>
                             <span class="story-information__stack">
+                                <span><?= htmlspecialchars((string) ($event['event_tier']['label'] ?? 'Calendar Listing')) ?></span>
                                 <?php foreach ($metaBits as $bit): ?>
                                     <span><?= htmlspecialchars((string) $bit) ?></span>
                                 <?php endforeach; ?>
@@ -122,6 +126,10 @@ http_response_code($event ? 200 : 404);
                 <?php if ($editorialNote !== ''): ?>
                     <h3>Why It Stands Out</h3>
                     <p><?= htmlspecialchars($editorialNote) ?></p>
+                <?php endif; ?>
+                <?php if (!empty($event['event_tier']['summary'])): ?>
+                    <h3>Coverage Tier</h3>
+                    <p><?= htmlspecialchars((string) $event['event_tier']['summary']) ?></p>
                 <?php endif; ?>
                 <?php if (!empty($event['description'])): ?>
                     <h3>Event Details</h3>

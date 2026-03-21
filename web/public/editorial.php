@@ -149,6 +149,7 @@ function newsroom_editorial_queue_actions(?string $queueFilter): array
     switch ($queueFilter) {
         case 'watch_live':
             return [
+                ['label' => 'Live Board', 'url' => '/desk/live'],
                 ['label' => 'Stories Only', 'url' => newsroom_editorial_queue_url('watch_live', ['entity' => 'story'])],
                 ['label' => 'Upcoming First', 'url' => newsroom_editorial_queue_url('watch_live', ['sort' => 'date_asc'])],
                 ['label' => 'Methodology', 'url' => '/desk/methodology'],
@@ -169,6 +170,7 @@ function newsroom_editorial_queue_actions(?string $queueFilter): array
             ];
         case 'follow_up_story':
             return [
+                ['label' => 'Follow-Up Board', 'url' => '/desk/follow-ups'],
                 ['label' => 'Highest Score First', 'url' => newsroom_editorial_queue_url('follow_up_story', ['sort' => 'score_desc'])],
                 ['label' => 'Stories Only', 'url' => newsroom_editorial_queue_url('follow_up_story', ['entity' => 'story'])],
                 ['label' => 'Methodology', 'url' => '/desk/methodology'],
@@ -226,6 +228,7 @@ function newsroom_editorial_datetime(string $value): string
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
+        <a href="/archive">Archive</a>
     </nav>
 
     <h2 class="section-heading">Newsworthiness Queue</h2>
@@ -251,7 +254,7 @@ function newsroom_editorial_datetime(string $value): string
     <section class="editorial-explainer">
         <p>The current score emphasizes civic impact, public interest, timeliness, and body priority. It subtracts points for routine recurring meetings and low-signal appointment-only agendas.</p>
         <p>The workflow is intended as a newsroom lifecycle: preview published, watch live, recap needed, minutes reconcile, follow-up story, and done.</p>
-        <p><a href="/desk/methodology">View the full methodology and scoring signals.</a></p>
+        <p><a href="/desk/methodology">View the full methodology and scoring signals.</a> <a href="/desk/follow-ups">Open the follow-up queue.</a> <a href="/desk/live">Open the live watch board.</a></p>
     </section>
 
     <form method="get" class="editorial-filters">

@@ -592,6 +592,47 @@ Build a local-news publishing system that ingests municipal and other local cont
 - The public calendar fatal on null local story links is fixed:
 - upcoming and community calendar headlines now safely fall back to plain text when a local coverage URL does not exist yet
 
+### 2026-03-21 newsroom-operations phase update
+- Added newsroom-operations schema support in `008_newsroom_operations.sql`:
+- story `public_label`, `byline_name`, `byline_title`, and `live_prep_notes`
+- community-event `public_label`, `byline_name`, `byline_title`, `event_tier`, and `live_prep_notes`
+- new `follow_up_items` table for second-day story tracking
+- Added quick editorial actions to the recap workspace:
+- `Create Follow-Up`
+- `Watch Next Meeting`
+- `Minutes Reconciled`
+- `Mark Done`
+- Added a proper follow-up workflow:
+- `/desk/follow-ups` queue
+- `/desk/follow-ups/{id}` editable workspace
+- recap actions can now create follow-up records directly from a recap item
+- Added a dedicated live-watch preparation layer:
+- `/desk/live` shows watch-live items with agenda links, Zoom links when available, a preflight checklist, and saveable live prep notes
+- Added first-class archive/search support:
+- `/archive` and `/search` now search stories and event pages together with body/topic/entity filters
+- Added stronger public labels/bylines:
+- stories now surface labels like `Preview` and `Recap`
+- event pages now surface tier-based labels like `Community Brief` and `Event Spotlight`
+- public story/event pages now show bylines derived from the newsroom desk
+- Improved topic landing pages:
+- topic cards and topic pages now use explicit topic-intro copy rather than only generic count summaries
+- Improved homepage hierarchy:
+- added `Desk Priorities`
+- added `Recent Recaps`
+- upgraded `Around Town` into a spotlight + briefs treatment
+- added `Archive` to the public navigation
+- Added event-treatment tiers:
+- community events now render as `Event Spotlight`, `Event Brief`, `Community Brief`, or `Calendar Listing` in the presentation layer
+- those tiers are now surfaced on event pages and the homepage
+- Verified the new production routes over HTTPS:
+- `/archive`
+- `/desk`
+- `/desk/recaps`
+- `/desk/live`
+- `/desk/follow-ups`
+- `/desk/recaps/1313`
+- Verified that a recap quick action creates a live follow-up record in production; the first created item is `Zoning Board of Appeals to Hear 17 Atlantic Avenue Permit Request follow-up`
+
 ## Recent commits
 - `02d9546` - `Add recap workflow board to editorial desk`
 - `fdb9831` - `Update context after recap workflow rollout`
@@ -687,6 +728,17 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
+- Commit and push the current newsroom-operations phase:
+- archive/search
+- follow-up queue and workspace
+- live-watch board
+- quick recap actions
+- public labels/bylines/event tiers/homepage hierarchy
+- Decide whether follow-up items should eventually become first-class public stories/pages or remain desk-only planning objects.
+- Consider adding editable byline/public-label overrides to the editorial desk instead of only default newsroom-derived values.
+- Tighten archive result ranking so the first page feels more editorially useful and less strictly date-driven.
+- Expand the live-watch board from preflight notes into an actual launch surface for Zoom/stream capture once the reporting workflow returns to that topic.
+- Keep refining the strongest public-story outputs, especially hearing-heavy and appointment-heavy meetings, so the copy reads less like cleaned agenda text and more like selective local reporting.
 - Let the workflow lifecycle drive more automation:
 - add stronger queue-specific desk views around `Watch live`, `Recap needed`, and `Minutes reconcile`
 - eventually connect `Recap needed` and `Minutes reconcile` to post-meeting draft/reconciliation automation once live meeting capture exists

@@ -18,12 +18,23 @@ $config = newsroom_config();
 $id = (int) ($_GET['id'] ?? 0);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $id > 0) {
-    newsroom_update_recap_draft(
-        $id,
-        (string) ($_POST['draft_headline'] ?? ''),
-        (string) ($_POST['draft_dek'] ?? ''),
-        (string) ($_POST['draft_body'] ?? '')
-    );
+    $action = trim((string) ($_POST['workspace_action'] ?? 'save_draft'));
+    if ($action === 'save_draft') {
+        newsroom_update_recap_draft(
+            $id,
+            (string) ($_POST['draft_headline'] ?? ''),
+            (string) ($_POST['draft_dek'] ?? ''),
+            (string) ($_POST['draft_body'] ?? '')
+        );
+        header('Location: /desk/recaps/' . $id . '?saved=1');
+        exit;
+    }
+
+    $followUpId = newsroom_apply_recap_action($id, $action);
+    if ($followUpId !== null && in_array($action, ['create_follow_up', 'queue_watch'], true)) {
+        header('Location: /desk/follow-ups/' . $followUpId);
+        exit;
+    }
     header('Location: /desk/recaps/' . $id . '?saved=1');
     exit;
 }
@@ -103,6 +114,7 @@ function newsroom_recap_draft_datetime(?string $meetingDate, ?string $meetingTim
                     <div class="draft-workspace__block">
                         <h3 class="section-heading section-heading--tight">Editable Draft</h3>
                         <form method="post" class="draft-workspace__form">
+                            <input type="hidden" name="workspace_action" value="save_draft">
                             <label class="editorial-inline-control">
                                 <span>Draft Headline</span>
                                 <input type="text" name="draft_headline" value="<?= htmlspecialchars($draftHeadline) ?>">
@@ -117,6 +129,24 @@ function newsroom_recap_draft_datetime(?string $meetingDate, ?string $meetingTim
                             </label>
                             <button type="submit">Save Draft</button>
                         </form>
+                        <div class="editorial-quick-actions">
+                            <form method="post">
+                                <input type="hidden" name="workspace_action" value="create_follow_up">
+                                <button type="submit">Create Follow-Up</button>
+                            </form>
+                            <form method="post">
+                                <input type="hidden" name="workspace_action" value="queue_watch">
+                                <button type="submit">Watch Next Meeting</button>
+                            </form>
+                            <form method="post">
+                                <input type="hidden" name="workspace_action" value="minutes_reconciled">
+                                <button type="submit">Minutes Reconciled</button>
+                            </form>
+                            <form method="post">
+                                <input type="hidden" name="workspace_action" value="mark_done">
+                                <button type="submit">Mark Done</button>
+                            </form>
+                        </div>
                     </div>
 
                     <div class="draft-workspace__block">
