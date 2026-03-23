@@ -1992,6 +1992,17 @@ function newsroom_topic_bundle(string $slug, int $storyLimit = 20, int $eventLim
             }
         }
     }
+    if ($topic === null) {
+        foreach (newsroom_topics_index() as $candidate) {
+            if ((string) ($candidate['slug'] ?? '') === $slug) {
+                $topic = [
+                    'slug' => (string) $candidate['slug'],
+                    'label' => (string) $candidate['label'],
+                ];
+                break;
+            }
+        }
+    }
 
     return ['topic' => $topic, 'stories' => $stories, 'events' => $events];
 }
