@@ -109,6 +109,7 @@ $options = newsroom_archive_filter_options();
                         <?php if (($item['entity_type'] ?? '') === 'community_event' && !empty($item['event_tier']['label'])): ?>
                             <span class="story-card__meta"><?= htmlspecialchars((string) $item['event_tier']['label']) ?></span>
                         <?php endif; ?>
+                        <span class="story-card__meta">Rank <?= htmlspecialchars((string) round((float) ($item['editorial_rank'] ?? 0))) ?></span>
                         <span class="story-card__meta"><?= htmlspecialchars(date('F j, Y g:i A', strtotime((string) $item['occurs_at']))) ?></span>
                     </div>
                     <h3><a href="<?= htmlspecialchars((string) $item['public_url']) ?>"><?= htmlspecialchars((string) $item['title']) ?></a></h3>

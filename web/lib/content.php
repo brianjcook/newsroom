@@ -2009,6 +2009,79 @@ function newsroom_topic_bundle(string $slug, int $storyLimit = 20, int $eventLim
     return ['topic' => $topic, 'stories' => $stories, 'events' => $events];
 }
 
+function newsroom_topic_story_groups(array $stories): array
+{
+    $leadId = isset($stories[0]['id']) ? (int) $stories[0]['id'] : 0;
+    $upcoming = [];
+    $recent = [];
+    foreach ($stories as $story) {
+        if ($leadId > 0 && (int) ($story['id'] ?? 0) === $leadId) {
+            continue;
+        }
+        $type = (string) ($story['story_type'] ?? '');
+        if ($type === 'meeting_preview') {
+            $upcoming[] = $story;
+        } else {
+            $recent[] = $story;
+        }
+    }
+
+    return [
+        'upcoming' => array_slice($upcoming, 0, 4),
+        'recent' => array_slice($recent, 0, 4),
+        'all' => $stories,
+    ];
+}
+
+function newsroom_topic_key_bodies(array $bundle, int $limit = 4): array
+{
+    $counts = [];
+    foreach (($bundle['stories'] ?? []) as $story) {
+        $body = trim((string) ($story['meta']['body_name'] ?? $story['body_name'] ?? ''));
+        if ($body === '') {
+            continue;
+        }
+        if (!isset($counts[$body])) {
+            $counts[$body] = 0;
+        }
+        $counts[$body]++;
+    }
+    foreach (($bundle['events'] ?? []) as $event) {
+        $body = trim((string) ($event['body_name'] ?? ''));
+        if ($body === '') {
+            continue;
+        }
+        if (!isset($counts[$body])) {
+            $counts[$body] = 0;
+        }
+        $counts[$body]++;
+    }
+
+    arsort($counts);
+    $result = [];
+    foreach (array_slice($counts, 0, $limit, true) as $body => $count) {
+        $result[] = ['body' => $body, 'count' => $count];
+    }
+    return $result;
+}
+
+function newsroom_topic_watch_text(array $topic, array $bundle): string
+{
+    $upcomingStories = newsroom_topic_story_groups($bundle['stories'] ?? [])['upcoming'];
+    $upcomingEvents = array_slice($bundle['events'] ?? [], 0, 2);
+    $parts = [];
+    if ($upcomingStories) {
+        $parts[] = count($upcomingStories) . ' upcoming meeting preview' . (count($upcomingStories) === 1 ? '' : 's');
+    }
+    if ($upcomingEvents) {
+        $parts[] = count($upcomingEvents) . ' related event' . (count($upcomingEvents) === 1 ? '' : 's');
+    }
+    if (!$parts) {
+        return 'There are no immediate upcoming items tagged to this beat, but the archive below tracks the ongoing issue.';
+    }
+    return 'What to watch next: ' . newsroom_sentence_list($parts) . '.';
+}
+
 function newsroom_homepage_priority_stories(int $limit = 4): array
 {
     if (!newsroom_db_available()) {
@@ -2211,6 +2284,39 @@ function newsroom_archive_results(array $filters = [], int $limit = 100): array
     foreach ($rows as &$row) {
         $row['effective_score'] = isset($row['score_override']) && $row['score_override'] !== null ? (int) $row['score_override'] : (int) $row['editorial_score'];
         $row['topics'] = newsroom_parse_topics($row['topic_tags_json'] ?? null);
+        $rank = $row['effective_score'];
+        $occursAt = strtotime((string) ($row['occurs_at'] ?? ''));
+        if ($occursAt !== false) {
+            $daysOld = max(0, (time() - $occursAt) / 86400);
+            $rank += max(0, 24 - min(24, $daysOld * 1.1));
+        }
+        if ((string) ($row['entity_type'] ?? '') === 'story') {
+            $rank += 12;
+        }
+        if ((string) ($row['item_type'] ?? '') === 'minutes_recap') {
+            $rank += 6;
+        }
+        if ((string) ($row['item_type'] ?? '') === 'meeting_preview') {
+            $rank += 4;
+        }
+        if ($query !== '') {
+            $haystacks = [
+                strtolower((string) ($row['title'] ?? '')),
+                strtolower((string) ($row['summary_text'] ?? '')),
+                strtolower((string) ($row['body_name'] ?? '')),
+            ];
+            $queryNeedle = strtolower($query);
+            foreach ($haystacks as $haystack) {
+                if ($haystack === '') {
+                    continue;
+                }
+                if (strpos($haystack, $queryNeedle) !== false) {
+                    $rank += 18;
+                    break;
+                }
+            }
+        }
+        $row['editorial_rank'] = $rank;
         if ((string) $row['entity_type'] === 'story') {
             $row['public_url'] = newsroom_story_url_from_slug((string) $row['slug']);
             $row['label'] = newsroom_story_label($row);
@@ -2223,6 +2329,14 @@ function newsroom_archive_results(array $filters = [], int $limit = 100): array
         }
     }
     unset($row);
+
+    usort($rows, static function (array $a, array $b): int {
+        $rankCompare = ((float) ($b['editorial_rank'] ?? 0)) <=> ((float) ($a['editorial_rank'] ?? 0));
+        if ($rankCompare !== 0) {
+            return $rankCompare;
+        }
+        return strcmp((string) ($b['occurs_at'] ?? ''), (string) ($a['occurs_at'] ?? ''));
+    });
 
     return $rows;
 }

@@ -71,6 +71,19 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Improved PDF agenda extraction in `extract.py` so wrapped agenda lines are stitched back together, repeated page/date boilerplate is stripped, nested sub-items are preserved more cleanly, and real Wareham agenda items like the Municipal Maintenance abatements line and Open Space and Recreation Plan line survive extraction intact.
 - Added a reusable maintenance script at `worker/scripts/reextract_documents.py` so existing documents can be re-extracted and republished after parser improvements.
 - Fixed `publish.py` to select the latest extraction per document instead of joining against stale historical extraction rows.
+- Fixed topic-page topic resolution so valid topic slugs fall back to the indexed topic list instead of incorrectly rendering `Topic not found`.
+- Fixed topic/archive JSON topic matching so MySQL-stored `topic_tags_json` with spaces like `"slug": "zoning"` still matches public topic pages and archive filters.
+- Upgraded topic pages into stronger beat pages:
+- topic detail pages now include `What To Watch`, `At a Glance`, and `Recurring Bodies` summary cards
+- topic bundles now separate `Upcoming Coverage` from `Recent Stories`
+- recurring governing bodies and upcoming coverage are surfaced more explicitly instead of only listing every tagged story chronologically
+- Improved archive ranking so `/archive` is no longer purely date-sorted:
+- results now use an `editorial_rank` that blends effective editorial score, recency, story/entity bonuses, preview/recap bonuses, and simple query-match boosts
+- archive cards now show the computed rank inline
+- Added another story-quality pass in `worker/newsroom/publish.py` for appointment-heavy edge cases:
+- appointment lines now read more like edited local coverage, using `seat` phrasing where appropriate
+- Planning Board, Capital Planning Committee, and Finance Committee appointment items now summarize more naturally
+- deployed the topic/archive PHP changes and ran a publish-only on-host story/event sync to apply the latest publisher improvements without invoking the older Python-3.6-incompatible full pipeline path
 - Added a richer meeting-signals presentation layer in `web/lib/content.php` and the public templates:
 - stable board/committee color pills
 - structured meeting meta on story pages
@@ -210,6 +223,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Editorial story framing is now more selective: `run #26` updated one live story, and the Select Board March 17, 2026 preview now leads with a ranked list of high-impact agenda items instead of relying only on a generic schedule summary.
 - Editorial tone is now somewhat sharper: by `run #28`, the Select Board preview still uses deterministic ranking, but the explanatory notes read more like civic framing and less like a raw rules dump.
 - The public front end now visually hews closer to a newspaper/reference-journal aesthetic, with fewer boxes and more column/rule structure across the homepage, story pages, calendar, and status views.
+- Topic pages are now more useful beat pages instead of thin tag archives, with a clearer topic watch summary, recurring-body context, separated upcoming/recent coverage, and working topic bundles such as `/topics/zoning`.
+- Archive results are now ranked more editorially instead of feeling purely chronological, while still remaining filterable by body, topic, type, and query.
+- The latest story-quality pass improved appointment-heavy phrasing again and was applied with a publish-only on-host sync so production stories refreshed even though the full host pipeline still contains an older Python 3.6 incompatibility in a different module path.
 - Production run `#29` applied the first issue-led headline/dek pass across existing stories, and run `#30` refined that wording further so proper nouns are no longer decapitalized in sentence position and lead previews read less like raw agenda fragments.
 - Production run `#31` refreshed published stories after the latest-extraction selection fix in `publish.py`, and run `#32` applied the final Town Meeting headline cleanup after the full re-extraction pass.
 - After the source-metadata merge fix and live refetch/re-extraction cycle, Zoom details reappeared for meetings whose wrapper pages provide them, including the Select Board March 17, 2026 preview.
@@ -734,9 +750,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 ## Next priority tasks
 - Decide whether follow-up items should eventually become first-class public stories/pages or remain desk-only planning objects.
 - Consider adding editable byline/public-label overrides to the editorial desk instead of only default newsroom-derived values.
-- Tighten archive result ranking so the first page feels more editorially useful and less strictly date-driven.
 - Expand the live-watch board from preflight notes into an actual launch surface for Zoom/stream capture once the reporting workflow returns to that topic.
 - Keep refining the strongest public-story outputs, especially hearing-heavy and appointment-heavy meetings, so the copy reads less like cleaned agenda text and more like selective local reporting.
+- Keep improving topic pages so they can evolve from beat pages into fuller topic hubs with background context, timelines, and key-document blocks where justified.
+- Decide whether archive ranking should surface more explicit editorial buckets like `Most important`, `Latest`, and `Previews` instead of relying only on one blended rank.
 - Let the workflow lifecycle drive more automation:
 - add stronger queue-specific desk views around `Watch live`, `Recap needed`, and `Minutes reconcile`
 - eventually connect `Recap needed` and `Minutes reconcile` to post-meeting draft/reconciliation automation once live meeting capture exists

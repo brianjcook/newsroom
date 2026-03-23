@@ -825,14 +825,19 @@ def _normalize_street_types(text: str) -> str:
 
 
 def _appointment_sentence(target: str, candidate: str = "", kind: str = "") -> str:
+    seat_target = target
     if candidate and kind == "application":
-        return "Members are expected to consider {} application to the {}.".format(
+        return "Members are expected to consider {} application for a seat on the {}.".format(
             _possessive_name(candidate),
-            target,
+            seat_target,
         )
+    if candidate and "town counsel" in target.lower():
+        return "Members are expected to consider appointing {} as Town Counsel.".format(candidate)
     if candidate:
-        return "Members are expected to consider appointing {} to the {}.".format(candidate, target)
-    return "Members are expected to consider an appointment to the {}.".format(target)
+        return "Members are expected to consider appointing {} to a seat on the {}.".format(candidate, seat_target)
+    if "town counsel" in target.lower():
+        return "Members are expected to consider appointing Town Counsel."
+    return "Members are expected to consider who should fill a seat on the {}.".format(seat_target)
 
 
 def _parse_appointment_item(text: str) -> Dict[str, str]:
@@ -871,31 +876,31 @@ def _parse_appointment_item(text: str) -> Dict[str, str]:
         return {
             "target": target,
             "candidate": candidate,
-            "summary": "{} appointment".format(target),
-            "headline": "{} Appointment".format(target),
+            "summary": "{} seat".format(target),
+            "headline": "{} Seat".format(target),
             "sentence": _appointment_sentence(target, candidate, kind),
         }
 
     if "planning board" in lowered and "appoint" in lowered:
         return {
             "target": "Planning Board",
-            "summary": "planning board appointment",
-            "headline": "Planning Board Appointment",
-            "sentence": "Members are expected to consider a Planning Board appointment.",
+            "summary": "planning board seat",
+            "headline": "Planning Board Seat",
+            "sentence": "Members are expected to consider who should fill a seat on the Planning Board.",
         }
     if "capital planning" in lowered and ("appoint" in lowered or "member" in lowered):
         return {
             "target": "Capital Planning Committee",
-            "summary": "capital planning committee appointment",
-            "headline": "Capital Planning Committee Appointment",
-            "sentence": "Members are expected to consider an appointment to the Capital Planning Committee.",
+            "summary": "capital planning committee seat",
+            "headline": "Capital Planning Committee Seat",
+            "sentence": "Members are expected to consider who should fill a seat on the Capital Planning Committee.",
         }
     if "finance committee" in lowered and ("appoint" in lowered or "application of" in lowered):
         return {
             "target": "Finance Committee",
-            "summary": "finance committee appointment",
-            "headline": "Finance Committee Appointment",
-            "sentence": "Members are expected to consider an appointment to the Finance Committee.",
+            "summary": "finance committee seat",
+            "headline": "Finance Committee Seat",
+            "sentence": "Members are expected to consider who should fill a seat on the Finance Committee.",
         }
 
     return {}
