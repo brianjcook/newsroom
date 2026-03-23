@@ -633,6 +633,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `/desk/recaps/1313`
 - Verified that a recap quick action creates a live follow-up record in production; the first created item is `Zoning Board of Appeals to Hear 17 Atlantic Avenue Permit Request follow-up`
 - Fixed topic-page resolution so `/topics/{slug}` now falls back to a real topic lookup from the indexed topic list instead of showing `Topic not found` when the bundle cannot infer the label from the first returned item
+- Fixed topic-page and archive topic filtering against MySQL JSON text formatting by normalizing spaces before slug matching, so topics like `/topics/zoning` now show their tagged stories instead of falling through to empty results when JSON is stored as `"slug": "zoning"`
 
 ## Recent commits
 - `540689d` - `Update context after newsroom operations rollout`

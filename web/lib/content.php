@@ -1931,7 +1931,7 @@ function newsroom_topic_bundle(string $slug, int $storyLimit = 20, int $eventLim
         return ['topic' => null, 'stories' => [], 'events' => []];
     }
 
-    $needle = '%"slug":"' . str_replace(['%', '_'], ['\\%', '\\_'], $slug) . '"%';
+    $normalizedNeedle = '%"slug":"' . str_replace(['%', '_'], ['\\%', '\\_'], $slug) . '"%';
 
     $storyStatement = newsroom_db()->prepare(
         'SELECT
@@ -1951,11 +1951,12 @@ function newsroom_topic_bundle(string $slug, int $storyLimit = 20, int $eventLim
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE s.publish_status = "published" AND s.topic_tags_json LIKE :needle
+         WHERE s.publish_status = "published"
+           AND REPLACE(CAST(s.topic_tags_json AS CHAR(4000)), " ", "") LIKE :needle
          ORDER BY COALESCE(s.sort_date, s.display_date, s.published_at) DESC
          LIMIT :limit'
     );
-    $storyStatement->bindValue(':needle', $needle, PDO::PARAM_STR);
+    $storyStatement->bindValue(':needle', $normalizedNeedle, PDO::PARAM_STR);
     $storyStatement->bindValue(':limit', $storyLimit, PDO::PARAM_INT);
     $storyStatement->execute();
     $stories = array_map('newsroom_recent_story_presenter', $storyStatement->fetchAll());
@@ -1966,11 +1967,12 @@ function newsroom_topic_bundle(string $slug, int $storyLimit = 20, int $eventLim
             COALESCE(ce.score_override, ce.editorial_score) AS effective_score,
             COALESCE(NULLIF(ce.coverage_override, ""), ce.suggested_coverage_mode) AS effective_coverage_mode
          FROM community_events ce
-         WHERE ce.is_hidden = 0 AND ce.topic_tags_json LIKE :needle
+         WHERE ce.is_hidden = 0
+           AND REPLACE(CAST(ce.topic_tags_json AS CHAR(4000)), " ", "") LIKE :needle
          ORDER BY ce.starts_at ASC, COALESCE(ce.score_override, ce.editorial_score) DESC
          LIMIT :limit'
     );
-    $eventStatement->bindValue(':needle', $needle, PDO::PARAM_STR);
+    $eventStatement->bindValue(':needle', $normalizedNeedle, PDO::PARAM_STR);
     $eventStatement->bindValue(':limit', $eventLimit, PDO::PARAM_INT);
     $eventStatement->execute();
     $events = array_map('newsroom_community_event_presenter', $eventStatement->fetchAll());
@@ -2189,7 +2191,7 @@ function newsroom_archive_results(array $filters = [], int $limit = 100): array
         $params[':body'] = $body;
     }
     if ($topic !== 'all') {
-        $sql .= ' AND topic_tags_json LIKE :topic';
+        $sql .= ' AND REPLACE(CAST(topic_tags_json AS CHAR(4000)), " ", "") LIKE :topic';
         $params[':topic'] = '%"slug":"' . str_replace(['%', '_'], ['\\%', '\\_'], $topic) . '"%';
     }
     if ($query !== '') {
