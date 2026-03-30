@@ -920,8 +920,7 @@ function newsroom_latest_stories(int $limit = 8): array
         return [];
     }
 
-    $statement = newsroom_db()->prepare(
-        'SELECT
+    $baseSelect = 'SELECT
             s.id,
             s.slug,
             s.story_type,
@@ -967,8 +966,7 @@ function newsroom_latest_stories(int $limit = 8): array
                 WHERE ma.meeting_id = s.meeting_id AND ma.artifact_type = "agenda"
                 ORDER BY ma.is_primary DESC, ma.posted_at DESC, ma.id DESC
                 LIMIT 1
-            ) AS artifact_structured_json
-            ,
+            ) AS artifact_structured_json,
             (
                 SELECT si.raw_meta_json
                 FROM meeting_artifacts ma
@@ -980,12 +978,9 @@ function newsroom_latest_stories(int $limit = 8): array
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE publish_status = :status
-           AND NOT (
-                s.story_type = "meeting_preview"
-                AND m.meeting_date IS NOT NULL
-                AND m.meeting_date < DATE_SUB(CURDATE(), INTERVAL 2 DAY)
-            )
+         WHERE publish_status = :status';
+
+    $orderedTail = '
          ORDER BY
             CASE
                 WHEN s.story_type = "meeting_preview" AND m.meeting_date IS NOT NULL AND TIMESTAMP(m.meeting_date, COALESCE(m.meeting_time, "00:00:00")) >= NOW() THEN 0
@@ -998,13 +993,33 @@ function newsroom_latest_stories(int $limit = 8): array
             END ASC,
             COALESCE(s.sort_date, s.display_date, s.published_at, TIMESTAMP(m.meeting_date, COALESCE(m.meeting_time, "00:00:00"))) DESC,
             s.id DESC
-         LIMIT :limit'
+         LIMIT :limit';
+
+    $statement = newsroom_db()->prepare(
+        $baseSelect . '
+           AND NOT (
+                s.story_type = "meeting_preview"
+                AND m.meeting_date IS NOT NULL
+                AND m.meeting_date < DATE_SUB(CURDATE(), INTERVAL 2 DAY)
+            )' . $orderedTail
     );
     $statement->bindValue(':status', 'published');
     $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
     $statement->execute();
 
-    return array_map('newsroom_recent_story_presenter', $statement->fetchAll());
+    $rows = $statement->fetchAll();
+    if ($rows) {
+        return array_map('newsroom_recent_story_presenter', $rows);
+    }
+
+    $fallbackStatement = newsroom_db()->prepare(
+        $baseSelect . $orderedTail
+    );
+    $fallbackStatement->bindValue(':status', 'published');
+    $fallbackStatement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $fallbackStatement->execute();
+
+    return array_map('newsroom_recent_story_presenter', $fallbackStatement->fetchAll());
 }
 
 function newsroom_story_by_slug(string $slug): ?array
