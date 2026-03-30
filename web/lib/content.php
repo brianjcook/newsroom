@@ -134,6 +134,123 @@ function newsroom_parse_topics($value): array
     return $parsed;
 }
 
+function newsroom_project_root(): ?string
+{
+    static $root = false;
+
+    if ($root !== false) {
+        return $root ?: null;
+    }
+
+    $candidates = [
+        realpath(__DIR__ . '/../..'),
+        realpath(__DIR__ . '/..'),
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (!is_string($candidate) || $candidate === '') {
+            continue;
+        }
+        if (is_dir($candidate . DIRECTORY_SEPARATOR . 'worker') && is_dir($candidate . DIRECTORY_SEPARATOR . 'storage')) {
+            $root = $candidate;
+            return $candidate;
+        }
+    }
+
+    $root = '';
+    return null;
+}
+
+function newsroom_maybe_trigger_worker_refresh(): void
+{
+    static $attempted = false;
+
+    if ($attempted) {
+        return;
+    }
+    $attempted = true;
+
+    if (PHP_OS_FAMILY === 'Windows') {
+        return;
+    }
+
+    if (!newsroom_db_available()) {
+        return;
+    }
+
+    $root = newsroom_project_root();
+    if (!is_string($root) || $root === '') {
+        return;
+    }
+
+    $logsDir = $root . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs';
+    if (!is_dir($logsDir)) {
+        return;
+    }
+
+    $statement = newsroom_db()->query(
+        'SELECT run_status, started_at, finished_at
+         FROM generation_runs
+         ORDER BY id DESC
+         LIMIT 1'
+    );
+    $latestRun = $statement ? $statement->fetch() : false;
+    if (!$latestRun) {
+        return;
+    }
+
+    $now = time();
+    $runStatus = strtolower(trim((string) ($latestRun['run_status'] ?? '')));
+    $startedAt = !empty($latestRun['started_at']) ? strtotime((string) $latestRun['started_at']) : false;
+    $finishedAt = !empty($latestRun['finished_at']) ? strtotime((string) $latestRun['finished_at']) : false;
+
+    if ($runStatus === 'running' && is_int($startedAt) && $startedAt > ($now - 7200)) {
+        return;
+    }
+
+    if (is_int($finishedAt) && $finishedAt > ($now - 43200)) {
+        return;
+    }
+
+    $kickFile = $logsDir . DIRECTORY_SEPARATOR . 'worker-kick.txt';
+    if (is_file($kickFile)) {
+        $lastKick = @filemtime($kickFile);
+        if (is_int($lastKick) && $lastKick > ($now - 1800)) {
+            return;
+        }
+    }
+
+    @file_put_contents($kickFile, (string) $now, LOCK_EX);
+
+    $envParts = [
+        'PYTHONPATH=' . escapeshellarg($root . DIRECTORY_SEPARATOR . 'worker'),
+        'PYTHONUSERBASE=' . escapeshellarg($root . DIRECTORY_SEPARATOR . '.pyuser'),
+        'NEWSROOM_DB_HOST=' . escapeshellarg((string) newsroom_env('NEWSROOM_DB_HOST', 'localhost')),
+        'NEWSROOM_DB_PORT=' . escapeshellarg((string) newsroom_env('NEWSROOM_DB_PORT', '3306')),
+        'NEWSROOM_DB_NAME=' . escapeshellarg((string) newsroom_env('NEWSROOM_DB_NAME', 'bricoo10_newsroom')),
+        'NEWSROOM_DB_USER=' . escapeshellarg((string) newsroom_env('NEWSROOM_DB_USER', '')),
+        'NEWSROOM_DB_PASSWORD=' . escapeshellarg((string) newsroom_env('NEWSROOM_DB_PASSWORD', '')),
+        'NEWSROOM_DB_UNIX_SOCKET=' . escapeshellarg((string) newsroom_env('NEWSROOM_DB_UNIX_SOCKET', '/run/mysqld/mysqld.sock')),
+        'NEWSROOM_SOURCE_DISCOVERY_ENABLED=' . escapeshellarg((string) newsroom_env('NEWSROOM_SOURCE_DISCOVERY_ENABLED', '1')),
+    ];
+
+    $command = sprintf(
+        'cd %s && nohup env %s python3 worker/scripts/run_daily.py >> %s 2>&1 &',
+        escapeshellarg($root),
+        implode(' ', $envParts),
+        escapeshellarg($logsDir . DIRECTORY_SEPARATOR . 'run_daily.log')
+    );
+
+    if (function_exists('exec')) {
+        @exec($command);
+        return;
+    }
+
+    if (function_exists('shell_exec')) {
+        @shell_exec($command);
+    }
+}
+
 function newsroom_truncate_text(string $value, int $limit = 220): string
 {
     $value = trim(preg_replace('/\s+/', ' ', $value));
@@ -920,6 +1037,8 @@ function newsroom_latest_stories(int $limit = 8): array
         return [];
     }
 
+    newsroom_maybe_trigger_worker_refresh();
+
     $baseSelect = 'SELECT
             s.id,
             s.slug,
@@ -1134,6 +1253,8 @@ function newsroom_upcoming_events(int $limit = 10): array
     if (!newsroom_db_available()) {
         return [];
     }
+
+    newsroom_maybe_trigger_worker_refresh();
 
     $statement = newsroom_db()->prepare(
         'SELECT
