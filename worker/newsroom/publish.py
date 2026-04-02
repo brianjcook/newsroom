@@ -60,6 +60,9 @@ EDITORIAL_SIGNAL_RULES = [
     ("mcc fy26 grant decision report", 62, "policy"),
     ("community input survey", 48, "policy"),
     ("grant recipient reception", 28, "policy"),
+    ("grant cycle", 26, "policy"),
+    ("grant application", 24, "policy"),
+    ("completed grants", 24, "policy"),
     ("town owned property", 52, "land_use"),
     ("affordable housing", 34, "policy"),
     ("801 main street", 42, "budget"),
@@ -76,6 +79,12 @@ EDITORIAL_SIGNAL_RULES = [
     ("back of sewer bills information", 28, "policy"),
     ("dissolve the cmwrrdd", 72, "policy"),
     ("selection of attorney", 42, "appointment"),
+    ("main street america update", 26, "policy"),
+    ("internship program", 24, "policy"),
+    ("aarp age friendly community", 28, "policy"),
+    ("chair absence", 18, "policy"),
+    ("budget transfers", 36, "budget"),
+    ("wpcf phase ii progress meeting", 24, "infrastructure"),
     ("environmental pollution policy", 38, "policy"),
     ("trex project", 64, "infrastructure"),
     ("paint and swap", 44, "policy"),
@@ -967,6 +976,12 @@ def _headline_phrase(text: str) -> str:
         return "Storefront Renovation Grant Program"
     if "downtown dollars program" in lowered:
         return "Downtown Dollars Program"
+    if "main street america update" in lowered:
+        return "Main Street America Update"
+    if "internship program" in lowered:
+        return "Internship Program"
+    if "historical society gazebo" in lowered or "gazebo in besse park" in lowered:
+        return "Historical Society Gazebo in Besse Park"
     if "redwood phase 3 window replacement" in lowered:
         return "Redwood Phase 3 Window Project"
     if "high leverage asset preservation program" in lowered or "hilap" in lowered:
@@ -987,6 +1002,22 @@ def _headline_phrase(text: str) -> str:
         return "New Member Appointment"
     if "spring town meeting articles" in lowered and "grant agreements" in lowered:
         return "Spring Town Meeting Funding Articles"
+    if re.search(r"article #?\s*1\s+budget transfers?", lowered):
+        return "Budget Transfers"
+    if re.search(r"article #?\s*2\s+fund parking program", lowered):
+        return "Fund Parking Program"
+    if re.search(r"article #?\s*12\s+rescind article 19 2022 fall town meeting", lowered):
+        return "Rescind Article 19"
+    if "wpcf phase ii progress meeting" in lowered and "who will be attending" in lowered:
+        return "WPCF Phase II Progress Meeting Attendance"
+    if "wpcf phase ii progress meeting" in lowered:
+        return "WPCF Phase II Progress Meeting"
+    if "aarp age friendly community" in lowered:
+        return "AARP Age Friendly Community Update"
+    if "completed grants" in lowered:
+        return "Completed Grants Review"
+    if "discussion and presentation by the bylaw review" in lowered:
+        return "Bylaw Review Presentation"
     if (
         "town meeting article" in lowered
         and any(token in lowered for token in ("grant agreement", "cranberry manor", "beaverdam", "sawyer property", "little harbor golf"))
@@ -1432,6 +1463,9 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"ridecircuit", "Ride Circuit presentation"),
         (r"storefront renovation grant program", "storefront renovation grant program"),
         (r"downtown dollars program", "Downtown Dollars program"),
+        (r"internship program", "internship program"),
+        (r"main street america update", "Main Street America update"),
+        (r"historical society gazebo(?:\s+in\s+besse\s+park)?", "Historical Society gazebo in Besse Park"),
         (r"redwood phase 3 window replacement", "Redwood Phase 3 window project"),
         (r"high leverage asset preservation program|hilap", "HILAP funding application"),
         (r"bulletin board.*public display policy", "public display policy"),
@@ -1447,17 +1481,26 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"october town meeting", "Town Meeting timing debate"),
         (r"contracts.*discussion.*vote", "contract votes"),
         (r"acceptance of meeting minutes", "meeting minutes approval"),
+        (r"article #?\s*1\s+budget transfers?", "budget transfers"),
+        (r"article #?\s*2\s+fund parking program", "funding the parking program"),
+        (r"article #?\s*12\s+rescind article 19 2022 fall town meeting", "rescinding Article 19 from the 2022 Fall Town Meeting"),
+        (r"pay invoice for fin", "finance clerk invoice"),
+        (r"discuss date for uct tour", "UCT tour date"),
         (r"fy2026 budget|fee accountant.*budget", "FY2026 budget review"),
         (r"planning director.*amend existing contracts", "Planning Director contract authority"),
         (r"boston red sox official 2026 yearbook", "Red Sox Yearbook advertising"),
         (r"transfer of recording/transcribing minutes", "minutes and agenda clerk transfer"),
+        (r"wpcf phase ii progress meeting.*who will be attending|who will be attending.*wpcf phase ii progress meeting", "WPCF Phase II progress meeting attendance"),
         (r"wpcf director report", "WPCF Director report"),
+        (r"wpcf phase ii progress meeting", "WPCF Phase II progress meeting"),
+        (r"who will be attending\??", "attendance"),
         (r"sewer commission business", "sewer commission business"),
         (r"friends of the wareham council on aging.*donation", "Council on Aging donation"),
         (r"grant agreement", "existing grant agreements"),
         (r"accept a donation.*council on aging", "Council on Aging donation"),
         (r"aarp age friendly community", "AARP Age Friendly Community update"),
         (r"aarp friendly community", "AARP Friendly Community update"),
+        (r"may coa board meeting.*chair absence", "May board meeting scheduling"),
         (r"status of new applicants", "new applicant review"),
         (r"open meeting law", "open meeting law discussion"),
         (r"waterline update", "Waterline update"),
@@ -1528,6 +1571,9 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"grant applications?", "grant applications"),
         (r"grant workshop", "grant workshop planning"),
         (r"local cultural council", "local cultural council planning"),
+        (r"completed grants", "completed grants review"),
+        (r"discussion and presentation by the bylaw review committee", "Bylaw review presentation"),
+        (r"discussion and presentation by the bylaw review", "Bylaw review presentation"),
         (r"trex project", "Trex project update"),
         (r"paint and swap shed", "paint and swap shed locations"),
         (r"upcoming shed purchases", "shed purchases"),
@@ -1561,6 +1607,8 @@ def _normalize_focus_phrase(text: str) -> str:
 
     if "1b emma lane" in lowered:
         return "1B Emma Lane public hearing"
+    if "review completed grants" in lowered or lowered == "completed grants":
+        return "completed grants review"
 
     tobacco_match = re.search(r"tobacco violations?\s+(?:for|at)\s+(.+)", cleaned, flags=re.IGNORECASE)
     if tobacco_match:
@@ -1731,6 +1779,8 @@ def _is_low_value_focus_line(text: str) -> bool:
             "chair’s report",
             "director's report",
             "director’s report",
+            "treasurer's report",
+            "treasurer’s report",
             "public participation",
             "citizen participation",
             "citizen comments",
