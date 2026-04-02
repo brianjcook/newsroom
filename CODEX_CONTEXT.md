@@ -268,7 +268,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - During the March 30 investigation, the latest `generation_runs` row was initially still from March 20, 2026 (`run #93`), which explained why the site had gone stale. The full worker entrypoint was then run successfully by hand as `run #94`, restoring fresh agenda discovery and story publication.
 - The remaining scheduler problem is no longer a hard blocker: the production site can run the full worker successfully on-host, and the public PHP layer now has a self-healing stale-run trigger as a fallback even if the original recurring scheduler remains unavailable.
 - The cleaner long-term target is still an explicit recurring trigger, and `worker/scripts/run_daily_host.sh` is now the canonical on-host command target for that.
-- Production is now current through run `#114` on April 2, 2026. The recap workspace bug is fixed, stronger state-aware recap scaffolds are live, and the latest publisher passes tightened several low-value headline/focus edge cases while improving fallback phrase selection.
+- Production is now current through run `#118` on April 2, 2026. The recap workspace bug is fixed, stronger state-aware recap scaffolds are live, and the latest publisher passes tightened several low-value headline/focus edge cases while improving fallback phrase selection.
 - The recap workflow is materially stronger in production now:
 - saved recap draft fields round-trip correctly in `/desk/recaps/{id}`
 - recap scaffolds now distinguish `recap_needed` from `minutes_reconcile`
@@ -288,6 +288,12 @@ Build a local-news publishing system that ingests municipal and other local cont
 - A later April 2 extraction-side cleanup repaired OCR-heavy thin-agenda fragments in `worker/newsroom/extract.py` and was applied with a full on-host `reextract_documents.py` run
 - Capital Planning's January 15, 2025 preview now promotes `Spring Town Meeting article` instead of the earlier `Spring town mee ?ng ar?cle ? by.` artifact
 - the remaining weak edge cases are now increasingly extraction/OCR-specific rather than broad publisher-phrasing problems
+- A final April 2 publisher cleanup pass added another render-version bump plus a few more low-value/admin filters and phrase normalizations:
+- Downtown Dollars coverage no longer surfaces the Elementor reimbursement line
+- Veterans Council coverage now centers on Memorial Day and Veterans Day planning without also surfacing officer-election boilerplate
+- Select Board emergency-declaration coverage now uses the cleaner `Cranberry Manor II support letter` phrasing
+- Sewer Commissioners summaries now use `contract with Joe Manning` in the summary layer
+- One Board of Health `Title 5 Regulations` preview still carries the stale `variance request at Request` secondary phrase; that looks like the last clearly bad preview in this cycle and likely needs a source-specific rewrite/reset rather than another broad pass
 - Production run `#29` applied the first issue-led headline/dek pass across existing stories, and run `#30` refined that wording further so proper nouns are no longer decapitalized in sentence position and lead previews read less like raw agenda fragments.
 - Production run `#31` refreshed published stories after the latest-extraction selection fix in `publish.py`, and run `#32` applied the final Town Meeting headline cleanup after the full re-extraction pass.
 - After the source-metadata merge fix and live refetch/re-extraction cycle, Zoom details reappeared for meetings whose wrapper pages provide them, including the Select Board March 17, 2026 preview.
@@ -714,6 +720,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Fixed topic-page and archive topic filtering against MySQL JSON text formatting by normalizing spaces before slug matching, so topics like `/topics/zoning` now show their tagged stories instead of falling through to empty results when JSON is stored as `"slug": "zoning"`
 
 ## Recent commits
+- `515dd2b` - `Repair OCR-heavy thin agenda extraction`
 - `ae4ed51` - `Tighten weak agenda story summaries`
 - `0ed46b1` - `Refine recap workflow and thin-agenda story quality`
 - `b492fca` - `Improve recap workflow and story quality`
@@ -813,7 +820,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
-- Keep improving the weakest live April 2026 preview outputs, especially Redevelopment Authority and any thin utility/authority agendas that still read like cleaned source copy instead of edited local reporting.
+- Keep improving the weakest live April 2026 preview outputs, especially the remaining Board of Health `Title 5 Regulations` stale secondary phrase plus any thin utility/authority agendas that still read like cleaned source copy instead of edited local reporting.
 - Continue shifting story-quality work from phrase cleanup toward more structured extraction improvements for light agendas, especially where only one or two lines are available and OCR repair yields better results than publisher-level filtering.
 - Decide whether follow-up items should eventually become first-class public stories/pages or remain desk-only planning objects.
 - Consider adding editable byline/public-label overrides to the editorial desk instead of only default newsroom-derived values.

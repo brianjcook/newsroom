@@ -184,7 +184,7 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
-PUBLISHER_RENDER_VERSION = "2026-03-19-render-v8-address-style"
+PUBLISHER_RENDER_VERSION = "2026-04-02-render-v9-quality-pass"
 
 
 def _normalize_workflow_status(status: Optional[str], story_type: Optional[str] = None) -> str:
@@ -960,6 +960,8 @@ def _headline_phrase(text: str) -> str:
         return "3031 Cran Highway Site Plan Review"
     if "citizen petition" in lowered and "zoning bylaw article 9" in lowered:
         return "Zoning Bylaw Citizen Petition"
+    if "contract w/" in lowered and "joe manning" in lowered:
+        return "Contract with Joe Manning"
     if "comcast draft renewal license" in lowered:
         return "Comcast Draft Renewal License"
     if "discussion with cable attorney" in lowered:
@@ -1437,6 +1439,10 @@ def _normalize_focus_phrase(text: str) -> str:
         return ""
     if lowered.strip(" .;:-\u2013\u2014") == "discussion and possible vote":
         return ""
+    if re.search(r"variance requests?\s+(?:at|for)\s+request\b", lowered):
+        return "variance request"
+    if lowered.strip(" .;:-") == "variance request at request":
+        return "variance request"
     if lowered.strip(" .;:-") == "variance request":
         return "variance request"
     if "maple springs road" in lowered and "anr" in lowered:
@@ -1471,6 +1477,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"ridecircuit", "Ride Circuit presentation"),
         (r"storefront renovation grant program", "storefront renovation grant program"),
         (r"downtown dollars program", "Downtown Dollars program"),
+        (r"contract w/?\s*joe manning", "contract with Joe Manning"),
         (r"internship program", "internship program"),
         (r"main street america update", "Main Street America update"),
         (r"historical society gazebo(?:\s+in\s+besse\s+park)?", "Historical Society gazebo in Besse Park"),
@@ -1478,6 +1485,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"high leverage asset preservation program|hilap", "HILAP funding application"),
         (r"bulletin board.*public display policy", "public display policy"),
         (r"memorial day.*veterans day", "Memorial Day and Veterans Day planning"),
+        (r"write a letter of support for the development of cranberry manor ii", "Cranberry Manor II support letter"),
         (r"state of emergency", "emergency declaration authority"),
         (r"appointments/?reappointments/?interviews", "board and committee appointments"),
         (r"interview,\s*discussion and possible vote to appoint", "board and committee appointments"),
@@ -1848,6 +1856,13 @@ def _is_low_value_focus_line(text: str) -> bool:
             "discussion of need to meet january deadline",
             "schedule to invite department heads",
             "review exis",
+            "approve all current and future reimbursements",
+            "authorize payment of invoice",
+            "elementor",
+            "donnelly",
+            "elect chair",
+            "vice chair",
+            "clerk",
         )
     ):
         return True
