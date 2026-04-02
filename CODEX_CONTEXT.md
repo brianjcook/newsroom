@@ -109,6 +109,19 @@ Build a local-news publishing system that ingests municipal and other local cont
 - the trigger is rate-limited by `storage/logs/worker-kick.txt` so it cannot relaunch more than once every 30 minutes
 - Added `worker/scripts/run_daily_host.sh` as a clean on-host runner script for Freehostia with the expected `PYTHONPATH`, `PYTHONUSERBASE`, DB, and Unix-socket environment wiring.
 - Deployed both the self-healing trigger and `run_daily_host.sh` to Freehostia, then verified the new host runner itself end-to-end as `run #95` on March 30, 2026.
+- Added a recap-workflow quality pass:
+- `newsroom_recap_queue_item()` now correctly selects `draft_headline`, `draft_dek`, `draft_body`, and `draft_updated_at`, so saved recap-draft edits round-trip in the single-story workspace instead of falling back to the generated shell
+- `newsroom_recap_scaffold()` is now more state-aware and richer:
+- for `recap_needed`, it emphasizes confirmation of what actually happened and what still needs verification
+- for `minutes_reconcile`, it emphasizes what the posted minutes appear to confirm and what might require a correction or follow-up
+- it now carries explicit `publish_plan`, `record_status`, `agenda_highlights`, `minutes_highlights`, and a small slice of agenda/minutes sections into the workspace
+- `newsroom_recap_draft_workspace()` now builds stronger draft shells around the reporting angle and, when available, the first minutes-confirmed highlight instead of only the old generic recap shell
+- `web/public/editorial-recap-draft.php` now surfaces `Minutes Highlights`, `Publish Plan`, and `Source Record Status` alongside the existing source links and verification checklist
+- Added another public story-quality pass in `worker/newsroom/publish.py`:
+- low-value focus detection now filters date/location metadata lines and more report-only/participation boilerplate (`citizen participation`, `chair's report`, `director's report`, meeting-posting boilerplate)
+- phrase normalization now covers more community/council edge cases such as `AARP Age Friendly Community update`, `grant cycle planning`, `grant applications`, and `local cultural council planning`
+- when the usual focus extraction path still comes up empty, the publisher now has a last-resort fallback that can score already-cleaned summary phrases from agenda highlights or generic agenda lines instead of falling all the way back to `to Meet {date}`
+- Deployed those recap/workflow and publisher changes to Freehostia and republished production through runs `#101` and `#102`.
 - Added a richer meeting-signals presentation layer in `web/lib/content.php` and the public templates:
 - stable board/committee color pills
 - structured meeting meta on story pages
@@ -255,6 +268,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - During the March 30 investigation, the latest `generation_runs` row was initially still from March 20, 2026 (`run #93`), which explained why the site had gone stale. The full worker entrypoint was then run successfully by hand as `run #94`, restoring fresh agenda discovery and story publication.
 - The remaining scheduler problem is no longer a hard blocker: the production site can run the full worker successfully on-host, and the public PHP layer now has a self-healing stale-run trigger as a fallback even if the original recurring scheduler remains unavailable.
 - The cleaner long-term target is still an explicit recurring trigger, and `worker/scripts/run_daily_host.sh` is now the canonical on-host command target for that.
+- Production is now current through run `#102` on April 2, 2026. The recap workspace bug is fixed, stronger state-aware recap scaffolds are live, and the latest publisher pass tightened several low-value headline/focus edge cases while improving fallback phrase selection.
 - Production run `#29` applied the first issue-led headline/dek pass across existing stories, and run `#30` refined that wording further so proper nouns are no longer decapitalized in sentence position and lead previews read less like raw agenda fragments.
 - Production run `#31` refreshed published stories after the latest-extraction selection fix in `publish.py`, and run `#32` applied the final Town Meeting headline cleanup after the full re-extraction pass.
 - After the source-metadata merge fix and live refetch/re-extraction cycle, Zoom details reappeared for meetings whose wrapper pages provide them, including the Select Board March 17, 2026 preview.
@@ -781,6 +795,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Consider adding editable byline/public-label overrides to the editorial desk instead of only default newsroom-derived values.
 - Expand the live-watch board from preflight notes into an actual launch surface for Zoom/stream capture once the reporting workflow returns to that topic.
 - Keep refining the strongest public-story outputs, especially hearing-heavy and appointment-heavy meetings, so the copy reads less like cleaned agenda text and more like selective local reporting.
+- Continue improving weak body-specific preview extraction and ranking for cases like Council on Aging and similar light agendas, where the agenda has only one or two substantive lines and the current generic fallback still collapses to `to Meet {date}`.
 - Keep improving topic pages so they can evolve from beat pages into fuller topic hubs with background context, timelines, and key-document blocks where justified.
 - Decide whether archive ranking should surface more explicit editorial buckets like `Most important`, `Latest`, and `Previews` instead of relying only on one blended rank.
 - Investigate and restore the production scheduler/worker cadence so `generation_runs` advance beyond March 20, 2026 and new Wareham source material is discovered again instead of only serving stale March previews.

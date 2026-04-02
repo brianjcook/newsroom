@@ -193,6 +193,17 @@ function newsroom_recap_draft_datetime(?string $meetingDate, ?string $meetingTim
                     </section>
                 <?php endif; ?>
 
+                <?php if (!empty($scaffold['minutes_highlights'])): ?>
+                    <section class="draft-workspace__block">
+                        <h3 class="section-heading section-heading--tight">Minutes Highlights</h3>
+                        <ul class="methodology-list">
+                            <?php foreach ($scaffold['minutes_highlights'] as $highlight): ?>
+                                <li><p><?= htmlspecialchars((string) $highlight) ?></p></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </section>
+                <?php endif; ?>
+
                 <?php if (!empty($scaffold['verification'])): ?>
                     <section class="draft-workspace__block">
                         <h3 class="section-heading section-heading--tight">Verification Checklist</h3>
@@ -200,6 +211,30 @@ function newsroom_recap_draft_datetime(?string $meetingDate, ?string $meetingTim
                             <?php foreach ($scaffold['verification'] as $check): ?>
                                 <li><p><?= htmlspecialchars((string) $check) ?></p></li>
                             <?php endforeach; ?>
+                        </ul>
+                    </section>
+                <?php endif; ?>
+
+                <?php if (!empty($scaffold['publish_plan'])): ?>
+                    <section class="draft-workspace__block">
+                        <h3 class="section-heading section-heading--tight">Publish Plan</h3>
+                        <ul class="methodology-list">
+                            <?php foreach ($scaffold['publish_plan'] as $step): ?>
+                                <li><p><?= htmlspecialchars((string) $step) ?></p></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </section>
+                <?php endif; ?>
+
+                <?php if (!empty($scaffold['record_status'])): ?>
+                    <?php $recordStatus = (array) $scaffold['record_status']; ?>
+                    <section class="draft-workspace__block">
+                        <h3 class="section-heading section-heading--tight">Source Record Status</h3>
+                        <ul class="methodology-list">
+                            <li><p>Agenda available: <?= !empty($recordStatus['agenda_available']) ? 'Yes' : 'No' ?></p></li>
+                            <li><p>Minutes available: <?= !empty($recordStatus['minutes_available']) ? 'Yes' : 'No' ?></p></li>
+                            <li><p>Agenda highlights extracted: <?= htmlspecialchars((string) ($recordStatus['agenda_highlight_count'] ?? 0)) ?></p></li>
+                            <li><p>Minutes highlights extracted: <?= htmlspecialchars((string) ($recordStatus['minutes_highlight_count'] ?? 0)) ?></p></li>
                         </ul>
                     </section>
                 <?php endif; ?>

@@ -1722,6 +1722,10 @@ function newsroom_recap_queue_item(int $id): ?array
             s.slug,
             s.headline,
             s.summary,
+            s.draft_headline,
+            s.draft_dek,
+            s.draft_body,
+            s.draft_updated_at,
             s.story_type,
             s.workflow_status,
             s.watch_live,
@@ -1828,6 +1832,42 @@ function newsroom_recap_scaffold(array $row): array
         }
     }
 
+    $agendaSections = [];
+    foreach ((array) ($agendaStructured['agenda_sections'] ?? []) as $section) {
+        if (!is_array($section)) {
+            continue;
+        }
+        $title = trim((string) ($section['title'] ?? ''));
+        $items = [];
+        foreach ((array) ($section['items'] ?? []) as $item) {
+            $text = trim((string) $item);
+            if ($text !== '') {
+                $items[] = $text;
+            }
+        }
+        if ($title !== '' || $items) {
+            $agendaSections[] = ['title' => $title, 'items' => $items];
+        }
+    }
+
+    $minutesSections = [];
+    foreach ((array) ($minutesStructured['agenda_sections'] ?? []) as $section) {
+        if (!is_array($section)) {
+            continue;
+        }
+        $title = trim((string) ($section['title'] ?? ''));
+        $items = [];
+        foreach ((array) ($section['items'] ?? []) as $item) {
+            $text = trim((string) $item);
+            if ($text !== '') {
+                $items[] = $text;
+            }
+        }
+        if ($title !== '' || $items) {
+            $minutesSections[] = ['title' => $title, 'items' => $items];
+        }
+    }
+
     $leadItems = array_slice($minutesHighlights ?: $agendaHighlights, 0, 3);
     $bodyName = trim((string) ($row['body_name'] ?? 'The board'));
     $meetingDate = trim((string) ($row['meeting_date'] ?? ''));
@@ -1842,8 +1882,13 @@ function newsroom_recap_scaffold(array $row): array
         }
     }
 
+    $workflow = (string) ($row['workflow_status'] ?? '');
     $lede = '';
-    if ($leadItems) {
+    if ($workflow === 'minutes_reconcile' && $minutesHighlights) {
+        $lede = $bodyName . ' minutes indicate discussion or action on ' . newsroom_sentence_list(array_map(static function (string $item): string {
+            return strtolower($item);
+        }, array_slice($minutesHighlights, 0, 2))) . '.';
+    } elseif ($leadItems) {
         $lede = $bodyName . ' is expected to focus on ' . newsroom_sentence_list(array_map(static function (string $item): string {
             return strtolower($item);
         }, array_slice($leadItems, 0, 2))) . '.';
@@ -1854,7 +1899,7 @@ function newsroom_recap_scaffold(array $row): array
     }
 
     $verification = [];
-    if ($row['workflow_status'] === 'recap_needed') {
+    if ($workflow === 'recap_needed') {
         $verification[] = 'Confirm whether any votes or decisions actually happened.';
         $verification[] = 'Check whether the top agenda items were discussed, continued, or amended.';
     } else {
@@ -1866,17 +1911,43 @@ function newsroom_recap_scaffold(array $row): array
     }
 
     $angle = '';
-    if ($leadItems) {
+    if ($workflow === 'minutes_reconcile' && $minutesHighlights) {
+        $angle = 'Lead with the clearest confirmed action from the minutes: ' . $minutesHighlights[0] . '.';
+    } elseif ($leadItems) {
         $angle = 'Start with the most consequential item: ' . $leadItems[0] . '.';
     } else {
         $angle = 'Use the official record to identify the most consequential action taken.';
     }
+
+    $publishPlan = [];
+    if ($workflow === 'recap_needed') {
+        $publishPlan[] = 'Open with the clearest confirmed action or outcome, not the meeting schedule.';
+        $publishPlan[] = 'If no vote occurred, say the board discussed or continued the matter rather than implying action.';
+        $publishPlan[] = 'Keep one paragraph focused on what happens next: a continued hearing, future vote, or implementation step.';
+    } else {
+        $publishPlan[] = 'Use the minutes to confirm whether the current public story needs a factual correction or only a wording update.';
+        $publishPlan[] = 'If the minutes confirm a major vote or decision, update the story lede and dek before marking the item done.';
+        $publishPlan[] = 'If the minutes materially expand the story, queue a follow-up rather than silently revising the preview.';
+    }
+
+    $recordStatus = [
+        'agenda_available' => !empty($row['agenda_url']),
+        'minutes_available' => !empty($row['minutes_url']),
+        'agenda_highlight_count' => count($agendaHighlights),
+        'minutes_highlight_count' => count($minutesHighlights),
+    ];
 
     return [
         'lede' => $lede,
         'angle' => $angle,
         'highlights' => $leadItems,
         'verification' => $verification,
+        'agenda_highlights' => array_slice($agendaHighlights, 0, 6),
+        'minutes_highlights' => array_slice($minutesHighlights, 0, 6),
+        'agenda_sections' => array_slice($agendaSections, 0, 4),
+        'minutes_sections' => array_slice($minutesSections, 0, 4),
+        'publish_plan' => $publishPlan,
+        'record_status' => $recordStatus,
     ];
 }
 
@@ -1897,7 +1968,9 @@ function newsroom_recap_draft_workspace(array $row): array
     }
 
     $headline = trim((string) ($row['headline'] ?? ''));
-    if ($headline !== '') {
+    if (!empty($scaffold['minutes_highlights'][0])) {
+        $headline = $bodyName . ' recap: ' . (string) $scaffold['minutes_highlights'][0];
+    } elseif ($headline !== '') {
         $headline = preg_replace('/\bto (Discuss|Review|Hear|Meet and Consider|Consider)\b/i', 'holds', $headline) ?: $headline;
     }
     if ($headline === '') {
@@ -1905,7 +1978,9 @@ function newsroom_recap_draft_workspace(array $row): array
     }
 
     $dekParts = [];
-    if ($datetimeLine !== '') {
+    if (!empty($scaffold['minutes_highlights'])) {
+        $dekParts[] = newsroom_sentence_list(array_slice((array) $scaffold['minutes_highlights'], 0, 2));
+    } elseif ($datetimeLine !== '') {
         $dekParts[] = $bodyName . ' met ' . strtolower($datetimeLine);
     }
     if ($location !== '') {
@@ -1918,12 +1993,19 @@ function newsroom_recap_draft_workspace(array $row): array
 
     $bodySections = [];
     $bodySections[] = "Lede\n" . trim((string) ($scaffold['lede'] ?? ''));
+    $bodySections[] = "Reporting Angle\n" . trim((string) ($scaffold['angle'] ?? ''));
     $bodySections[] = "What happened\n- Confirm the main action taken.\n- Note whether the board voted, continued the matter, or only discussed it.";
     if (!empty($scaffold['highlights'])) {
         $bodySections[] = "Top items to cover\n- " . implode("\n- ", array_map('strval', (array) $scaffold['highlights']));
     }
+    if (!empty($scaffold['minutes_highlights'])) {
+        $bodySections[] = "What the minutes appear to confirm\n- " . implode("\n- ", array_map('strval', (array) $scaffold['minutes_highlights']));
+    }
     if (!empty($scaffold['verification'])) {
         $bodySections[] = "What to verify\n- " . implode("\n- ", array_map('strval', (array) $scaffold['verification']));
+    }
+    if (!empty($scaffold['publish_plan'])) {
+        $bodySections[] = "Publish plan\n- " . implode("\n- ", array_map('strval', (array) $scaffold['publish_plan']));
     }
     $bodySections[] = "What happens next\n- Note any continued hearing, follow-up vote, future meeting date, or implementation step.";
 

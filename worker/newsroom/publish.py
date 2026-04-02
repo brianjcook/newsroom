@@ -1456,6 +1456,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"friends of the wareham council on aging.*donation", "Council on Aging donation"),
         (r"grant agreement", "existing grant agreements"),
         (r"accept a donation.*council on aging", "Council on Aging donation"),
+        (r"aarp age friendly community", "AARP Age Friendly Community update"),
         (r"aarp friendly community", "AARP Friendly Community update"),
         (r"status of new applicants", "new applicant review"),
         (r"open meeting law", "open meeting law discussion"),
@@ -1523,6 +1524,10 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"monthly financial report", "monthly financial report"),
         (r"community input survey", "community input survey"),
         (r"grant recipient reception", "grant recipient reception plans"),
+        (r"grant cycle", "grant cycle planning"),
+        (r"grant applications?", "grant applications"),
+        (r"grant workshop", "grant workshop planning"),
+        (r"local cultural council", "local cultural council planning"),
         (r"trex project", "Trex project update"),
         (r"paint and swap shed", "paint and swap shed locations"),
         (r"upcoming shed purchases", "shed purchases"),
@@ -1544,6 +1549,11 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"comprehensive wastewater management plan|cwmp", "Comprehensive Wastewater Management Plan"),
         (r"open space and recreation plan", "Open Space and Recreation Plan"),
         (r"municipal maintenance", "municipal maintenance abatements"),
+        (r"director['’]s report", "director's report"),
+        (r"housing specialist update", "housing specialist update"),
+        (r"senior center update", "Senior Center update"),
+        (r"trip updates?", "trip updates"),
+        (r"monthly newsletter", "monthly newsletter"),
     ]
     for pattern, replacement in special_patterns:
         if re.search(pattern, lowered, flags=re.IGNORECASE):
@@ -1655,6 +1665,10 @@ def _is_low_value_focus_line(text: str) -> bool:
     lowered = _normalize_item_text(text).lower()
     if not lowered:
         return True
+    if re.search(r"^(monday|tuesday|wednesday|thursday|friday|saturday|sunday),?\s+[a-z]+\s+\d{1,2}(?:st|nd|rd|th)?", lowered):
+        return True
+    if re.search(r"\b(room|marion road|marion rd|multi-service center|memorial town hall)\b", lowered) and re.search(r"\b\d{1,2}:\d{2}\b", lowered):
+        return True
     if lowered in ("appointments", "appointment", "reappointment", "(reappointment)", "reappointments", "interviews"):
         return True
     if re.search(r"meeting\s+minutes", lowered, flags=re.IGNORECASE):
@@ -1713,7 +1727,13 @@ def _is_low_value_focus_line(text: str) -> bool:
             "any other town business",
             "any other town or school business",
             "good news",
+            "chair's report",
+            "chair’s report",
+            "director's report",
+            "director’s report",
             "public participation",
+            "citizen participation",
+            "citizen comments",
             "announcements",
             "consent agenda",
             "liaison /initiative",
@@ -1748,6 +1768,9 @@ def _is_low_value_focus_line(text: str) -> bool:
             "review and approval of october",
             "any other council of aging business",
             "please note that the committee may act",
+            "meeting is being held",
+            "meeting will also be available",
+            "posted in accordance with",
             "unanticipated items received in the last 48 hours",
             "review and approve minutes",
             "approve minutes",
@@ -2039,6 +2062,45 @@ def _preview_intro(
         f"<p>The Wareham {html.escape(body_name)} is scheduled to meet on {html.escape(meeting_date)} "
         f"{html.escape(meeting_time)} at {html.escape(location)}, according to the posted agenda.</p>"
     )
+
+
+def _fallback_focus_candidates(extraction: Dict[str, object], limit: int = 4) -> List[Dict[str, object]]:
+    candidates = []  # type: List[Dict[str, object]]
+
+    for item in _agenda_highlights(extraction):
+        if _is_low_value_focus_line(item) or _looks_truncated(item):
+            continue
+        phrase = _focus_summary_phrase(item)
+        if not phrase or _is_low_value_focus_line(phrase) or _looks_garbled(phrase):
+            continue
+        score, reasons = _score_editorial_line(phrase)
+        if score <= 0:
+            continue
+        candidates.append({"text": phrase, "score": score, "section": "", "reasons": reasons})
+
+    if not candidates:
+        for item in _generic_agenda_lines(extraction, limit=10):
+            if _is_low_value_focus_line(item) or _looks_truncated(item):
+                continue
+            phrase = _focus_summary_phrase(item)
+            if not phrase or _is_low_value_focus_line(phrase) or _looks_garbled(phrase):
+                continue
+            score, reasons = _score_editorial_line(phrase)
+            if score <= 0:
+                continue
+            candidates.append({"text": phrase, "score": score, "section": "", "reasons": reasons})
+
+    deduped = []  # type: List[Dict[str, object]]
+    seen = set()
+    for item in sorted(candidates, key=lambda entry: (-int(entry["score"]), str(entry["text"]))):
+        key = str(item["text"]).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+        if len(deduped) >= limit:
+            break
+    return deduped
 
 
 def _choose_summary_lines(text: str, limit: int = 3) -> List[str]:
@@ -2502,6 +2564,9 @@ def _agenda_focus_items(extraction: Dict[str, object], limit: int = 4) -> List[D
             if score <= 0:
                 continue
             focus.append({"text": item, "score": score, "section": "", "reasons": reasons})
+
+    if not focus:
+        focus = _fallback_focus_candidates(extraction, limit=limit)
 
     focus.sort(key=lambda entry: (-int(entry["score"]), str(entry["text"])))
     focus_display_keys = [
