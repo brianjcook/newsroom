@@ -285,7 +285,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - CMWRRDD bill-and-payroll-warrants coverage no longer surfaces the `technical assistance accessing the meeting` line
 - Bylaw hearing schedule stories no longer surface the January deadline housekeeping line
 - Little Harbor Golf now supports `Greens Chemical Budget` as a clean editorial phrase
-- One Capital Planning preview still has a remaining OCR-heavy secondary item after `Capital Planning Committee appointment`; that one likely needs another extraction-specific cleanup rather than more phrase filtering
+- A later April 2 extraction-side cleanup repaired OCR-heavy thin-agenda fragments in `worker/newsroom/extract.py` and was applied with a full on-host `reextract_documents.py` run
+- Capital Planning's January 15, 2025 preview now promotes `Spring Town Meeting article` instead of the earlier `Spring town mee ?ng ar?cle ? by.` artifact
+- the remaining weak edge cases are now increasingly extraction/OCR-specific rather than broad publisher-phrasing problems
 - Production run `#29` applied the first issue-led headline/dek pass across existing stories, and run `#30` refined that wording further so proper nouns are no longer decapitalized in sentence position and lead previews read less like raw agenda fragments.
 - Production run `#31` refreshed published stories after the latest-extraction selection fix in `publish.py`, and run `#32` applied the final Town Meeting headline cleanup after the full re-extraction pass.
 - After the source-metadata merge fix and live refetch/re-extraction cycle, Zoom details reappeared for meetings whose wrapper pages provide them, including the Select Board March 17, 2026 preview.
@@ -712,6 +714,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Fixed topic-page and archive topic filtering against MySQL JSON text formatting by normalizing spaces before slug matching, so topics like `/topics/zoning` now show their tagged stories instead of falling through to empty results when JSON is stored as `"slug": "zoning"`
 
 ## Recent commits
+- `ae4ed51` - `Tighten weak agenda story summaries`
 - `0ed46b1` - `Refine recap workflow and thin-agenda story quality`
 - `b492fca` - `Improve recap workflow and story quality`
 - `540689d` - `Update context after newsroom operations rollout`
@@ -810,8 +813,8 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
-- Keep improving the weakest live April 2026 preview outputs, especially the remaining Capital Planning OCR-heavy secondary item, Redevelopment Authority, and any thin utility/authority agendas that still read like cleaned source copy instead of edited local reporting.
-- Shift the next story-quality pass from phrase cleanup toward more structured extraction improvements for light agendas, especially where only one or two lines are available and phrase filtering has reached diminishing returns.
+- Keep improving the weakest live April 2026 preview outputs, especially Redevelopment Authority and any thin utility/authority agendas that still read like cleaned source copy instead of edited local reporting.
+- Continue shifting story-quality work from phrase cleanup toward more structured extraction improvements for light agendas, especially where only one or two lines are available and OCR repair yields better results than publisher-level filtering.
 - Decide whether follow-up items should eventually become first-class public stories/pages or remain desk-only planning objects.
 - Consider adding editable byline/public-label overrides to the editorial desk instead of only default newsroom-derived values.
 - Expand the live-watch board from preflight notes into an actual launch surface for Zoom/stream capture once the reporting workflow returns to that topic.

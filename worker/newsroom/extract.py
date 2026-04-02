@@ -31,6 +31,7 @@ def _normalize_line(value: str) -> str:
     normalized = " ".join(value.replace("\u00a0", " ").split())
     normalized = normalized.replace("T0WN", "TOWN")
     normalized = normalized.replace("\uf0b7", " - ")
+    normalized = normalized.replace("?", " ? ")
     normalized = re.sub(r"\bZone\s+-\s*(\d{2}-\d{2})\b", r"Zone-\1", normalized, flags=re.IGNORECASE)
     normalized = re.sub(r"(?<=\w)\s+-\s+(?=\w)", "-", normalized)
     repair_patterns = [
@@ -42,9 +43,28 @@ def _normalize_line(value: str) -> str:
         (r"\bCa lendar\b", "Calendar"),
         (r"\bSchoolh ouse\b", "Schoolhouse"),
         (r"\bArtiles\b", "Articles"),
+        (r"\bCommi\s+\?\s+ee\b", "Committee"),
+        (r"\bmee\s+\?\s+ng\b", "meeting"),
+        (r"\bMee\s+\?\s+ng\b", "Meeting"),
+        (r"\bUnan\s+\?\s+cipated\b", "Unanticipated"),
+        (r"\brecommenda\s+\?\s+on\b", "recommendation"),
+        (r"\bRecommenda\s+\?\s+on\b", "Recommendation"),
+        (r"\bexis\s+\?\s+ng\b", "existing"),
+        (r"\bar\s+\?\s+cle\b", "article"),
+        (r"\bar\s+\?\s+cles\b", "articles"),
+        (r"\bAr\s+\?\s+cle\b", "Article"),
+        (r"\bAr\s+\?\s+cles\b", "Articles"),
+        (r"\bmee\s+\?\s+cle\b", "meeting article"),
+        (r"\bby\s*-\s*law\b", "bylaw"),
+        (r"\bcommi\s+\?\s+ee\b", "committee"),
+        (r"\bmee\s+\?\s+ng\b", "meeting"),
+        (r"\bnext mee\s+\?\s+ng\b", "next meeting"),
+        (r"\bat\s+\?\s+large\b", "at-large"),
     ]
     for pattern, replacement in repair_patterns:
         normalized = re.sub(pattern, replacement, normalized)
+    normalized = re.sub(r"\s+\?\s+", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
     return normalized
 
 
