@@ -184,7 +184,7 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
-PUBLISHER_RENDER_VERSION = "2026-04-02-render-v9-quality-pass"
+PUBLISHER_RENDER_VERSION = "2026-04-02-render-v13-uppercase-agenda"
 
 
 def _normalize_workflow_status(status: Optional[str], story_type: Optional[str] = None) -> str:
@@ -1197,6 +1197,8 @@ def _headline_phrase(text: str) -> str:
         return "Greens Chemical Budget"
     if "community input survey" in lowered:
         return "Community Input Survey"
+    if "spring annual town warrant" in lowered or "spring annual town meeting warrant" in lowered:
+        return "Spring Town Meeting Articles"
     if "grant recipient reception" in lowered:
         return "Grant Recipient Reception Plans"
     if "trex project" in lowered:
@@ -1278,6 +1280,8 @@ def _headline_action(text: str) -> str:
         return "to Hear"
     if "site plan review" in lowered or "policy review" in lowered:
         return "to Review"
+    if "dissolv" in lowered:
+        return "to Discuss"
     if "violation" in lowered:
         return "to Discuss"
     if "status and update" in lowered or "future of the committee" in lowered:
@@ -1518,7 +1522,8 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"to fill one position for the wareham finance committee", "new member appointment"),
         (r"spring town meeting articles.*grant agreements", "spring Town Meeting funding articles"),
         (r"town meeting article.*(grant agreement|cranberry manor|beaverdam|sawyer property|little harbor golf)", "Spring Town Meeting funding articles"),
-        (r"include 2026 annual spring town meeting articles|spring town meeting articles", "Spring Town Meeting articles"),
+        (r"include 2026 annual spring town meeting articles|spring town meeting articles|articles spring annual town warrant|articles spring annual town meeting warrant", "Spring Town Meeting articles"),
+        (r"recommend action on .*spring.*town meeting articles", "Spring Town Meeting articles"),
         (r"october town meeting", "Town Meeting timing debate"),
         (r"contracts.*discussion.*vote", "contract votes"),
         (r"acceptance of meeting minutes", "meeting minutes approval"),
@@ -1538,6 +1543,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"sewer commission business", "sewer commission business"),
         (r"friends of the wareham council on aging.*donation", "Council on Aging donation"),
         (r"grant agreement", "existing grant agreements"),
+        (r"what/?cpa funding", "WHAT and CPA funding"),
         (r"accept a donation.*council on aging", "Council on Aging donation"),
         (r"aarp age friendly community", "AARP Age Friendly Community update"),
         (r"aarp friendly community", "AARP Friendly Community update"),
@@ -1546,6 +1552,8 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"open meeting law", "open meeting law discussion"),
         (r"waterline update", "Waterline update"),
         (r"loan forgiveness.*clean water trust|clean water trust.*loan forgiveness", "Clean Water Trust loan forgiveness"),
+        (r"changes to the existing capital plan due to warrant article changes", "capital plan changes tied to warrant articles"),
+        (r"updated five[- ]year capital plan", "updated five-year capital plan"),
         (r"capital stabilization fund", "capital stabilization transfer"),
         (r"review and compare fy2025 final budgets", "FY2026 budget review"),
         (r"licenses,\s*markers and monuments", "licenses, markers, and monuments"),
@@ -1768,6 +1776,28 @@ def _is_low_value_focus_line(text: str) -> bool:
         return True
     if re.search(r"\b(room|marion road|marion rd|multi-service center|memorial town hall)\b", lowered) and re.search(r"\b\d{1,2}:\d{2}\b", lowered):
         return True
+    if re.search(r"\b(room\s*\d+|town hall|multi-service center|memorial town hall|marion road|marion rd)\b", lowered):
+        if not any(
+            token in lowered
+            for token in (
+                "public hearing",
+                "vote",
+                "permit",
+                "variance",
+                "site plan",
+                "wastewater",
+                "policy",
+                "school choice",
+                "budget",
+                "article",
+                "funding",
+                "contract",
+                "violation",
+                "appointment",
+                "grant",
+            )
+        ):
+            return True
     if lowered in ("appointments", "appointment", "reappointment", "(reappointment)", "reappointments", "interviews"):
         return True
     if re.search(r"meeting\s+minutes", lowered, flags=re.IGNORECASE):
@@ -2287,11 +2317,6 @@ def _clean_generic_agenda_line(text: str) -> str:
         return ""
     if "http://" in lowered or "https://" in lowered:
         return ""
-    if _looks_garbled(line) or _looks_truncated(line):
-        return ""
-    if _is_heading_token_line(line):
-        return ""
-
     if any(
         lowered.startswith(token)
         for token in (
@@ -2334,7 +2359,21 @@ def _clean_generic_agenda_line(text: str) -> str:
     if len(letters) < 6:
         return ""
     upper_ratio = sum(1 for char in letters if char.isupper()) / float(len(letters)) if letters else 0.0
+    meaningful_upper = None
     if upper_ratio > 0.85:
+        meaningful_upper = re.search(
+            r"\b(discuss|vote|article|warrant|budget|hearing|petition|permit|plan|funding|contract|violation|appointment)\b",
+            lowered,
+            flags=re.IGNORECASE,
+        )
+        if meaningful_upper:
+            line = line.title()
+            lowered = line.lower()
+        else:
+            return ""
+    if (_looks_garbled(line) and not meaningful_upper) or _looks_truncated(line):
+        return ""
+    if _is_heading_token_line(line):
         return ""
     weird_chars = sum(1 for char in line if not (char.isalnum() or char.isspace() or char in ".,:;!?&'\"/-()"))
     if weird_chars > 1:
@@ -2789,6 +2828,52 @@ def _focus_summary(items: List[Dict[str, object]]) -> str:
     return "{} and {}".format(first, second)
 
 
+def _fallback_preview_focus_items(extraction: Dict[str, object], limit: int = 2) -> List[Dict[str, object]]:
+    candidates = []  # type: List[Dict[str, object]]
+    seen = set()
+    raw_items = list(_agenda_highlights(extraction))
+    raw_items.extend(_generic_agenda_lines(extraction))
+
+    for raw in raw_items:
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        normalized = _normalize_focus_phrase(text)
+        if not normalized:
+            continue
+        lowered = normalized.lower()
+        if lowered in seen:
+            continue
+        if _is_low_value_focus_line(normalized) or _looks_truncated(normalized):
+            continue
+        seen.add(lowered)
+        score, reasons = _score_editorial_line(normalized)
+        if score <= 0:
+            score = 8
+            reasons = ["fallback"]
+        candidates.append({"text": normalized, "score": score, "reasons": reasons})
+        if len(candidates) >= limit:
+            break
+    return candidates
+
+
+def _summary_fallback_focus_items(extraction: Dict[str, object], limit: int = 2) -> List[Dict[str, object]]:
+    candidates = []  # type: List[Dict[str, object]]
+    seen = set()
+    for phrase in _summary_phrase_list(_agenda_highlights(extraction)):
+        normalized = _normalize_item_text(phrase)
+        if not normalized or _is_low_value_focus_line(normalized) or _looks_truncated(normalized):
+            continue
+        lowered = normalized.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        candidates.append({"text": normalized, "score": 8, "reasons": ["fallback"]})
+        if len(candidates) >= limit:
+            break
+    return candidates
+
+
 def _agenda_details(extraction: Dict[str, object]) -> Dict[str, object]:
     structured = extraction.get("structured_json") or {}
     if isinstance(structured, str):
@@ -2973,6 +3058,8 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
         )
     else:
         focus_items = _agenda_focus_items(extraction)
+        if not focus_items:
+            focus_items = _fallback_preview_focus_items(extraction)
         headline = _preview_headline(body_name, meeting_date, focus_items)
         dek = _preview_dek(body_name, meeting_date, meeting_time, location, focus_items)
         if focus_items:
@@ -2993,6 +3080,14 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
                 )
                 if summary == dek:
                     summary = _sentence_from_phrases("The posted agenda includes", generic_items[:2]) or dek
+        if not focus_items:
+            summary_focus_items = _summary_fallback_focus_items(extraction)
+            if summary_focus_items:
+                focus_items = summary_focus_items
+                headline = _preview_headline(body_name, meeting_date, focus_items)
+                dek = _preview_dek(body_name, meeting_date, meeting_time, location, focus_items)
+                focus_block = _focus_list_block(focus_items, "What matters most on the agenda")
+                summary = _preview_summary(body_name, focus_items, dek)
         remote_block = _remote_access_block(extraction)
         kicker = (
             f"<p>The public can review the <a href=\"{html.escape(source_url)}\">full official agenda</a> "

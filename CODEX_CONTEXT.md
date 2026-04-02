@@ -118,6 +118,20 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `newsroom_recap_draft_workspace()` now builds stronger draft shells around the reporting angle and, when available, the first minutes-confirmed highlight instead of only the old generic recap shell
 - `web/public/editorial-recap-draft.php` now surfaces `Minutes Highlights`, `Publish Plan`, and `Source Record Status` alongside the existing source links and verification checklist
 - Added another public story-quality pass in `worker/newsroom/publish.py`:
+- Added a focused thin-agenda / OCR cleanup pass in `worker/newsroom/publish.py` and deployed it live through production runs `#128`-`#130`:
+- address-led variance items now normalize cleanly, so the former Board of Health `variance request at Request` defect now publishes as `variance request for 2683 Cranberry Highway`
+- thin agendas now have two extra fallback tiers:
+- cleaned agenda/generic lines can seed focus items when the normal scorer comes up empty
+- clean summary phrases can also seed the headline/focus path instead of falling all the way back to `to Meet {date}`
+- low-value location-only lines such as `Room 27 Wareham Town Hall` are now blocked from becoming fallback focus items
+- meaningful all-caps agenda lines are no longer discarded as garbled headings if they contain substantive civic signals like `discuss`, `vote`, `article`, `warrant`, or `budget`
+- that all-caps rescue path fixed the Finance Committee March 30, 2026 preview:
+- it now publishes as `Finance Committee to Consider Spring Town Meeting Articles`
+- with summary `The board is expected to focus on Spring Town Meeting articles.`
+- other live cleanup from the same pass:
+- `Carver Marion Wareham Regional Refuse Disposal District Committee to Discuss Dissolving the CMWRRDD`
+- `capital plan changes tied to warrant articles` now replaces the older raw capital-plan phrase
+- `WHAT/CPA funding` and broader Spring Town Meeting recommendation phrasing normalize more cleanly in thin-agenda summaries
 - Added a source-specific cleanup for Board of Health and other variance-led agenda lines in `worker/newsroom/publish.py`:
 - agenda lead-ins like `Discussion and possible vote ...` are stripped more aggressively before headline/focus normalization
 - address-led variance lines such as `2683 Cranberry Highway Variance Request` now normalize to `variance request for 2683 Cranberry Highway` instead of misfiring through the zoning-summary path as `variance request at Request`
@@ -825,7 +839,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
-- Keep improving the weakest live April 2026 preview outputs, especially the remaining Board of Health `Title 5 Regulations` stale secondary phrase plus any thin utility/authority agendas that still read like cleaned source copy instead of edited local reporting.
+- Keep improving the weakest live April 2026 preview outputs, especially any remaining thin utility/authority agendas that still read like cleaned source copy instead of edited local reporting.
 - Continue shifting story-quality work from phrase cleanup toward more structured extraction improvements for light agendas, especially where only one or two lines are available and OCR repair yields better results than publisher-level filtering.
 - Decide whether follow-up items should eventually become first-class public stories/pages or remain desk-only planning objects.
 - Consider adding editable byline/public-label overrides to the editorial desk instead of only default newsroom-derived values.
