@@ -132,6 +132,12 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `Carver Marion Wareham Regional Refuse Disposal District Committee to Discuss Dissolving the CMWRRDD`
 - `capital plan changes tied to warrant articles` now replaces the older raw capital-plan phrase
 - `WHAT/CPA funding` and broader Spring Town Meeting recommendation phrasing normalize more cleanly in thin-agenda summaries
+- Added a second targeted normalization pass in `worker/newsroom/publish.py` and deployed it live with render version `2026-04-02-render-v14-targeted-normalization`:
+- Select Board April 7, 2026 now summarizes cleanly as `Spring Town Meeting articles and Spring Special Town Meeting articles` instead of leaking the raw `recommend action on articles for the 2026 Spring Annual Town Meeting Warrant Articles` source phrase
+- Zoning Board of Appeals summaries now strip petition-number residue from addresses, so lines like `26 - 9 41 Bay Street` and `26 - 10 50 Shangri - La Boulevard` now normalize to `41 Bay Street` and `50 Shangri - La Boulevard`
+- School Committee `Course of Studies Changes` now summarizes cleanly around `AP, dual-enrollment, and pathways presentation`
+- meaningful executive-session/legal-strategy references keyed to `L. c. 30A` now normalize toward `Executive Session Strategy Discussion` instead of publishing the raw legal citation as a headline phrase when those items surface
+- older bylaw-presentation phrasing now maps toward `Proposed Town Bylaws Presentation`
 - Added a source-specific cleanup for Board of Health and other variance-led agenda lines in `worker/newsroom/publish.py`:
 - agenda lead-ins like `Discussion and possible vote ...` are stripped more aggressively before headline/focus normalization
 - address-led variance lines such as `2683 Cranberry Highway Variance Request` now normalize to `variance request for 2683 Cranberry Highway` instead of misfiring through the zoning-summary path as `variance request at Request`

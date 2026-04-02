@@ -184,7 +184,7 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
-PUBLISHER_RENDER_VERSION = "2026-04-02-render-v13-uppercase-agenda"
+PUBLISHER_RENDER_VERSION = "2026-04-02-render-v14-targeted-normalization"
 
 
 def _normalize_workflow_status(status: Optional[str], story_type: Optional[str] = None) -> str:
@@ -1157,6 +1157,10 @@ def _headline_phrase(text: str) -> str:
         return "801 Main Street Funding Status"
     if "final warrant articles" in lowered:
         return "Final Warrant Articles"
+    if "presentation of proposed town bylaws" in lowered:
+        return "Proposed Town Bylaws Presentation"
+    if "collective bargaining or litigation" in lowered and "30a" in lowered:
+        return "Executive Session Strategy Discussion"
     if "draft zoning bylaw recodification memorandum" in lowered:
         return "Zoning Bylaw Recodification Issues"
     if "policy issues identified in draft zoning" in lowered:
@@ -1408,6 +1412,7 @@ def _zoning_case_summary(text: str) -> Dict[str, str]:
             address = subject.strip(" ,.;:-")
 
     if address:
+        address = re.sub(r"^\d+\s*-\s*\d+\s+", "", address).strip()
         address = _normalize_street_types(address.title())
 
     headline = ""
@@ -1498,6 +1503,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"238\s*&\s*240 sandwich road.*site plan review", "Sandwich Road site plan review"),
         (r"3031 cran(?:berry)? hwy.*site plan review", "3031 Cran Highway site plan review"),
         (r"citizen petition.*zoning bylaw article 9", "zoning bylaw citizen petition"),
+        (r"collective bargaining or litigation.*30a|30a.*collective bargaining or litigation", "executive session strategy discussion"),
         (r"comcast draft renewal license", "Comcast draft renewal license"),
         (r"discussion with cable attorney", "cable counsel update"),
         (r"fy\s*27 capital plan|fy27 capital plan", "FY2027 capital plan"),
@@ -1523,7 +1529,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"spring town meeting articles.*grant agreements", "spring Town Meeting funding articles"),
         (r"town meeting article.*(grant agreement|cranberry manor|beaverdam|sawyer property|little harbor golf)", "Spring Town Meeting funding articles"),
         (r"include 2026 annual spring town meeting articles|spring town meeting articles|articles spring annual town warrant|articles spring annual town meeting warrant", "Spring Town Meeting articles"),
-        (r"recommend action on .*spring.*town meeting articles", "Spring Town Meeting articles"),
+        (r"recommend action on .*spring.*town meeting articles|recommend action on .*spring annual town meeting warrant articles", "Spring Town Meeting articles"),
         (r"october town meeting", "Town Meeting timing debate"),
         (r"contracts.*discussion.*vote", "contract votes"),
         (r"acceptance of meeting minutes", "meeting minutes approval"),
@@ -1547,6 +1553,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"accept a donation.*council on aging", "Council on Aging donation"),
         (r"aarp age friendly community", "AARP Age Friendly Community update"),
         (r"aarp friendly community", "AARP Friendly Community update"),
+        (r"board of directors meeting agenda", "Council on Aging board agenda"),
         (r"may coa board meeting.*chair absence", "May board meeting scheduling"),
         (r"status of new applicants", "new applicant review"),
         (r"open meeting law", "open meeting law discussion"),
@@ -1554,6 +1561,8 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"loan forgiveness.*clean water trust|clean water trust.*loan forgiveness", "Clean Water Trust loan forgiveness"),
         (r"changes to the existing capital plan due to warrant article changes", "capital plan changes tied to warrant articles"),
         (r"updated five[- ]year capital plan", "updated five-year capital plan"),
+        (r"presentation of proposed town bylaws", "proposed Town bylaws presentation"),
+        (r"ap,\s*de and pathways presentation", "AP, dual-enrollment, and pathways presentation"),
         (r"capital stabilization fund", "capital stabilization transfer"),
         (r"review and compare fy2025 final budgets", "FY2026 budget review"),
         (r"licenses,\s*markers and monuments", "licenses, markers, and monuments"),
