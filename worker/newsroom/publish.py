@@ -184,7 +184,7 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
-PUBLISHER_RENDER_VERSION = "2026-04-02-render-v14-targeted-normalization"
+PUBLISHER_RENDER_VERSION = "2026-04-02-render-v17-aligned-labels"
 
 
 def _normalize_workflow_status(status: Optional[str], story_type: Optional[str] = None) -> str:
@@ -1013,7 +1013,7 @@ def _headline_phrase(text: str) -> str:
     if re.search(r"article #?\s*12\s+rescind article 19 2022 fall town meeting", lowered):
         return "Rescind Article 19"
     if "wpcf phase ii progress meeting" in lowered and "who will be attending" in lowered:
-        return "WPCF Phase II Progress Meeting Attendance"
+        return "WPCF Phase II Meeting Representation"
     if "wpcf phase ii progress meeting" in lowered:
         return "WPCF Phase II Progress Meeting"
     if "aarp age friendly community" in lowered:
@@ -1021,7 +1021,7 @@ def _headline_phrase(text: str) -> str:
     if "completed grants" in lowered:
         return "Completed Grants Review"
     if "discussion and presentation by the bylaw review" in lowered:
-        return "Bylaw Review Presentation"
+        return "Bylaw Review Update"
     if (
         "town meeting article" in lowered
         and any(token in lowered for token in ("grant agreement", "cranberry manor", "beaverdam", "sawyer property", "little harbor golf"))
@@ -1058,7 +1058,7 @@ def _headline_phrase(text: str) -> str:
     if "status of new applicants" in lowered:
         return "New Applicant Review"
     if "open meeting law" in lowered:
-        return "Open Meeting Law Discussion"
+        return "Open Meeting Law Compliance"
     if "waterline update" in lowered:
         return "Waterline Update"
     if "loan forgiveness" in lowered and "clean water trust" in lowered:
@@ -1203,6 +1203,18 @@ def _headline_phrase(text: str) -> str:
         return "Community Input Survey"
     if "spring annual town warrant" in lowered or "spring annual town meeting warrant" in lowered:
         return "Spring Town Meeting Articles"
+    if "wpcf phase ii progress meeting attendance" in lowered:
+        return "WPCF Phase II Meeting Representation"
+    if lowered == "task list":
+        return "Sewer Department Task List"
+    if "council on aging board agenda" in lowered:
+        return "Council on Aging Board Agenda"
+    if "open meeting law discussion" in lowered:
+        return "Open Meeting Law Compliance"
+    if "capital planning member appointment" in lowered:
+        return "Capital Planning Committee Appointment"
+    if "bylaw review presentation" in lowered:
+        return "Bylaw Review Update"
     if "grant recipient reception" in lowered:
         return "Grant Recipient Reception Plans"
     if "trex project" in lowered:
@@ -1529,7 +1541,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"spring town meeting articles.*grant agreements", "spring Town Meeting funding articles"),
         (r"town meeting article.*(grant agreement|cranberry manor|beaverdam|sawyer property|little harbor golf)", "Spring Town Meeting funding articles"),
         (r"include 2026 annual spring town meeting articles|spring town meeting articles|articles spring annual town warrant|articles spring annual town meeting warrant", "Spring Town Meeting articles"),
-        (r"recommend action on .*spring.*town meeting articles|recommend action on .*spring annual town meeting warrant articles", "Spring Town Meeting articles"),
+        (r"recommend action on .*spring.*town meeting articles|recommend action on .*spring annual town meeting warrant articles|recommend action on .*spring annual town meeting warrant", "Spring Town Meeting articles"),
         (r"october town meeting", "Town Meeting timing debate"),
         (r"contracts.*discussion.*vote", "contract votes"),
         (r"acceptance of meeting minutes", "meeting minutes approval"),
@@ -1542,7 +1554,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"planning director.*amend existing contracts", "Planning Director contract authority"),
         (r"boston red sox official 2026 yearbook", "Red Sox Yearbook advertising"),
         (r"transfer of recording/transcribing minutes", "minutes and agenda clerk transfer"),
-        (r"wpcf phase ii progress meeting.*who will be attending|who will be attending.*wpcf phase ii progress meeting", "WPCF Phase II progress meeting attendance"),
+        (r"wpcf phase ii progress meeting.*who will be attending|who will be attending.*wpcf phase ii progress meeting", "WPCF Phase II meeting representation"),
         (r"wpcf director report", "WPCF Director report"),
         (r"wpcf phase ii progress meeting", "WPCF Phase II progress meeting"),
         (r"who will be attending\??", "attendance"),
@@ -1556,7 +1568,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"board of directors meeting agenda", "Council on Aging board agenda"),
         (r"may coa board meeting.*chair absence", "May board meeting scheduling"),
         (r"status of new applicants", "new applicant review"),
-        (r"open meeting law", "open meeting law discussion"),
+        (r"open meeting law", "open meeting law compliance"),
         (r"waterline update", "Waterline update"),
         (r"loan forgiveness.*clean water trust|clean water trust.*loan forgiveness", "Clean Water Trust loan forgiveness"),
         (r"changes to the existing capital plan due to warrant article changes", "capital plan changes tied to warrant articles"),
@@ -1633,8 +1645,9 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"grant workshop", "grant workshop planning"),
         (r"local cultural council", "local cultural council planning"),
         (r"completed grants", "completed grants review"),
-        (r"discussion and presentation by the bylaw review committee", "Bylaw review presentation"),
-        (r"discussion and presentation by the bylaw review", "Bylaw review presentation"),
+        (r"discussion and presentation by the bylaw review committee", "Bylaw review update"),
+        (r"discussion and presentation by the bylaw review", "Bylaw review update"),
+        (r"discuss amendments reserved for fall town meeting", "Fall Town Meeting amendments"),
         (r"trex project", "Trex project update"),
         (r"paint and swap shed", "paint and swap shed locations"),
         (r"upcoming shed purchases", "shed purchases"),
@@ -2575,6 +2588,14 @@ def _focus_sentence(item: Dict[str, object]) -> str:
             return "Members are expected to discuss whether to delegate emergency declaration authority to the Town Administrator."
         if "board and committee appointments" in lowered:
             return "Members are expected to review board and committee appointments."
+        if "council on aging board agenda" in lowered:
+            return "Members are expected to review the Council on Aging board agenda."
+        if "open meeting law compliance" in lowered or "open meeting law discussion" in lowered:
+            return "Members are expected to review open meeting law compliance issues."
+        if "wpcf phase ii meeting representation" in lowered:
+            return "Members are expected to decide who will represent the commission at the WPCF Phase II progress meeting."
+        if "sewer department task list" in lowered:
+            return "Members are expected to review the current sewer-department task list."
         if "capital planning appointment" in lowered or "capital planning committee appointment" in lowered:
             return "Members are expected to review an appointment to the Capital Planning Committee."
         if "licenses and permits" in lowered:

@@ -138,6 +138,15 @@ Build a local-news publishing system that ingests municipal and other local cont
 - School Committee `Course of Studies Changes` now summarizes cleanly around `AP, dual-enrollment, and pathways presentation`
 - meaningful executive-session/legal-strategy references keyed to `L. c. 30A` now normalize toward `Executive Session Strategy Discussion` instead of publishing the raw legal citation as a headline phrase when those items surface
 - older bylaw-presentation phrasing now maps toward `Proposed Town Bylaws Presentation`
+- Added a third editorial-polish pass in `worker/newsroom/publish.py`, deployed live through render versions `v15`-`v17`:
+- older notice-like labels now normalize more cleanly:
+- `WPCF Phase II Meeting Representation`
+- `Open Meeting Law Compliance`
+- `Council on Aging Board Agenda`
+- `Bylaw Review Update`
+- headline and summary labels are now aligned for those rows, so the live site no longer mixes a polished headline with an older source-like summary phrase
+- `Council on Aging to Discuss Open Meeting Law Compliance` and `Sewer Commissioners to Discuss WPCF Phase II Meeting Representation` now publish with matching cleaner summaries
+- one older bylaw-presentation story still carries a stray amendment/bullet fragment in its secondary summary clause; it is now one of the remaining source-specific cleanup targets rather than part of the broader weak-output set
 - Added a source-specific cleanup for Board of Health and other variance-led agenda lines in `worker/newsroom/publish.py`:
 - agenda lead-ins like `Discussion and possible vote ...` are stripped more aggressively before headline/focus normalization
 - address-led variance lines such as `2683 Cranberry Highway Variance Request` now normalize to `variance request for 2683 Cranberry Highway` instead of misfiring through the zoning-summary path as `variance request at Request`
