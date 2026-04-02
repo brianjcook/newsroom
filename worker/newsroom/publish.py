@@ -1137,6 +1137,10 @@ def _headline_phrase(text: str) -> str:
         return "FY2026 Grant Decision Report"
     if "town owned property" in lowered and "affordable housing" in lowered:
         return "Town-Owned Property for Affordable Housing"
+    if "waht grant language" in lowered:
+        return "WAHT Grant Language"
+    if "application process" in lowered and "waht" in lowered:
+        return "WAHT Application Process"
     if "what cpa funds" in lowered or ("801 main street" in lowered and "funding" in lowered):
         return "WHAT/CPA Funding"
     if "budget update" in lowered and "sandy" in lowered:
@@ -1183,6 +1187,10 @@ def _headline_phrase(text: str) -> str:
         return "Attorney Selection"
     if "monthly financial report" in lowered:
         return "Monthly Financial Report"
+    if "spring town mee" in lowered and "ar" in lowered:
+        return "Spring Town Meeting Article"
+    if "greens chemical budget" in lowered:
+        return "Greens Chemical Budget"
     if "community input survey" in lowered:
         return "Community Input Survey"
     if "grant recipient reception" in lowered:
@@ -1543,6 +1551,8 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"mcc fy26 grant decision report", "FY2026 grant decision report"),
         (r"town owned property.*affordable housing", "town-owned property for affordable housing"),
         (r"what cpa funds|801 main street.*funding", "WHAT/CPA funding"),
+        (r"waht grant language", "WAHT grant language"),
+        (r"application process", "application process"),
         (r"budget update.*sandy", "budget update"),
         (r"mid-?cycle review of goals", "Mid-Cycle Review of Goals"),
         (r"the superintendent.*mid", "Mid-Cycle Review of Goals"),
@@ -1565,6 +1575,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"dissolve the cmwrrdd", "dissolving the CMWRRDD"),
         (r"selection of attorney", "attorney selection"),
         (r"monthly financial report", "monthly financial report"),
+        (r"spring town mee.*ar.*cle", "Spring Town Meeting article"),
         (r"community input survey", "community input survey"),
         (r"grant recipient reception", "grant recipient reception plans"),
         (r"grant cycle", "grant cycle planning"),
@@ -1581,6 +1592,7 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"early education learning center", "Early Education Learning Center"),
         (r"early education head start", "Early Education Head Start"),
         (r"course update", "course update"),
+        (r"greens chemical budget", "greens chemical budget"),
         (r"golf cart fleet", "golf cart fleet needs"),
         (r"tractor situation", "tractor situation"),
         (r"winter schedule", "winter schedule"),
@@ -1825,6 +1837,17 @@ def _is_low_value_focus_line(text: str) -> bool:
             "review and approve minutes",
             "approve minutes",
             "capital planning worksheets",
+            "call meeting to order",
+            "minutes and agenda clerk transfer",
+            "association of town finance committees membership bill",
+            "voted on at this meeting",
+            "deadlines for articles submission",
+            "confirmation of no additional topics to be added",
+            "accept mee",
+            "technical assistance accessing the meeting",
+            "discussion of need to meet january deadline",
+            "schedule to invite department heads",
+            "review exis",
         )
     ):
         return True
