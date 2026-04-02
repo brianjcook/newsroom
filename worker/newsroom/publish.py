@@ -760,7 +760,7 @@ def _looks_truncated(text: str) -> bool:
 
 
 def _strip_agenda_lead_in(text: str) -> str:
-    normalized = _normalize_item_text(text)
+    normalized = _normalize_item_text(text).strip()
     patterns = [
         r"^\d{1,2}:\d{2}\s*(a\.m\.|p\.m\.)\s*",
         r"^(new|old)\s+business:\s*",
@@ -772,6 +772,8 @@ def _strip_agenda_lead_in(text: str) -> str:
         r"^discussion and possible vote regarding\s+",
         r"^discussion and possible vote on\s+",
         r"^discussion and possible vote to\s+",
+        r"^discussion and possible vote\s+",
+        r"^discussion and vote\s+",
         r"^discussion regarding\s+",
         r"^discussion on\s+",
         r"^possible vote regarding\s+",
@@ -1239,6 +1241,8 @@ def _headline_phrase(text: str) -> str:
     cleaned = re.sub(r"^request for determination of applicability \(rda\)\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^notice of intents? \(noi\)\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^abbreviated notice of resource area delineation requests? \(anrad\)\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^discussion and possible vote\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^discussion and vote\s+", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bthe finalization of\b", "finalizing", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bto recommend action on\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b\d{1,2}:\d{2}\s*[ap]\.?m\.?\b", "", cleaned, flags=re.IGNORECASE)
@@ -1381,6 +1385,8 @@ def _zoning_case_summary(text: str) -> Dict[str, str]:
     )
     subject = re.sub(r"^[^A-Za-z0-9]+", "", subject)
     tail = re.sub(r"^[^A-Za-z0-9]+", "", tail)
+    if tail.lower() in ("request", "requests", "variance request", "permit request", "special permit request"):
+        tail = ""
     address = tail
     if not address:
         address_match = re.search(
@@ -1390,6 +1396,12 @@ def _zoning_case_summary(text: str) -> Dict[str, str]:
         )
         if address_match:
             address = address_match.group(0).strip(" ,.;:-")
+        elif re.match(
+            r"^\d+[A-Za-z0-9\s.'-]+(?:Street|St\.?|Avenue|Ave\.?|Road|Rd\.?|Highway|Hwy\.?|Lane|Ln\.?|Boulevard|Blvd\.?|Way)\b",
+            subject,
+            flags=re.IGNORECASE,
+        ):
+            address = subject.strip(" ,.;:-")
 
     if address:
         address = _normalize_street_types(address.title())
@@ -1451,6 +1463,19 @@ def _normalize_focus_phrase(text: str) -> str:
         return "Sandwich Road site plan review"
     if ("3031 cran hwy" in lowered or "3031 cranberry hwy" in lowered) and "site plan review" in lowered:
         return "3031 Cran Highway site plan review"
+    address_variance_match = re.search(
+        r"^(?:discussion and possible vote\s+)?(?:on\s+)?(.+?)\s+variance requests?$",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    if address_variance_match:
+        subject = _trim_trailing_detail(address_variance_match.group(1))
+        if re.search(
+            r"\b\d+[A-Za-z0-9\s.'-]+(?:Street|St\.?|Avenue|Ave\.?|Road|Rd\.?|Highway|Hwy\.?|Lane|Ln\.?|Boulevard|Blvd\.?|Way)\b",
+            subject,
+            flags=re.IGNORECASE,
+        ):
+            return "variance request for {}".format(_normalize_street_types(subject.title()))
     if "citizen petition" in lowered and "zoning bylaw article 9" in lowered:
         return "zoning bylaw citizen petition"
     zoning_summary = _zoning_case_summary(cleaned)
@@ -1642,6 +1667,12 @@ def _normalize_focus_phrase(text: str) -> str:
     variance_match = re.search(r"variance requests?\s+(?:for|at)\s+(.+)", cleaned, flags=re.IGNORECASE)
     if variance_match:
         subject = _trim_trailing_detail(variance_match.group(1))
+        if subject.lower() == "request":
+            subject = ""
+        return "variance request for {}".format(subject) if subject else "variance request"
+    trailing_variance_match = re.search(r"(.+?)\s+variance requests?$", cleaned, flags=re.IGNORECASE)
+    if trailing_variance_match:
+        subject = _trim_trailing_detail(trailing_variance_match.group(1))
         if subject.lower() == "request":
             subject = ""
         return "variance request for {}".format(subject) if subject else "variance request"

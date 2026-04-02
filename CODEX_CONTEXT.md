@@ -118,6 +118,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `newsroom_recap_draft_workspace()` now builds stronger draft shells around the reporting angle and, when available, the first minutes-confirmed highlight instead of only the old generic recap shell
 - `web/public/editorial-recap-draft.php` now surfaces `Minutes Highlights`, `Publish Plan`, and `Source Record Status` alongside the existing source links and verification checklist
 - Added another public story-quality pass in `worker/newsroom/publish.py`:
+- Added a source-specific cleanup for Board of Health and other variance-led agenda lines in `worker/newsroom/publish.py`:
+- agenda lead-ins like `Discussion and possible vote ...` are stripped more aggressively before headline/focus normalization
+- address-led variance lines such as `2683 Cranberry Highway Variance Request` now normalize to `variance request for 2683 Cranberry Highway` instead of misfiring through the zoning-summary path as `variance request at Request`
+- `_zoning_case_summary()` now treats bare trailing `Request` labels as noise and can fall back to address-like subjects when the tail is empty
+- deployed the updated publisher to Freehostia and reran the host publisher so stale story `1225` regenerated as `board-of-health-to-discuss-variance-requests` with the corrected summary text and render version `2026-04-02-render-v9-quality-pass`
 - low-value focus detection now filters date/location metadata lines and more report-only/participation boilerplate (`citizen participation`, `chair's report`, `director's report`, meeting-posting boilerplate)
 - phrase normalization now covers more community/council edge cases such as `AARP Age Friendly Community update`, `grant cycle planning`, `grant applications`, and `local cultural council planning`
 - when the usual focus extraction path still comes up empty, the publisher now has a last-resort fallback that can score already-cleaned summary phrases from agenda highlights or generic agenda lines instead of falling all the way back to `to Meet {date}`
@@ -886,6 +891,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Improve messy governance/appointment agendas further so ancillary items like yearbook ads, AARP updates, capital-plan effects, and finance appointments rank and summarize cleanly without requiring one-off phrase patches.
 - Move the next quality pass from obvious copy cleanup into deeper ranking and extraction, especially public-hearing boards and appointment-heavy agendas where the remaining weakness is selection/order rather than OCR phrasing.
 - Target the next extraction pass at bodies like Community Events, Council on Aging, Select Board appointment-heavy agendas, and remaining authority/committee agendas where explanatory notes and procedural blocks still bleed into `What matters most` or raw agenda sections.
+- Keep targeting the remaining narrow OCR/extraction edge cases that still survive after the latest variance-line and thin-agenda cleanup passes.
 - Keep extending the style-guide application from deterministic mechanics into richer reporting structure, especially once stories quote or attribute named people and need honorifics, attribution patterns, and correction-style handling.
 - Add governing-body enrichment from the `Boards and Committees` directory and body detail pages.
 - Later, replace or augment deterministic story generation with a constrained model-backed drafting step.
