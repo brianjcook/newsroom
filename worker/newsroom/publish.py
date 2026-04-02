@@ -184,7 +184,7 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
-PUBLISHER_RENDER_VERSION = "2026-04-02-render-v17-aligned-labels"
+PUBLISHER_RENDER_VERSION = "2026-04-02-render-v18-bylaw-fragment"
 
 
 def _normalize_workflow_status(status: Optional[str], story_type: Optional[str] = None) -> str:
@@ -1647,7 +1647,8 @@ def _normalize_focus_phrase(text: str) -> str:
         (r"completed grants", "completed grants review"),
         (r"discussion and presentation by the bylaw review committee", "Bylaw review update"),
         (r"discussion and presentation by the bylaw review", "Bylaw review update"),
-        (r"discuss amendments reserved for fall town meeting", "Fall Town Meeting amendments"),
+        (r"[•\-\s]*discuss amendments reserved for f\s*all town meeting", "Fall Town Meeting amendments"),
+        (r"[•\-\s]*discuss amendments reserved for fall town meeting", "Fall Town Meeting amendments"),
         (r"trex project", "Trex project update"),
         (r"paint and swap shed", "paint and swap shed locations"),
         (r"upcoming shed purchases", "shed purchases"),
