@@ -56,8 +56,13 @@ $items = newsroom_follow_up_items();
                     <div class="story-meta-row story-meta-row--compact">
                         <span class="signal-pill"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $item['workflow_status']))) ?></span>
                         <span class="story-card__meta"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $item['priority']))) ?></span>
+                        <span class="story-card__meta"><?= (int) ($item['source_count'] ?? 0) ?> sources</span>
+                        <span class="story-card__meta"><?= (int) ($item['contact_count'] ?? 0) ?> contacts</span>
                     </div>
                     <h3 class="story-headline"><a href="/desk/follow-ups/<?= htmlspecialchars((string) $item['id']) ?>"><?= htmlspecialchars((string) $item['title']) ?></a></h3>
+                    <?php if (!empty($item['reported_angle'])): ?>
+                        <p class="story-dek"><?= htmlspecialchars((string) $item['reported_angle']) ?></p>
+                    <?php endif; ?>
                     <p><?= htmlspecialchars((string) ($item['notes'] ?? '')) ?></p>
                     <p class="archive-result__meta">Source story: <a href="<?= htmlspecialchars((string) $item['public_url']) ?>"><?= htmlspecialchars((string) $item['source_headline']) ?></a></p>
                     <?php if (!empty($item['topics'])): ?>

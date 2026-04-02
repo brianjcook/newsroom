@@ -150,6 +150,14 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Added a final source-specific cleanup pass in `worker/newsroom/publish.py` with render version `2026-04-02-render-v18-bylaw-fragment`:
 - the lingering bylaw-presentation summary fragment `• Discuss amendments reserved for F all Town Meeting` now normalizes to `Fall Town Meeting amendments`
 - the live story `bylaw-review-committee-to-review-proposed-town-bylaws-presentation` now summarizes cleanly as `proposed Town bylaws presentation and Fall Town Meeting amendments`
+- Added `009_reporting_workflow.sql` and applied it live on Freehostia:
+- `follow_up_items` now carries richer reporting fields including `draft_headline`, `draft_dek`, `reported_angle`, `questions_to_answer`, `fact_check_notes`, and `next_steps_notes`
+- new child tables `follow_up_sources` and `follow_up_contacts` now store research-source tracking and contact/outreach placeholders for the writing workflow
+- Expanded the follow-up board into a true reporting workspace:
+- `web/public/editorial-follow-up.php` now includes assignment controls, reporting-angle fields, editable draft headline/dek/body fields, research-source rows, people-to-contact rows, fact-check notes, and next-step planning
+- `web/public/editorial-follow-ups.php` now surfaces source/contact counts and the current reported angle inline in the queue
+- `web/lib/content.php` now round-trips the richer follow-up data model, including helper functions for source/contact row types and save logic for the child tables
+- deployed the reporting-workspace PHP files and stylesheet changes to the live Freehostia root and mirrored `web/` copies, then applied the production migration successfully
 - Added one more editorial-label alignment pass in `worker/newsroom/publish.py` with render versions `v15`-`v17` so older notice-like stories publish with cleaner matched labels in both headline and summary:
 - `Sewer Commissioners to Discuss WPCF Phase II Meeting Representation`
 - `Council on Aging to Discuss Open Meeting Law Compliance`
@@ -279,7 +287,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `C:\codex\newsroom\worker\newsroom\community_calendar.py`
 - `C:\codex\newsroom\db\migrations\005_public_calendar_editorial.sql`
 - `C:\codex\newsroom\db\migrations\006_editorial_workflow_topics.sql`
+- `C:\codex\newsroom\db\migrations\009_reporting_workflow.sql`
 - `C:\codex\newsroom\web\public\editorial.php`
+- `C:\codex\newsroom\web\public\editorial-follow-up.php`
+- `C:\codex\newsroom\web\public\editorial-follow-ups.php`
 - `C:\codex\newsroom\web\public\topics.php`
 - `C:\codex\newsroom\examples\`
 
@@ -293,6 +304,8 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Production schema, seeds, and meeting-first migration are applied.
 - Worker dependencies are installed on-host in a site-local Python user base.
 - Worker runs successfully on-host using the MySQL Unix socket.
+- Production migration `009_reporting_workflow.sql` is applied.
+- The new reporting-workspace files are deployed under both the live root copies and the mirrored `web/` copies on Freehostia.
 - Story output is still deterministic/template-based and source-grounded rather than model-generated.
 - Live ordering now favors imminent upcoming meeting coverage instead of the farthest-future preview.
 - Current live quality is materially better than the first run. The Select Board March 17, 2026 preview now resolves to the actual agenda document, uses the correct `7:00 PM` meeting time and `Multi-Service Center, 48 Marion Road, Room 520` location, includes remote-access details, and renders agenda highlights with a source-grounded CWMP explainer. The latest quality pass also suppresses more weak previews and removes postponed/continued meetings from the public calendar. Remaining quality work is still concentrated around amended/cancelled meeting edge cases and low-confidence PDFs.
@@ -762,6 +775,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Fixed topic-page and archive topic filtering against MySQL JSON text formatting by normalizing spaces before slug matching, so topics like `/topics/zoning` now show their tagged stories instead of falling through to empty results when JSON is stored as `"slug": "zoning"`
 
 ## Recent commits
+- `fee7c32` - `Finish remaining story-specific cleanup`
 - `515dd2b` - `Repair OCR-heavy thin agenda extraction`
 - `ae4ed51` - `Tighten weak agenda story summaries`
 - `0ed46b1` - `Refine recap workflow and thin-agenda story quality`
@@ -862,6 +876,10 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
+- Seed the new reporting workspace with stronger starter material from the source story and recap scaffold so second-day drafts begin with a sharper angle and fact list.
+- Decide whether follow-up items should eventually become first-class public stories/pages or remain desk-only reporting objects until fully written.
+- Add quicker entry points into the reporting workspace from more desk views, especially `follow_up_story` rows on `/desk`.
+- If quote outreach becomes active later, add outreach-template drafting and sent/responded timestamps without auto-sending email.
 - Keep improving the weakest live April 2026 preview outputs, especially any remaining thin utility/authority agendas that still read like cleaned source copy instead of edited local reporting.
 - Continue shifting story-quality work from phrase cleanup toward more structured extraction improvements for light agendas, especially where only one or two lines are available and OCR repair yields better results than publisher-level filtering.
 - Decide whether follow-up items should eventually become first-class public stories/pages or remain desk-only planning objects.

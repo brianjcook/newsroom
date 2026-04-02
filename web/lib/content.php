@@ -2568,6 +2568,216 @@ function newsroom_follow_up_slug(string $title, int $id = 0): string
     return $id > 0 ? $slug . '-' . $id : $slug;
 }
 
+function newsroom_follow_up_source_types(): array
+{
+    return [
+        'official' => 'Official record',
+        'local' => 'Local source',
+        'state' => 'State / regional source',
+        'background' => 'Background / archive',
+        'other' => 'Other',
+    ];
+}
+
+function newsroom_follow_up_source_priorities(): array
+{
+    return [
+        'primary' => 'Primary',
+        'supporting' => 'Supporting',
+        'reference' => 'Reference',
+    ];
+}
+
+function newsroom_follow_up_outreach_statuses(): array
+{
+    return [
+        'not_started' => 'Not started',
+        'ready' => 'Ready to contact',
+        'queued' => 'Queued',
+        'sent' => 'Sent',
+        'responded' => 'Responded',
+        'declined' => 'Declined',
+        'closed' => 'Closed',
+    ];
+}
+
+function newsroom_follow_up_quote_statuses(): array
+{
+    return [
+        'not_requested' => 'Not requested',
+        'requested' => 'Requested',
+        'received' => 'Received',
+        'usable' => 'Usable',
+        'declined' => 'Declined',
+    ];
+}
+
+function newsroom_follow_up_sources(int $followUpId): array
+{
+    if (!newsroom_db_available() || $followUpId <= 0) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT *
+         FROM follow_up_sources
+         WHERE follow_up_id = :id
+         ORDER BY
+            CASE priority
+                WHEN "primary" THEN 0
+                WHEN "supporting" THEN 1
+                ELSE 2
+            END,
+            id ASC'
+    );
+    $statement->execute([':id' => $followUpId]);
+    return $statement->fetchAll() ?: [];
+}
+
+function newsroom_follow_up_contacts(int $followUpId): array
+{
+    if (!newsroom_db_available() || $followUpId <= 0) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT *
+         FROM follow_up_contacts
+         WHERE follow_up_id = :id
+         ORDER BY
+            CASE outreach_status
+                WHEN "responded" THEN 0
+                WHEN "sent" THEN 1
+                WHEN "queued" THEN 2
+                WHEN "ready" THEN 3
+                ELSE 4
+            END,
+            id ASC'
+    );
+    $statement->execute([':id' => $followUpId]);
+    return $statement->fetchAll() ?: [];
+}
+
+function newsroom_follow_up_empty_source_row(): array
+{
+    return [
+        'source_type' => 'official',
+        'title' => '',
+        'source_url' => '',
+        'publisher' => '',
+        'priority' => 'supporting',
+        'notes' => '',
+    ];
+}
+
+function newsroom_follow_up_empty_contact_row(): array
+{
+    return [
+        'full_name' => '',
+        'role_title' => '',
+        'organization' => '',
+        'email' => '',
+        'outreach_status' => 'not_started',
+        'quote_status' => 'not_requested',
+        'quote_text' => '',
+        'notes' => '',
+    ];
+}
+
+function newsroom_prepare_follow_up_sources(array $payload): array
+{
+    $sourceTypes = newsroom_follow_up_source_types();
+    $priorities = newsroom_follow_up_source_priorities();
+    $rows = [];
+    $count = max(
+        count($payload['source_title'] ?? []),
+        count($payload['source_url'] ?? []),
+        count($payload['source_notes'] ?? []),
+        count($payload['source_type'] ?? []),
+        count($payload['source_priority'] ?? [])
+    );
+
+    for ($index = 0; $index < $count; $index++) {
+        $title = trim((string) (($payload['source_title'][$index] ?? '')));
+        $url = trim((string) (($payload['source_url'][$index] ?? '')));
+        $publisher = trim((string) (($payload['source_publisher'][$index] ?? '')));
+        $notes = trim((string) (($payload['source_notes'][$index] ?? '')));
+        if ($title === '' && $url === '' && $publisher === '' && $notes === '') {
+            continue;
+        }
+
+        $type = trim((string) (($payload['source_type'][$index] ?? 'official')));
+        if (!isset($sourceTypes[$type])) {
+            $type = 'other';
+        }
+
+        $priority = trim((string) (($payload['source_priority'][$index] ?? 'supporting')));
+        if (!isset($priorities[$priority])) {
+            $priority = 'supporting';
+        }
+
+        $rows[] = [
+            'source_type' => $type,
+            'title' => $title !== '' ? $title : null,
+            'source_url' => $url !== '' ? $url : null,
+            'publisher' => $publisher !== '' ? $publisher : null,
+            'priority' => $priority,
+            'notes' => $notes !== '' ? $notes : null,
+        ];
+    }
+
+    return $rows;
+}
+
+function newsroom_prepare_follow_up_contacts(array $payload): array
+{
+    $outreachStatuses = newsroom_follow_up_outreach_statuses();
+    $quoteStatuses = newsroom_follow_up_quote_statuses();
+    $rows = [];
+    $count = max(
+        count($payload['contact_name'] ?? []),
+        count($payload['contact_email'] ?? []),
+        count($payload['contact_notes'] ?? []),
+        count($payload['contact_outreach_status'] ?? []),
+        count($payload['contact_quote_status'] ?? [])
+    );
+
+    for ($index = 0; $index < $count; $index++) {
+        $fullName = trim((string) (($payload['contact_name'][$index] ?? '')));
+        $roleTitle = trim((string) (($payload['contact_role_title'][$index] ?? '')));
+        $organization = trim((string) (($payload['contact_organization'][$index] ?? '')));
+        $email = trim((string) (($payload['contact_email'][$index] ?? '')));
+        $quoteText = trim((string) (($payload['contact_quote_text'][$index] ?? '')));
+        $notes = trim((string) (($payload['contact_notes'][$index] ?? '')));
+        if ($fullName === '' && $roleTitle === '' && $organization === '' && $email === '' && $quoteText === '' && $notes === '') {
+            continue;
+        }
+
+        $outreachStatus = trim((string) (($payload['contact_outreach_status'][$index] ?? 'not_started')));
+        if (!isset($outreachStatuses[$outreachStatus])) {
+            $outreachStatus = 'not_started';
+        }
+
+        $quoteStatus = trim((string) (($payload['contact_quote_status'][$index] ?? 'not_requested')));
+        if (!isset($quoteStatuses[$quoteStatus])) {
+            $quoteStatus = 'not_requested';
+        }
+
+        $rows[] = [
+            'full_name' => $fullName !== '' ? $fullName : null,
+            'role_title' => $roleTitle !== '' ? $roleTitle : null,
+            'organization' => $organization !== '' ? $organization : null,
+            'email' => $email !== '' ? $email : null,
+            'outreach_status' => $outreachStatus,
+            'quote_status' => $quoteStatus,
+            'quote_text' => $quoteText !== '' ? $quoteText : null,
+            'notes' => $notes !== '' ? $notes : null,
+        ];
+    }
+
+    return $rows;
+}
+
 function newsroom_upsert_follow_up_from_story(int $storyId, string $priority = 'normal'): ?int
 {
     if (!newsroom_db_available() || $storyId <= 0) {
@@ -2612,6 +2822,7 @@ function newsroom_upsert_follow_up_from_story(int $storyId, string $priority = '
             workflow_status,
             priority,
             notes,
+            draft_headline,
             draft_body
         ) VALUES (
             :source_story_id,
@@ -2622,6 +2833,7 @@ function newsroom_upsert_follow_up_from_story(int $storyId, string $priority = '
             "draft",
             :priority,
             :notes,
+            :draft_headline,
             :draft_body
         )'
     );
@@ -2633,6 +2845,7 @@ function newsroom_upsert_follow_up_from_story(int $storyId, string $priority = '
         ':topic_tags_json' => $topicTagsJson ?: json_encode([]),
         ':priority' => $priority,
         ':notes' => 'Generated from recap workspace.',
+        ':draft_headline' => $title,
         ':draft_body' => "Follow-up angle\n- What changed after the meeting?\n- Who is affected?\n- What comes next?\n",
     ]);
 
@@ -2651,7 +2864,9 @@ function newsroom_follow_up_items(int $limit = 60): array
             s.headline AS source_headline,
             s.slug AS source_slug,
             s.summary AS source_summary,
-            s.workflow_status AS source_workflow_status
+            s.workflow_status AS source_workflow_status,
+            (SELECT COUNT(*) FROM follow_up_sources fs WHERE fs.follow_up_id = fu.id) AS source_count,
+            (SELECT COUNT(*) FROM follow_up_contacts fc WHERE fc.follow_up_id = fu.id) AS contact_count
          FROM follow_up_items fu
          INNER JOIN stories s ON s.id = fu.source_story_id
          ORDER BY
@@ -2694,7 +2909,10 @@ function newsroom_follow_up_item(int $id): ?array
             s.headline AS source_headline,
             s.slug AS source_slug,
             s.summary AS source_summary,
-            s.workflow_status AS source_workflow_status
+            s.workflow_status AS source_workflow_status,
+            s.summary AS source_summary,
+            (SELECT COUNT(*) FROM follow_up_sources fs WHERE fs.follow_up_id = fu.id) AS source_count,
+            (SELECT COUNT(*) FROM follow_up_contacts fc WHERE fc.follow_up_id = fu.id) AS contact_count
          FROM follow_up_items fu
          INNER JOIN stories s ON s.id = fu.source_story_id
          WHERE fu.id = :id
@@ -2707,6 +2925,10 @@ function newsroom_follow_up_item(int $id): ?array
     }
     $row['public_url'] = newsroom_story_url_from_slug((string) ($row['source_slug'] ?? ''));
     $row['topics'] = newsroom_parse_topics($row['topic_tags_json'] ?? null);
+    $row['sources'] = newsroom_follow_up_sources($id);
+    $row['contacts'] = newsroom_follow_up_contacts($id);
+    $row['sources'][] = newsroom_follow_up_empty_source_row();
+    $row['contacts'][] = newsroom_follow_up_empty_contact_row();
     return $row;
 }
 
@@ -2720,27 +2942,132 @@ function newsroom_save_follow_up_item(int $id, array $payload): void
     $status = trim((string) ($payload['workflow_status'] ?? 'draft'));
     $priority = trim((string) ($payload['priority'] ?? 'normal'));
     $notes = trim((string) ($payload['notes'] ?? ''));
+    $draftHeadline = trim((string) ($payload['draft_headline'] ?? ''));
+    $draftDek = trim((string) ($payload['draft_dek'] ?? ''));
+    $reportedAngle = trim((string) ($payload['reported_angle'] ?? ''));
+    $questionsToAnswer = trim((string) ($payload['questions_to_answer'] ?? ''));
+    $factCheckNotes = trim((string) ($payload['fact_check_notes'] ?? ''));
+    $nextStepsNotes = trim((string) ($payload['next_steps_notes'] ?? ''));
     $draftBody = trim((string) ($payload['draft_body'] ?? ''));
+    $sources = newsroom_prepare_follow_up_sources($payload);
+    $contacts = newsroom_prepare_follow_up_contacts($payload);
 
-    $statement = newsroom_db()->prepare(
-        'UPDATE follow_up_items
-         SET title = :title,
-             slug = :slug,
-             workflow_status = :workflow_status,
-             priority = :priority,
-             notes = :notes,
-             draft_body = :draft_body
-         WHERE id = :id'
-    );
-    $statement->execute([
-        ':title' => $title !== '' ? $title : 'Follow-up story',
-        ':slug' => newsroom_follow_up_slug($title !== '' ? $title : 'Follow-up story', $id),
-        ':workflow_status' => $status !== '' ? $status : 'draft',
-        ':priority' => $priority !== '' ? $priority : 'normal',
-        ':notes' => $notes !== '' ? $notes : null,
-        ':draft_body' => $draftBody !== '' ? $draftBody : null,
-        ':id' => $id,
-    ]);
+    newsroom_db()->beginTransaction();
+    try {
+        $statement = newsroom_db()->prepare(
+            'UPDATE follow_up_items
+             SET title = :title,
+                 slug = :slug,
+                 workflow_status = :workflow_status,
+                 priority = :priority,
+                 notes = :notes,
+                 draft_headline = :draft_headline,
+                 draft_dek = :draft_dek,
+                 reported_angle = :reported_angle,
+                 questions_to_answer = :questions_to_answer,
+                 fact_check_notes = :fact_check_notes,
+                 next_steps_notes = :next_steps_notes,
+                 draft_body = :draft_body
+             WHERE id = :id'
+        );
+        $statement->execute([
+            ':title' => $title !== '' ? $title : 'Follow-up story',
+            ':slug' => newsroom_follow_up_slug($title !== '' ? $title : 'Follow-up story', $id),
+            ':workflow_status' => $status !== '' ? $status : 'draft',
+            ':priority' => $priority !== '' ? $priority : 'normal',
+            ':notes' => $notes !== '' ? $notes : null,
+            ':draft_headline' => $draftHeadline !== '' ? $draftHeadline : null,
+            ':draft_dek' => $draftDek !== '' ? $draftDek : null,
+            ':reported_angle' => $reportedAngle !== '' ? $reportedAngle : null,
+            ':questions_to_answer' => $questionsToAnswer !== '' ? $questionsToAnswer : null,
+            ':fact_check_notes' => $factCheckNotes !== '' ? $factCheckNotes : null,
+            ':next_steps_notes' => $nextStepsNotes !== '' ? $nextStepsNotes : null,
+            ':draft_body' => $draftBody !== '' ? $draftBody : null,
+            ':id' => $id,
+        ]);
+
+        newsroom_db()->prepare('DELETE FROM follow_up_sources WHERE follow_up_id = :id')->execute([':id' => $id]);
+        newsroom_db()->prepare('DELETE FROM follow_up_contacts WHERE follow_up_id = :id')->execute([':id' => $id]);
+
+        if ($sources) {
+            $insertSource = newsroom_db()->prepare(
+                'INSERT INTO follow_up_sources (
+                    follow_up_id,
+                    source_type,
+                    title,
+                    source_url,
+                    publisher,
+                    priority,
+                    notes
+                ) VALUES (
+                    :follow_up_id,
+                    :source_type,
+                    :title,
+                    :source_url,
+                    :publisher,
+                    :priority,
+                    :notes
+                )'
+            );
+            foreach ($sources as $source) {
+                $insertSource->execute([
+                    ':follow_up_id' => $id,
+                    ':source_type' => $source['source_type'],
+                    ':title' => $source['title'],
+                    ':source_url' => $source['source_url'],
+                    ':publisher' => $source['publisher'],
+                    ':priority' => $source['priority'],
+                    ':notes' => $source['notes'],
+                ]);
+            }
+        }
+
+        if ($contacts) {
+            $insertContact = newsroom_db()->prepare(
+                'INSERT INTO follow_up_contacts (
+                    follow_up_id,
+                    full_name,
+                    role_title,
+                    organization,
+                    email,
+                    outreach_status,
+                    quote_status,
+                    quote_text,
+                    notes
+                ) VALUES (
+                    :follow_up_id,
+                    :full_name,
+                    :role_title,
+                    :organization,
+                    :email,
+                    :outreach_status,
+                    :quote_status,
+                    :quote_text,
+                    :notes
+                )'
+            );
+            foreach ($contacts as $contact) {
+                $insertContact->execute([
+                    ':follow_up_id' => $id,
+                    ':full_name' => $contact['full_name'],
+                    ':role_title' => $contact['role_title'],
+                    ':organization' => $contact['organization'],
+                    ':email' => $contact['email'],
+                    ':outreach_status' => $contact['outreach_status'],
+                    ':quote_status' => $contact['quote_status'],
+                    ':quote_text' => $contact['quote_text'],
+                    ':notes' => $contact['notes'],
+                ]);
+            }
+        }
+
+        newsroom_db()->commit();
+    } catch (Throwable $exception) {
+        if (newsroom_db()->inTransaction()) {
+            newsroom_db()->rollBack();
+        }
+        throw $exception;
+    }
 }
 
 function newsroom_apply_recap_action(int $storyId, string $action): ?int
