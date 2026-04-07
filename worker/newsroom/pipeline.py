@@ -10,7 +10,21 @@ from .documents import fetch_documents, pending_source_items
 from .extract import extract_documents
 from .meetings import normalize_meetings
 from .publish import publish_stories_and_events
-from .sources import discover_wareham_agenda_center, upsert_source_items
+from .sources import (
+    discover_buzzards_bay_coalition_news,
+    discover_discover_wareham_events,
+    discover_wareham_agenda_center,
+    discover_wareham_police_logs,
+    upsert_source_items,
+)
+
+
+SOURCE_DISCOVERERS = {
+    "wareham_agenda_center": discover_wareham_agenda_center,
+    "wareham_police_logs": discover_wareham_police_logs,
+    "buzzards_bay_coalition_news": discover_buzzards_bay_coalition_news,
+    "discover_wareham_events": discover_discover_wareham_events,
+}
 
 
 def _timestamp() -> str:
@@ -99,19 +113,28 @@ def run_daily() -> Dict[str, object]:
         community_events_synced = 0
 
         try:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT id FROM sources WHERE slug = %s AND is_active = 1 LIMIT 1",
-                    ("wareham-agenda-center",),
-                )
-                source = cursor.fetchone()
-
-            if not source:
-                raise RuntimeError("Source 'wareham-agenda-center' is not seeded.")
-
             if config.source_discovery_enabled:
-                items = discover_wareham_agenda_center(config)
-                discovered_count = upsert_source_items(connection, int(source["id"]), items)
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        SELECT id, slug, parser_key
+                        FROM sources
+                        WHERE is_active = 1
+                        ORDER BY id ASC
+                        """
+                    )
+                    sources = cursor.fetchall()
+
+                for source in sources:
+                    discoverer = SOURCE_DISCOVERERS.get(str(source["parser_key"]))
+                    if not discoverer:
+                        warnings.append(
+                            "No discoverer is registered for parser_key '{}'.".format(source["parser_key"])
+                        )
+                        continue
+                    items = discoverer(config)
+                    discovered_count += upsert_source_items(connection, int(source["id"]), items)
+
                 community_events_synced = sync_community_calendar(config, connection)
             else:
                 warnings.append("Source discovery disabled by configuration.")

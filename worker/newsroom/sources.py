@@ -24,8 +24,20 @@ class DiscoveredItem:
     published_at: Optional[str]
 
 
+WAREHAM_POLICE_LOGS_URL = "https://www.wareham.ma.us/DocumentCenter/Index/316"
+WAREHAM_POLICE_TREE_URL = "https://www.wareham.ma.us/admin/DocumentCenter/Home/_AjaxLoadingReact?type=0"
+WAREHAM_POLICE_DOCS_URL = "https://www.wareham.ma.us/Admin/DocumentCenter/Home/Document_AjaxBinding?renderMode=0&loadSource=7"
+BUZZARDS_BAY_COALITION_NEWS_URL = "https://www.savebuzzardsbay.org/news/"
+
+
 def _normalize_label(text: str) -> str:
     return " ".join((text or "").split())
+
+
+def _session_with_headers(config: WorkerConfig) -> requests.Session:
+    session = requests.Session()
+    session.headers.update({"User-Agent": config.fetch_user_agent})
+    return session
 
 
 def _parse_entry_heading(text: str) -> (Optional[str], Optional[str]):
@@ -157,6 +169,229 @@ def discover_wareham_agenda_center(config: WorkerConfig) -> List[DiscoveredItem]
 
     unique_by_url = {item.canonical_url: item for item in discovered}
     return list(unique_by_url.values())
+
+
+def _police_log_title(display_name: str) -> str:
+    match = re.match(r"^pl(\d{2})(\d{2})(\d{4})$", display_name.strip(), flags=re.IGNORECASE)
+    if not match:
+        return "Wareham Police Log {}".format(display_name.strip())
+    month, day, year = match.groups()
+    try:
+        stamp = datetime.strptime("{}-{}-{}".format(year, month, day), "%Y-%m-%d")
+        return "Wareham Police Log for {} {}, {}".format(stamp.strftime("%B"), stamp.day, stamp.year)
+    except ValueError:
+        return "Wareham Police Log {}".format(display_name.strip())
+
+
+def _parse_month_folder_label(label: str) -> Optional[datetime]:
+    try:
+        return datetime.strptime(label.strip(), "%Y-%m")
+    except ValueError:
+        return None
+
+
+def _fetch_police_log_tree(session: requests.Session, folder_id: str, selected_folder: str = "316") -> List[dict]:
+    response = session.post(
+        WAREHAM_POLICE_TREE_URL,
+        headers={
+            "Content-Type": "application/json;charset=UTF-8",
+            "X-Requested-With": "XMLHttpRequest",
+        },
+        data=json.dumps(
+            {
+                "value": str(folder_id),
+                "expandTree": str(folder_id) == "316",
+                "loadSource": 7,
+                "selectedFolder": int(selected_folder),
+            }
+        ),
+        timeout=30,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    data = payload.get("Data") if isinstance(payload, dict) else []
+    return data if isinstance(data, list) else []
+
+
+def _fetch_police_log_documents(session: requests.Session, folder_id: str) -> List[dict]:
+    response = session.post(
+        WAREHAM_POLICE_DOCS_URL,
+        headers={
+            "Content-Type": "application/json;charset=UTF-8",
+            "X-Requested-With": "XMLHttpRequest",
+        },
+        data=json.dumps(
+            {
+                "folderId": int(folder_id),
+                "getDocuments": 1,
+                "imageRepo": False,
+                "renderMode": 0,
+                "loadSource": 7,
+                "requestingModuleID": 75,
+                "searchString": "",
+                "pageNumber": 1,
+                "rowsPerPage": 100,
+                "sortColumn": "DisplayName",
+                "sortOrder": 0,
+            }
+        ),
+        timeout=30,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    documents = payload.get("Documents") if isinstance(payload, dict) else []
+    return documents if isinstance(documents, list) else []
+
+
+def discover_wareham_police_logs(config: WorkerConfig) -> List[DiscoveredItem]:
+    session = _session_with_headers(config)
+    session.get(WAREHAM_POLICE_LOGS_URL, timeout=30).raise_for_status()
+
+    folder_nodes = _fetch_police_log_tree(session, "316", "316")
+    now = datetime.now(timezone.utc)
+    current_month_floor = datetime(now.year, now.month, 1)
+    recent_folders = []
+    for node in folder_nodes:
+        label = _normalize_label(str(node.get("Text") or ""))
+        if label.lower() == "older" or label == "":
+            continue
+        folder_month = _parse_month_folder_label(label)
+        if not folder_month:
+            continue
+        month_delta = (current_month_floor.year - folder_month.year) * 12 + (current_month_floor.month - folder_month.month)
+        if month_delta < 0 or month_delta > 3:
+            continue
+        recent_folders.append({"id": str(node.get("Value")), "label": label})
+
+    discovered = []
+    for folder in recent_folders:
+        for doc in _fetch_police_log_documents(session, folder["id"]):
+            display_name = _normalize_label(str(doc.get("DisplayName") or ""))
+            if display_name == "" or display_name.lower() == "instructions":
+                continue
+
+            canonical_url = urljoin(WAREHAM_POLICE_LOGS_URL, str(doc.get("URL") or ""))
+            if canonical_url == WAREHAM_POLICE_LOGS_URL:
+                continue
+
+            published_at = parse_agenda_center_datetime(str(doc.get("LastModifiedDateString") or "")) or parse_agenda_center_date(
+                str(doc.get("LastModifiedDateString") or "")
+            )
+            raw_meta = {
+                "discovered_from": "wareham_police_logs",
+                "source_name": "Wareham Police Logs",
+                "folder_label": folder["label"],
+                "display_name": display_name,
+                "document_id": doc.get("ID"),
+                "file_type": doc.get("FileType"),
+                "last_uploaded_label": doc.get("LastModifiedDateString"),
+                "description": doc.get("Description") or "",
+            }
+            _register_item(
+                discovered,
+                canonical_url,
+                _police_log_title(display_name),
+                "police_log",
+                raw_meta,
+                published_at,
+            )
+
+    unique_by_url = {item.canonical_url: item for item in discovered}
+    return list(unique_by_url.values())
+
+
+def _parse_iso_datetime(value: str) -> Optional[str]:
+    value = _normalize_label(value)
+    if value == "":
+        return None
+    for candidate in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            stamp = datetime.strptime(value, candidate)
+            return stamp.strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_human_datetime(value: str) -> Optional[str]:
+    value = _normalize_label(value)
+    if value == "":
+        return None
+    for candidate in ("%B %d, %Y", "%b %d, %Y"):
+        try:
+            stamp = datetime.strptime(value, candidate)
+            return stamp.strftime("%Y-%m-%d 00:00:00")
+        except ValueError:
+            continue
+    return None
+
+
+def discover_buzzards_bay_coalition_news(config: WorkerConfig) -> List[DiscoveredItem]:
+    session = _session_with_headers(config)
+    response = session.get(BUZZARDS_BAY_COALITION_NEWS_URL, timeout=30)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    candidates = {}
+    for anchor in soup.select('a[href*="/news/"]'):
+        href = (anchor.get("href") or "").strip()
+        if not href:
+            continue
+        canonical_url = href if href.startswith("http") else urljoin(BUZZARDS_BAY_COALITION_NEWS_URL, href)
+        if canonical_url.rstrip("/") == BUZZARDS_BAY_COALITION_NEWS_URL.rstrip("/"):
+            continue
+        text = _normalize_label(anchor.get_text(" ", strip=True))
+        if text == "" or text.lower() == "full story ›":
+            continue
+        candidates[canonical_url] = {"title": text}
+
+    discovered = []
+    for canonical_url, candidate in candidates.items():
+        detail_response = session.get(canonical_url, timeout=30)
+        detail_response.raise_for_status()
+        detail_soup = BeautifulSoup(detail_response.text, "html.parser")
+
+        title = candidate["title"]
+        title_node = detail_soup.find("meta", attrs={"property": "og:title"})
+        if title_node and title_node.get("content"):
+            title = _normalize_label(str(title_node.get("content")))
+
+        excerpt = ""
+        excerpt_node = detail_soup.find("meta", attrs={"name": "description"}) or detail_soup.find(
+            "meta", attrs={"property": "og:description"}
+        )
+        if excerpt_node and excerpt_node.get("content"):
+            excerpt = _normalize_label(str(excerpt_node.get("content")))
+
+        published_at = None
+        time_node = detail_soup.find("meta", attrs={"property": "article:published_time"})
+        if time_node and time_node.get("content"):
+            published_at = _parse_iso_datetime(str(time_node.get("content")))
+        if not published_at:
+            published_tag = detail_soup.find("time")
+            if published_tag:
+                published_at = _parse_human_datetime(published_tag.get_text(" ", strip=True))
+
+        raw_meta = {
+            "discovered_from": "buzzards_bay_coalition_news",
+            "source_name": "Buzzards Bay Coalition",
+            "excerpt": excerpt,
+        }
+        _register_item(
+            discovered,
+            canonical_url,
+            title,
+            "external_article",
+            raw_meta,
+            published_at,
+        )
+
+    unique_by_url = {item.canonical_url: item for item in discovered}
+    return list(unique_by_url.values())
+
+
+def discover_discover_wareham_events(config: WorkerConfig) -> List[DiscoveredItem]:
+    return []
 
 
 def upsert_source_items(connection: Connection, source_id: int, items: Iterable[DiscoveredItem]) -> int:

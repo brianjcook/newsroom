@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from .modeling import slugify
 
 
 CALENDAR_BASE_URL = "https://www.wareham.gov/calendar.aspx"
+DISCOVER_WAREHAM_EVENTS_URL = "https://discover-wareham.com/?post_type=tribe_events"
 
 
 @dataclass(frozen=True)
@@ -72,7 +74,7 @@ def _source_section(anchor) -> Optional[str]:
     return None
 
 
-def _list_event_links(config: WorkerConfig) -> List[Dict[str, str]]:
+def _list_wareham_event_links(config: WorkerConfig) -> List[Dict[str, str]]:
     discovered = {}
     for month_url in _month_urls():
         response = requests.get(
@@ -278,72 +280,196 @@ def _fetch_event_detail(config: WorkerConfig, seed: Dict[str, str]) -> Optional[
     )
 
 
-def sync_community_calendar(config: WorkerConfig, connection: Connection) -> int:
-    seeds = _list_event_links(config)
-    synced = 0
+def _parse_discover_datetime(text: str) -> (Optional[str], Optional[str]):
+    cleaned = _clean_text(text)
+    match = re.match(
+        r"([A-Za-z]+ \d{1,2}) @ (\d{1,2}:\d{2} [ap]m) - (\d{1,2}:\d{2} [ap]m)",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None, None
+    month_day, start_text, end_text = match.groups()
+    current_year = datetime.utcnow().year
+    for year_offset in (0, 1):
+        try:
+            start_dt = datetime.strptime(
+                "{} {} {}".format(month_day, current_year + year_offset, start_text.upper()),
+                "%B %d %Y %I:%M %p",
+            )
+            end_dt = datetime.strptime(
+                "{} {} {}".format(month_day, current_year + year_offset, end_text.upper()),
+                "%B %d %Y %I:%M %p",
+            )
+            return start_dt.strftime("%Y-%m-%d %H:%M:%S"), end_dt.strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+    return None, None
 
-    for seed in seeds:
-        item = _fetch_event_detail(config, seed)
-        if not item:
+
+def _discover_wareham_events(config: WorkerConfig) -> List[CalendarEvent]:
+    response = requests.get(
+        DISCOVER_WAREHAM_EVENTS_URL,
+        headers={"User-Agent": config.fetch_user_agent},
+        timeout=30,
+    )
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    events = []
+    seen = set()
+    for article in soup.select("article.tribe-events-calendar-list__event"):
+        anchor = article.select_one("h3.tribe-events-calendar-list__event-title a[href]")
+        if anchor is None:
+            continue
+        href = (anchor.get("href") or "").strip()
+        if not href:
+            continue
+        title = _clean_text(anchor.get_text(" ", strip=True))
+        if title == "" or href == DISCOVER_WAREHAM_EVENTS_URL:
             continue
 
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO community_events (
-                    external_uid,
-                    title,
-                    slug,
-                    starts_at,
-                    ends_at,
-                    location_name,
-                    address_text,
-                    body_name,
-                    source_url,
-                    source_category,
-                    source_type,
-                    description,
-                    editorial_score,
-                    editorial_signals_json,
-                    suggested_coverage_mode,
-                    topic_tags_json,
-                    raw_meta_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    title = VALUES(title),
-                    slug = VALUES(slug),
-                    starts_at = VALUES(starts_at),
-                    ends_at = VALUES(ends_at),
-                    location_name = VALUES(location_name),
-                    address_text = VALUES(address_text),
-                    body_name = VALUES(body_name),
-                    source_url = VALUES(source_url),
-                    source_category = VALUES(source_category),
-                    source_type = VALUES(source_type),
-                    description = VALUES(description),
-                    editorial_score = VALUES(editorial_score),
-                    editorial_signals_json = VALUES(editorial_signals_json),
-                    suggested_coverage_mode = VALUES(suggested_coverage_mode),
-                    topic_tags_json = VALUES(topic_tags_json),
-                    raw_meta_json = VALUES(raw_meta_json)
-                """,
-                (
-                    item.external_uid,
-                    item.title,
-                    item.slug,
-                    item.starts_at,
-                    item.ends_at,
-                    item.location_name,
-                    item.address_text,
-                    item.body_name,
-                    item.source_url,
-                    item.source_category,
-                    item.source_type,
-                    item.description,
-                    item.editorial_score,
-                    item.editorial_signals_json,
-                    item.suggested_coverage_mode,
-                    json.dumps(score_community_event(
+        canonical_url = href if href.startswith("http") else urljoin(DISCOVER_WAREHAM_EVENTS_URL, href)
+        if canonical_url in seen:
+            continue
+        seen.add(canonical_url)
+
+        time_node = article.select_one(".tribe-events-calendar-list__event-datetime")
+        starts_at = None
+        ends_at = None
+        if time_node:
+            starts_at, ends_at = _parse_discover_datetime(_clean_text(time_node.get_text(" ", strip=True)))
+        if not starts_at:
+            continue
+
+        location_name = None
+        address_text = None
+        venue_node = article.select_one(".tribe-events-calendar-list__event-venue")
+        if venue_node:
+            location_name = _clean_text(
+                venue_node.select_one(".tribe-events-calendar-list__event-venue-title").get_text(" ", strip=True)
+                if venue_node.select_one(".tribe-events-calendar-list__event-venue-title")
+                else ""
+            )
+            address_text = _clean_text(
+                venue_node.select_one(".tribe-events-calendar-list__event-venue-address").get_text(" ", strip=True)
+                if venue_node.select_one(".tribe-events-calendar-list__event-venue-address")
+                else ""
+            )
+            if location_name == "" and address_text:
+                location_name = address_text
+        else:
+            location_line = _clean_text(article.get_text(" ", strip=True))
+            if "virtual online" in location_line.lower():
+                location_name = "Virtual Online"
+
+        description = ""
+        description_node = article.select_one(".tribe-events-calendar-list__event-description")
+        if description_node:
+            description = _clean_text(description_node.get_text(" ", strip=True).replace("Read More→", ""))
+
+        organization = None
+        if ":" in title:
+            organization = title.split(":", 1)[0].strip()
+
+        scoring = score_community_event(
+            {
+                "title": title,
+                "description": description,
+                "starts_at": starts_at,
+                "source_category": "Discover Wareham",
+                "source_type": "community_event",
+            }
+        )
+        raw_meta = {
+            "provider": "discover_wareham",
+            "organization": organization,
+            "listing_url": DISCOVER_WAREHAM_EVENTS_URL,
+        }
+        external_uid = "discover-wareham-{}".format(hashlib.sha1(canonical_url.encode("utf-8")).hexdigest()[:16])
+        events.append(
+            CalendarEvent(
+                external_uid=external_uid,
+                title=title,
+                slug=slugify(title)[:191],
+                starts_at=starts_at,
+                ends_at=ends_at,
+                location_name=location_name,
+                address_text=address_text,
+                body_name=organization,
+                source_url=canonical_url,
+                source_category="Discover Wareham",
+                source_type="community_event",
+                description=description,
+                editorial_score=int(scoring["score"]),
+                editorial_signals_json=json.dumps(scoring["signals"]),
+                suggested_coverage_mode=str(scoring["coverage_mode"]),
+                raw_meta_json=json.dumps(raw_meta),
+            )
+        )
+
+    return events
+
+
+def _upsert_community_event(connection: Connection, item: CalendarEvent) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO community_events (
+                external_uid,
+                title,
+                slug,
+                starts_at,
+                ends_at,
+                location_name,
+                address_text,
+                body_name,
+                source_url,
+                source_category,
+                source_type,
+                description,
+                editorial_score,
+                editorial_signals_json,
+                suggested_coverage_mode,
+                topic_tags_json,
+                raw_meta_json
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                title = VALUES(title),
+                slug = VALUES(slug),
+                starts_at = VALUES(starts_at),
+                ends_at = VALUES(ends_at),
+                location_name = VALUES(location_name),
+                address_text = VALUES(address_text),
+                body_name = VALUES(body_name),
+                source_url = VALUES(source_url),
+                source_category = VALUES(source_category),
+                source_type = VALUES(source_type),
+                description = VALUES(description),
+                editorial_score = VALUES(editorial_score),
+                editorial_signals_json = VALUES(editorial_signals_json),
+                suggested_coverage_mode = VALUES(suggested_coverage_mode),
+                topic_tags_json = VALUES(topic_tags_json),
+                raw_meta_json = VALUES(raw_meta_json)
+            """,
+            (
+                item.external_uid,
+                item.title,
+                item.slug,
+                item.starts_at,
+                item.ends_at,
+                item.location_name,
+                item.address_text,
+                item.body_name,
+                item.source_url,
+                item.source_category,
+                item.source_type,
+                item.description,
+                item.editorial_score,
+                item.editorial_signals_json,
+                item.suggested_coverage_mode,
+                json.dumps(
+                    score_community_event(
                         {
                             "title": item.title,
                             "description": item.description,
@@ -351,10 +477,27 @@ def sync_community_calendar(config: WorkerConfig, connection: Connection) -> int
                             "source_category": item.source_category,
                             "source_type": item.source_type,
                         }
-                    )["topics"]),
-                    item.raw_meta_json,
+                    )["topics"]
                 ),
-            )
-            synced += 1
+                item.raw_meta_json,
+            ),
+        )
+
+
+def sync_community_calendar(config: WorkerConfig, connection: Connection) -> int:
+    seeds = _list_wareham_event_links(config)
+    synced = 0
+
+    for seed in seeds:
+        item = _fetch_event_detail(config, seed)
+        if not item:
+            continue
+
+        _upsert_community_event(connection, item)
+        synced += 1
+
+    for item in _discover_wareham_events(config):
+        _upsert_community_event(connection, item)
+        synced += 1
 
     return synced

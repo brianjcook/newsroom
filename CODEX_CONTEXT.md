@@ -158,6 +158,13 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `web/public/editorial-follow-ups.php` now surfaces source/contact counts and the current reported angle inline in the queue
 - `web/lib/content.php` now round-trips the richer follow-up data model, including helper functions for source/contact row types and save logic for the child tables
 - deployed the reporting-workspace PHP files and stylesheet changes to the live Freehostia root and mirrored `web/` copies, then applied the production migration successfully
+- Broadened the Wareham Times source registry with `010_broaden_source_registry.sql`:
+- `wareham-police-logs` now uses the public CivicPlus `Home` endpoints behind `https://www.wareham.ma.us/DocumentCenter/Index/316` to discover recent daily police-log PDFs without relying on a browser
+- `buzzards-bay-coalition-news` now discovers article URLs from `https://www.savebuzzardsbay.org/news/` and stores them as source-item/article leads for later reporting and writing
+- `discover-wareham-events` is now synced into `community_events` as a second public event feed alongside the Wareham civic calendar
+- `worker/newsroom/sources.py` now includes dedicated discoverers for Wareham police logs and Buzzards Bay Coalition news, while `worker/newsroom/community_calendar.py` now parses Discover Wareham events into scored community-event rows
+- `worker/newsroom/pipeline.py` now runs discovery by `parser_key` for every active source in `sources`, rather than hard-coding AgendaCenter as the only discoverable feed
+- deployed the broadened worker files and source-registry migration to Freehostia, then ran the full host worker successfully
 - Added one more editorial-label alignment pass in `worker/newsroom/publish.py` with render versions `v15`-`v17` so older notice-like stories publish with cleaner matched labels in both headline and summary:
 - `Sewer Commissioners to Discuss WPCF Phase II Meeting Representation`
 - `Council on Aging to Discuss Open Meeting Law Compliance`
@@ -288,6 +295,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `C:\codex\newsroom\db\migrations\005_public_calendar_editorial.sql`
 - `C:\codex\newsroom\db\migrations\006_editorial_workflow_topics.sql`
 - `C:\codex\newsroom\db\migrations\009_reporting_workflow.sql`
+- `C:\codex\newsroom\db\migrations\010_broaden_source_registry.sql`
 - `C:\codex\newsroom\web\public\editorial.php`
 - `C:\codex\newsroom\web\public\editorial-follow-up.php`
 - `C:\codex\newsroom\web\public\editorial-follow-ups.php`
@@ -305,7 +313,18 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Worker dependencies are installed on-host in a site-local Python user base.
 - Worker runs successfully on-host using the MySQL Unix socket.
 - Production migration `009_reporting_workflow.sql` is applied.
+- Production migration `010_broaden_source_registry.sql` is applied.
 - The new reporting-workspace files are deployed under both the live root copies and the mirrored `web/` copies on Freehostia.
+- The broadened source worker files are deployed on Freehostia, and production run `#145` completed successfully on April 7, 2026 with:
+- `548` items discovered
+- `103` documents fetched
+- `103` extractions created
+- `122` stories updated
+- `134` events updated
+- the new source footprints confirmed after that run:
+- `90` Wareham police-log source items
+- `13` Buzzards Bay Coalition article source items
+- `10` Discover Wareham community events
 - Story output is still deterministic/template-based and source-grounded rather than model-generated.
 - Live ordering now favors imminent upcoming meeting coverage instead of the farthest-future preview.
 - Current live quality is materially better than the first run. The Select Board March 17, 2026 preview now resolves to the actual agenda document, uses the correct `7:00 PM` meeting time and `Multi-Service Center, 48 Marion Road, Room 520` location, includes remote-access details, and renders agenda highlights with a source-grounded CWMP explainer. The latest quality pass also suppresses more weak previews and removes postponed/continued meetings from the public calendar. Remaining quality work is still concentrated around amended/cancelled meeting edge cases and low-confidence PDFs.
@@ -775,6 +794,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Fixed topic-page and archive topic filtering against MySQL JSON text formatting by normalizing spaces before slug matching, so topics like `/topics/zoning` now show their tagged stories instead of falling through to empty results when JSON is stored as `"slug": "zoning"`
 
 ## Recent commits
+- `4b34d6e` - `Add reporting workspace for follow-up writing`
 - `fee7c32` - `Finish remaining story-specific cleanup`
 - `515dd2b` - `Repair OCR-heavy thin agenda extraction`
 - `ae4ed51` - `Tighten weak agenda story summaries`
@@ -876,6 +896,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
+- Decide how police logs and Buzzards Bay Coalition article leads should surface in the editorial desk, since they are now being discovered and stored but are not yet first-class public story/event objects.
+- Consider adding a desk view for non-meeting source leads so outside-source reporting candidates can be triaged without overloading the public site.
+- Decide whether Discover Wareham events need their own source badge/filter on the public site now that `community_events` contains multiple upstream feeds.
 - Seed the new reporting workspace with stronger starter material from the source story and recap scaffold so second-day drafts begin with a sharper angle and fact list.
 - Decide whether follow-up items should eventually become first-class public stories/pages or remain desk-only reporting objects until fully written.
 - Add quicker entry points into the reporting workspace from more desk views, especially `follow_up_story` rows on `/desk`.
