@@ -165,6 +165,11 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `worker/newsroom/sources.py` now includes dedicated discoverers for Wareham police logs and Buzzards Bay Coalition news, while `worker/newsroom/community_calendar.py` now parses Discover Wareham events into scored community-event rows
 - `worker/newsroom/pipeline.py` now runs discovery by `parser_key` for every active source in `sources`, rather than hard-coding AgendaCenter as the only discoverable feed
 - deployed the broadened worker files and source-registry migration to Freehostia, then ran the full host worker successfully
+- Added `011_source_leads.sql` and deployed a separate editorial `Source Leads` layer:
+- `web/public/editorial-leads.php` is a new protected desk board for police-log and outside-article leads
+- `web/public/editorial-lead.php` is a per-lead reporting workspace with angle, notes, questions, fact-check, and draft fields
+- `web/lib/content.php` now scores police-log and Buzzards Bay Coalition leads deterministically and lazily creates `source_leads` rows when an editor opens a lead
+- `.htaccess` and `web/public/editorial.php` now expose `/desk/leads` and `/desk/leads/{source_item_id}` as a distinct editorial board instead of mixing those inputs into the publishable story/event desk
 - Added one more editorial-label alignment pass in `worker/newsroom/publish.py` with render versions `v15`-`v17` so older notice-like stories publish with cleaner matched labels in both headline and summary:
 - `Sewer Commissioners to Discuss WPCF Phase II Meeting Representation`
 - `Council on Aging to Discuss Open Meeting Law Compliance`
@@ -296,6 +301,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `C:\codex\newsroom\db\migrations\006_editorial_workflow_topics.sql`
 - `C:\codex\newsroom\db\migrations\009_reporting_workflow.sql`
 - `C:\codex\newsroom\db\migrations\010_broaden_source_registry.sql`
+- `C:\codex\newsroom\db\migrations\011_source_leads.sql`
 - `C:\codex\newsroom\web\public\editorial.php`
 - `C:\codex\newsroom\web\public\editorial-follow-up.php`
 - `C:\codex\newsroom\web\public\editorial-follow-ups.php`
@@ -314,6 +320,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Worker runs successfully on-host using the MySQL Unix socket.
 - Production migration `009_reporting_workflow.sql` is applied.
 - Production migration `010_broaden_source_registry.sql` is applied.
+- Production migration `011_source_leads.sql` is applied.
 - The new reporting-workspace files are deployed under both the live root copies and the mirrored `web/` copies on Freehostia.
 - The broadened source worker files are deployed on Freehostia, and production run `#145` completed successfully on April 7, 2026 with:
 - `548` items discovered
@@ -795,6 +802,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 
 ## Recent commits
 - `4b34d6e` - `Add reporting workspace for follow-up writing`
+- `421e97c` - `Broaden newsroom source discovery`
 - `fee7c32` - `Finish remaining story-specific cleanup`
 - `515dd2b` - `Repair OCR-heavy thin agenda extraction`
 - `ae4ed51` - `Tighten weak agenda story summaries`
@@ -896,6 +904,9 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
+- Decide whether source leads should be filterable by lead type, source, and status on `/desk/leads` instead of using the current simple ranked list.
+- Consider adding one-click promotion from a source lead into a follow-up/public story once a reported draft is ready, instead of keeping it only in the lead workspace.
+- Decide how much of the police-log workflow should remain desk-only versus eventually generating structured public-safety briefs from extracted incidents.
 - Decide how police logs and Buzzards Bay Coalition article leads should surface in the editorial desk, since they are now being discovered and stored but are not yet first-class public story/event objects.
 - Consider adding a desk view for non-meeting source leads so outside-source reporting candidates can be triaged without overloading the public site.
 - Decide whether Discover Wareham events need their own source badge/filter on the public site now that `community_events` contains multiple upstream feeds.

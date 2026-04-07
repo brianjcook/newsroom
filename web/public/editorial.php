@@ -254,7 +254,7 @@ function newsroom_editorial_datetime(string $value): string
     <section class="editorial-explainer">
         <p>The current score emphasizes civic impact, public interest, timeliness, and body priority. It subtracts points for routine recurring meetings and low-signal appointment-only agendas.</p>
         <p>The workflow is intended as a newsroom lifecycle: preview published, watch live, recap needed, minutes reconcile, follow-up story, and done.</p>
-        <p><a href="/desk/methodology">View the full methodology and scoring signals.</a> <a href="/desk/follow-ups">Open the follow-up queue.</a> <a href="/desk/live">Open the live watch board.</a></p>
+        <p><a href="/desk/methodology">View the full methodology and scoring signals.</a> <a href="/desk/follow-ups">Open the follow-up queue.</a> <a href="/desk/live">Open the live watch board.</a> <a href="/desk/leads">Open source leads.</a></p>
     </section>
 
     <form method="get" class="editorial-filters">

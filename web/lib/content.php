@@ -2568,6 +2568,321 @@ function newsroom_follow_up_slug(string $title, int $id = 0): string
     return $id > 0 ? $slug . '-' . $id : $slug;
 }
 
+function newsroom_source_lead_slug(string $title, int $sourceItemId = 0): string
+{
+    $slug = strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', '-', $title), '-'));
+    if ($slug === '') {
+        $slug = 'source-lead';
+    }
+    return $sourceItemId > 0 ? $slug . '-' . $sourceItemId : $slug;
+}
+
+function newsroom_source_lead_workflow_options(): array
+{
+    return [
+        'monitor' => 'Monitor',
+        'assigned' => 'Assigned',
+        'draft' => 'Draft in progress',
+        'done' => 'Done',
+    ];
+}
+
+function newsroom_source_lead_type_label(string $type): string
+{
+    $labels = [
+        'public_safety' => 'Public Safety',
+        'environment' => 'Environment',
+        'community_context' => 'Community Context',
+        'source_lead' => 'Source Lead',
+    ];
+    return $labels[$type] ?? ucwords(str_replace('_', ' ', $type));
+}
+
+function newsroom_source_lead_score(array $item): array
+{
+    $signals = [];
+    $score = 0;
+    $sourceSlug = (string) ($item['source_slug'] ?? '');
+    $title = strtolower((string) ($item['title'] ?? ''));
+    $publishedAt = (string) ($item['published_at'] ?? '');
+    $rawMeta = newsroom_parse_json($item['raw_meta_json'] ?? null);
+
+    if ($sourceSlug === 'wareham-police-logs') {
+        $score += 34;
+        $signals[] = ['reason' => 'Official public-safety record', 'weight' => 34];
+        $score -= 10;
+        $signals[] = ['reason' => 'Routine daily log unless elevated later', 'weight' => -10];
+    } elseif ($sourceSlug === 'buzzards-bay-coalition-news') {
+        $score += 28;
+        $signals[] = ['reason' => 'Strong regional context source', 'weight' => 28];
+        if (strpos($title, 'wareham') !== false || strpos($title, 'buzzards bay') !== false) {
+            $score += 8;
+            $signals[] = ['reason' => 'Direct regional or Wareham relevance', 'weight' => 8];
+        }
+    }
+
+    if ($publishedAt !== '') {
+        $publishedStamp = strtotime($publishedAt);
+        if ($publishedStamp !== false) {
+            $daysOld = (time() - $publishedStamp) / 86400;
+            if ($daysOld <= 2) {
+                $score += 18;
+                $signals[] = ['reason' => 'Very recent', 'weight' => 18];
+            } elseif ($daysOld <= 7) {
+                $score += 12;
+                $signals[] = ['reason' => 'Recent', 'weight' => 12];
+            } elseif ($daysOld <= 30) {
+                $score += 6;
+                $signals[] = ['reason' => 'Still timely', 'weight' => 6];
+            } elseif ($daysOld > 180) {
+                $score -= 12;
+                $signals[] = ['reason' => 'Older archival lead', 'weight' => -12];
+            }
+        }
+    }
+
+    if ($sourceSlug === 'buzzards-bay-coalition-news') {
+        $excerpt = strtolower((string) ($rawMeta['excerpt'] ?? ''));
+        foreach (['restoration', 'pollution', 'water quality', 'watershed', 'dam removal', 'bog restoration'] as $needle) {
+            if (strpos($title . ' ' . $excerpt, $needle) !== false) {
+                $score += 10;
+                $signals[] = ['reason' => 'Clear environmental-policy angle', 'weight' => 10];
+                break;
+            }
+        }
+    }
+
+    $leadType = 'source_lead';
+    if ($sourceSlug === 'wareham-police-logs') {
+        $leadType = 'public_safety';
+    } elseif ($sourceSlug === 'buzzards-bay-coalition-news') {
+        $leadType = 'environment';
+    }
+
+    return [
+        'score' => max(0, min(100, $score)),
+        'signals' => $signals,
+        'lead_type' => $leadType,
+    ];
+}
+
+function newsroom_ensure_source_lead(int $sourceItemId): ?array
+{
+    if (!newsroom_db_available() || $sourceItemId <= 0) {
+        return null;
+    }
+
+    $lookup = newsroom_db()->prepare(
+        'SELECT sl.*
+         FROM source_leads sl
+         WHERE sl.source_item_id = :id
+         LIMIT 1'
+    );
+    $lookup->execute([':id' => $sourceItemId]);
+    $existing = $lookup->fetch();
+    if ($existing) {
+        return $existing;
+    }
+
+    $sourceStatement = newsroom_db()->prepare(
+        'SELECT si.id, si.title, si.published_at, si.raw_meta_json, si.canonical_url, s.slug AS source_slug, s.name AS source_name
+         FROM source_items si
+         INNER JOIN sources s ON s.id = si.source_id
+         WHERE si.id = :id
+         LIMIT 1'
+    );
+    $sourceStatement->execute([':id' => $sourceItemId]);
+    $sourceItem = $sourceStatement->fetch();
+    if (!$sourceItem) {
+        return null;
+    }
+
+    $scoring = newsroom_source_lead_score($sourceItem);
+    $title = trim((string) ($sourceItem['title'] ?? ''));
+    $insert = newsroom_db()->prepare(
+        'INSERT INTO source_leads (
+            source_item_id,
+            title,
+            slug,
+            lead_type,
+            workflow_status,
+            priority,
+            editorial_score,
+            editorial_signals_json
+        ) VALUES (
+            :source_item_id,
+            :title,
+            :slug,
+            :lead_type,
+            "monitor",
+            "normal",
+            :editorial_score,
+            :editorial_signals_json
+        )'
+    );
+    $insert->execute([
+        ':source_item_id' => $sourceItemId,
+        ':title' => $title !== '' ? $title : 'Source lead',
+        ':slug' => newsroom_source_lead_slug($title !== '' ? $title : 'Source lead', $sourceItemId),
+        ':lead_type' => $scoring['lead_type'],
+        ':editorial_score' => (int) $scoring['score'],
+        ':editorial_signals_json' => json_encode($scoring['signals']),
+    ]);
+
+    $lookup->execute([':id' => $sourceItemId]);
+    return $lookup->fetch() ?: null;
+}
+
+function newsroom_source_leads(int $limit = 120): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            si.id AS source_item_id,
+            si.title,
+            si.canonical_url,
+            si.published_at,
+            si.raw_meta_json,
+            s.slug AS source_slug,
+            s.name AS source_name,
+            sl.workflow_status,
+            sl.priority,
+            sl.notes,
+            sl.reported_angle,
+            sl.editorial_score,
+            sl.editorial_signals_json,
+            sl.lead_type
+         FROM source_items si
+         INNER JOIN sources s ON s.id = si.source_id
+         LEFT JOIN source_leads sl ON sl.source_item_id = si.id
+         WHERE s.slug IN ("wareham-police-logs", "buzzards-bay-coalition-news")
+         ORDER BY COALESCE(sl.updated_at, si.published_at, si.updated_at, si.created_at) DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+    $rows = $statement->fetchAll();
+
+    foreach ($rows as &$row) {
+        $scoring = newsroom_source_lead_score($row);
+        $row['lead_type'] = (string) ($row['lead_type'] ?? $scoring['lead_type']);
+        $row['effective_score'] = isset($row['editorial_score']) && $row['editorial_score'] !== null
+            ? (int) $row['editorial_score']
+            : (int) $scoring['score'];
+        $row['signals'] = newsroom_sorted_signals($row['editorial_signals_json'] ?? json_encode($scoring['signals']));
+        $row['workflow_status'] = (string) ($row['workflow_status'] ?: 'monitor');
+        $row['priority'] = (string) ($row['priority'] ?: 'normal');
+        $row['public_url'] = (string) ($row['canonical_url'] ?? '');
+        $row['published_label'] = newsroom_editorial_datetime((string) ($row['published_at'] ?? ''));
+    }
+    unset($row);
+
+    usort($rows, static function (array $a, array $b): int {
+        $scoreCompare = ((int) ($b['effective_score'] ?? 0)) <=> ((int) ($a['effective_score'] ?? 0));
+        if ($scoreCompare !== 0) {
+            return $scoreCompare;
+        }
+        return strcmp((string) ($b['published_at'] ?? ''), (string) ($a['published_at'] ?? ''));
+    });
+
+    return $rows;
+}
+
+function newsroom_source_lead_item(int $sourceItemId): ?array
+{
+    if (!newsroom_db_available() || $sourceItemId <= 0) {
+        return null;
+    }
+
+    newsroom_ensure_source_lead($sourceItemId);
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            si.id AS source_item_id,
+            si.title,
+            si.canonical_url,
+            si.published_at,
+            si.raw_meta_json,
+            s.slug AS source_slug,
+            s.name AS source_name,
+            sl.*
+         FROM source_items si
+         INNER JOIN sources s ON s.id = si.source_id
+         INNER JOIN source_leads sl ON sl.source_item_id = si.id
+         WHERE si.id = :id
+         LIMIT 1'
+    );
+    $statement->execute([':id' => $sourceItemId]);
+    $row = $statement->fetch();
+    if (!$row) {
+        return null;
+    }
+
+    $scoring = newsroom_source_lead_score($row);
+    $row['lead_type'] = (string) ($row['lead_type'] ?? $scoring['lead_type']);
+    $row['effective_score'] = isset($row['editorial_score']) && $row['editorial_score'] !== null
+        ? (int) $row['editorial_score']
+        : (int) $scoring['score'];
+    $row['signals'] = newsroom_sorted_signals($row['editorial_signals_json'] ?? json_encode($scoring['signals']));
+    $row['raw_meta'] = newsroom_parse_json($row['raw_meta_json'] ?? null);
+    return $row;
+}
+
+function newsroom_save_source_lead(int $sourceItemId, array $payload): void
+{
+    if (!newsroom_db_available() || $sourceItemId <= 0) {
+        return;
+    }
+    newsroom_ensure_source_lead($sourceItemId);
+
+    $title = trim((string) ($payload['title'] ?? ''));
+    $workflowStatus = trim((string) ($payload['workflow_status'] ?? 'monitor'));
+    $priority = trim((string) ($payload['priority'] ?? 'normal'));
+    $notes = trim((string) ($payload['notes'] ?? ''));
+    $reportedAngle = trim((string) ($payload['reported_angle'] ?? ''));
+    $draftHeadline = trim((string) ($payload['draft_headline'] ?? ''));
+    $draftDek = trim((string) ($payload['draft_dek'] ?? ''));
+    $draftBody = trim((string) ($payload['draft_body'] ?? ''));
+    $questionsToAnswer = trim((string) ($payload['questions_to_answer'] ?? ''));
+    $factCheckNotes = trim((string) ($payload['fact_check_notes'] ?? ''));
+    $nextStepsNotes = trim((string) ($payload['next_steps_notes'] ?? ''));
+
+    $statement = newsroom_db()->prepare(
+        'UPDATE source_leads
+         SET title = :title,
+             slug = :slug,
+             workflow_status = :workflow_status,
+             priority = :priority,
+             notes = :notes,
+             reported_angle = :reported_angle,
+             draft_headline = :draft_headline,
+             draft_dek = :draft_dek,
+             draft_body = :draft_body,
+             questions_to_answer = :questions_to_answer,
+             fact_check_notes = :fact_check_notes,
+             next_steps_notes = :next_steps_notes
+         WHERE source_item_id = :source_item_id'
+    );
+    $statement->execute([
+        ':title' => $title !== '' ? $title : 'Source lead',
+        ':slug' => newsroom_source_lead_slug($title !== '' ? $title : 'Source lead', $sourceItemId),
+        ':workflow_status' => $workflowStatus !== '' ? $workflowStatus : 'monitor',
+        ':priority' => $priority !== '' ? $priority : 'normal',
+        ':notes' => $notes !== '' ? $notes : null,
+        ':reported_angle' => $reportedAngle !== '' ? $reportedAngle : null,
+        ':draft_headline' => $draftHeadline !== '' ? $draftHeadline : null,
+        ':draft_dek' => $draftDek !== '' ? $draftDek : null,
+        ':draft_body' => $draftBody !== '' ? $draftBody : null,
+        ':questions_to_answer' => $questionsToAnswer !== '' ? $questionsToAnswer : null,
+        ':fact_check_notes' => $factCheckNotes !== '' ? $factCheckNotes : null,
+        ':next_steps_notes' => $nextStepsNotes !== '' ? $nextStepsNotes : null,
+        ':source_item_id' => $sourceItemId,
+    ]);
+}
+
 function newsroom_follow_up_source_types(): array
 {
     return [
