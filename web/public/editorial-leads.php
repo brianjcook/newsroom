@@ -16,6 +16,69 @@ newsroom_require_editorial_login();
 
 $config = newsroom_config();
 $items = newsroom_source_leads();
+$sourceFilter = trim((string) ($_GET['source'] ?? 'all'));
+$typeFilter = trim((string) ($_GET['lead_type'] ?? 'all'));
+$statusFilter = trim((string) ($_GET['status'] ?? 'all'));
+$priorityFilter = trim((string) ($_GET['priority'] ?? 'all'));
+$recencyFilter = trim((string) ($_GET['recency'] ?? 'all'));
+$sortFilter = trim((string) ($_GET['sort'] ?? 'score_desc'));
+
+$sourceOptions = [];
+$typeOptions = [];
+foreach ($items as $item) {
+    $sourceOptions[(string) $item['source_slug']] = (string) $item['source_name'];
+    $typeOptions[(string) $item['lead_type']] = newsroom_source_lead_type_label((string) $item['lead_type']);
+}
+asort($sourceOptions);
+asort($typeOptions);
+
+$items = array_values(array_filter($items, static function (array $item) use ($sourceFilter, $typeFilter, $statusFilter, $priorityFilter, $recencyFilter): bool {
+    if ($sourceFilter !== 'all' && (string) ($item['source_slug'] ?? '') !== $sourceFilter) {
+        return false;
+    }
+    if ($typeFilter !== 'all' && (string) ($item['lead_type'] ?? '') !== $typeFilter) {
+        return false;
+    }
+    if ($statusFilter !== 'all' && (string) ($item['workflow_status'] ?? '') !== $statusFilter) {
+        return false;
+    }
+    if ($priorityFilter !== 'all' && (string) ($item['priority'] ?? '') !== $priorityFilter) {
+        return false;
+    }
+    if ($recencyFilter !== 'all') {
+        $stamp = strtotime((string) ($item['published_at'] ?? ''));
+        if ($stamp === false) {
+            return false;
+        }
+        $daysOld = (time() - $stamp) / 86400;
+        if ($recencyFilter === '7d' && $daysOld > 7) {
+            return false;
+        }
+        if ($recencyFilter === '30d' && $daysOld > 30) {
+            return false;
+        }
+        if ($recencyFilter === '90d' && $daysOld > 90) {
+            return false;
+        }
+    }
+    return true;
+}));
+
+usort($items, static function (array $a, array $b) use ($sortFilter): int {
+    switch ($sortFilter) {
+        case 'date_desc':
+            return strcmp((string) ($b['published_at'] ?? ''), (string) ($a['published_at'] ?? ''));
+        case 'date_asc':
+            return strcmp((string) ($a['published_at'] ?? ''), (string) ($b['published_at'] ?? ''));
+        case 'score_asc':
+            return ((int) ($a['effective_score'] ?? 0) <=> (int) ($b['effective_score'] ?? 0))
+                ?: strcmp((string) ($b['published_at'] ?? ''), (string) ($a['published_at'] ?? ''));
+        case 'score_desc':
+        default:
+            return ((int) ($b['effective_score'] ?? 0) <=> (int) ($a['effective_score'] ?? 0))
+                ?: strcmp((string) ($b['published_at'] ?? ''), (string) ($a['published_at'] ?? ''));
+    }
+});
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -50,6 +113,65 @@ $items = newsroom_source_leads();
 
     <h2 class="section-heading">Source Leads</h2>
     <p class="section-intro">These are not auto-published stories. They are editorial inputs: public-safety records and outside reporting/context sources that may warrant a brief, follow-up, or reporting workspace.</p>
+
+    <form method="get" class="editorial-filters archive-filters">
+        <label>
+            <span>Source</span>
+            <select name="source">
+                <option value="all"<?= $sourceFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <?php foreach ($sourceOptions as $slug => $label): ?>
+                    <option value="<?= htmlspecialchars((string) $slug) ?>"<?= $sourceFilter === (string) $slug ? ' selected' : '' ?>><?= htmlspecialchars((string) $label) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label>
+            <span>Lead Type</span>
+            <select name="lead_type">
+                <option value="all"<?= $typeFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <?php foreach ($typeOptions as $slug => $label): ?>
+                    <option value="<?= htmlspecialchars((string) $slug) ?>"<?= $typeFilter === (string) $slug ? ' selected' : '' ?>><?= htmlspecialchars((string) $label) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label>
+            <span>Status</span>
+            <select name="status">
+                <option value="all"<?= $statusFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <?php foreach (newsroom_source_lead_workflow_options() as $value => $label): ?>
+                    <option value="<?= htmlspecialchars((string) $value) ?>"<?= $statusFilter === (string) $value ? ' selected' : '' ?>><?= htmlspecialchars((string) $label) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label>
+            <span>Priority</span>
+            <select name="priority">
+                <option value="all"<?= $priorityFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <option value="normal"<?= $priorityFilter === 'normal' ? ' selected' : '' ?>>Normal</option>
+                <option value="high"<?= $priorityFilter === 'high' ? ' selected' : '' ?>>High</option>
+                <option value="must_cover"<?= $priorityFilter === 'must_cover' ? ' selected' : '' ?>>Must cover</option>
+            </select>
+        </label>
+        <label>
+            <span>Recency</span>
+            <select name="recency">
+                <option value="all"<?= $recencyFilter === 'all' ? ' selected' : '' ?>>All</option>
+                <option value="7d"<?= $recencyFilter === '7d' ? ' selected' : '' ?>>Past 7 days</option>
+                <option value="30d"<?= $recencyFilter === '30d' ? ' selected' : '' ?>>Past 30 days</option>
+                <option value="90d"<?= $recencyFilter === '90d' ? ' selected' : '' ?>>Past 90 days</option>
+            </select>
+        </label>
+        <label>
+            <span>Sort</span>
+            <select name="sort">
+                <option value="score_desc"<?= $sortFilter === 'score_desc' ? ' selected' : '' ?>>Score high-low</option>
+                <option value="score_asc"<?= $sortFilter === 'score_asc' ? ' selected' : '' ?>>Score low-high</option>
+                <option value="date_desc"<?= $sortFilter === 'date_desc' ? ' selected' : '' ?>>Newest first</option>
+                <option value="date_asc"<?= $sortFilter === 'date_asc' ? ' selected' : '' ?>>Oldest first</option>
+            </select>
+        </label>
+        <a class="editorial-filters__reset" href="/desk/leads">Reset</a>
+        <button type="submit">Apply</button>
+    </form>
 
     <section class="methodology-grid">
         <?php if ($items): ?>

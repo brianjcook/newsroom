@@ -170,6 +170,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `web/public/editorial-lead.php` is a per-lead reporting workspace with angle, notes, questions, fact-check, and draft fields
 - `web/lib/content.php` now scores police-log and Buzzards Bay Coalition leads deterministically and lazily creates `source_leads` rows when an editor opens a lead
 - `.htaccess` and `web/public/editorial.php` now expose `/desk/leads` and `/desk/leads/{source_item_id}` as a distinct editorial board instead of mixing those inputs into the publishable story/event desk
+- Refined `/desk/leads` into a real triage board with filters for source, lead type, workflow status, priority, recency, and sort order instead of a flat ranked list
 - Added one more editorial-label alignment pass in `worker/newsroom/publish.py` with render versions `v15`-`v17` so older notice-like stories publish with cleaner matched labels in both headline and summary:
 - `Sewer Commissioners to Discuss WPCF Phase II Meeting Representation`
 - `Council on Aging to Discuss Open Meeting Law Compliance`
@@ -803,6 +804,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 ## Recent commits
 - `4b34d6e` - `Add reporting workspace for follow-up writing`
 - `421e97c` - `Broaden newsroom source discovery`
+- `b8c8c01` - `Add source leads editorial board`
 - `fee7c32` - `Finish remaining story-specific cleanup`
 - `515dd2b` - `Repair OCR-heavy thin agenda extraction`
 - `ae4ed51` - `Tighten weak agenda story summaries`
@@ -904,6 +906,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
+- Consider adding saved/preset views on `/desk/leads` for `Police`, `Coalition`, `High score`, and `Assigned`, since the filtering structure now exists.
 - Decide whether source leads should be filterable by lead type, source, and status on `/desk/leads` instead of using the current simple ranked list.
 - Consider adding one-click promotion from a source lead into a follow-up/public story once a reported draft is ready, instead of keeping it only in the lead workspace.
 - Decide how much of the police-log workflow should remain desk-only versus eventually generating structured public-safety briefs from extracted incidents.
