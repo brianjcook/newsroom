@@ -183,6 +183,7 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Tightened homepage curation so lower-scoring stories built around obvious low-signal phrases like `chair's report`, `director's report`, and minutes approval are filtered out of the homepage list
 - Added worker-health visibility on the Editorial News Desk and homepage footer through `newsroom_latest_run_status()`
 - Hardened `worker/scripts/run_daily_host.sh` with a lock directory plus last-success/last-failure markers, and updated the PHP self-healing trigger to prefer that host runner when available
+- Deployed the Opinion, Ads, Bodies, source-lead promotion, homepage curation, sponsor-slot rendering, and worker-runner hardening package to Freehostia; production migration `012_opinion_ads_bodies.sql` executed successfully with 9 statements
 - Added one more editorial-label alignment pass in `worker/newsroom/publish.py` with render versions `v15`-`v17` so older notice-like stories publish with cleaner matched labels in both headline and summary:
 - `Sewer Commissioners to Discuss WPCF Phase II Meeting Representation`
 - `Council on Aging to Discuss Open Meeting Law Compliance`
@@ -918,7 +919,6 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
-- Apply production migration `012_opinion_ads_bodies.sql` and deploy the Opinion, Ads, Bodies, and sponsor-slot pages if the latest local commit has not already been deployed.
 - Verify the Freehostia cron configuration and point the primary scheduled job at `./worker/scripts/run_daily_host.sh`; the PHP self-healing trigger is now a fallback, not the preferred scheduler.
 - Add editing/publishing support for draft `brief` stories created from source leads, or decide that source-lead briefs should publish directly only after explicit review in the lead workspace.
 - Seed initial ad campaigns or local sponsor placeholders once the user decides how to sell or reserve ad space.
