@@ -234,12 +234,21 @@ function newsroom_maybe_trigger_worker_refresh(): void
         'NEWSROOM_SOURCE_DISCOVERY_ENABLED=' . escapeshellarg((string) newsroom_env('NEWSROOM_SOURCE_DISCOVERY_ENABLED', '1')),
     ];
 
-    $command = sprintf(
-        'cd %s && nohup env %s python3 worker/scripts/run_daily.py >> %s 2>&1 &',
-        escapeshellarg($root),
-        implode(' ', $envParts),
-        escapeshellarg($logsDir . DIRECTORY_SEPARATOR . 'run_daily.log')
-    );
+    $hostRunner = $root . DIRECTORY_SEPARATOR . 'worker' . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'run_daily_host.sh';
+    $command = is_file($hostRunner)
+        ? sprintf(
+            'cd %s && nohup env %s sh %s >> %s 2>&1 &',
+            escapeshellarg($root),
+            implode(' ', $envParts),
+            escapeshellarg($hostRunner),
+            escapeshellarg($logsDir . DIRECTORY_SEPARATOR . 'run_daily.log')
+        )
+        : sprintf(
+            'cd %s && nohup env %s python3 worker/scripts/run_daily.py >> %s 2>&1 &',
+            escapeshellarg($root),
+            implode(' ', $envParts),
+            escapeshellarg($logsDir . DIRECTORY_SEPARATOR . 'run_daily.log')
+        );
 
     if (function_exists('exec')) {
         @exec($command);
@@ -285,6 +294,24 @@ function newsroom_sentence_list(array $items): string
 
     $last = array_pop($items);
     return implode(', ', $items) . ', and ' . $last;
+}
+
+function newsroom_editorial_datetime(string $value): string
+{
+    $stamp = strtotime($value);
+    if ($stamp === false) {
+        return $value;
+    }
+    if (date('H:i:s', $stamp) === '00:00:00') {
+        return date('F j, Y', $stamp);
+    }
+    return date('F j, Y g:i A', $stamp);
+}
+
+function newsroom_slugify(string $value, string $fallback = 'item'): string
+{
+    $slug = strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', '-', $value), '-'));
+    return $slug !== '' ? $slug : $fallback;
 }
 
 function newsroom_topic_url(string $slug): string
@@ -493,7 +520,25 @@ function newsroom_story_url_from_slug(string $slug): string
 
 function newsroom_story_url(array $story): string
 {
+    if (newsroom_story_is_opinion($story)) {
+        return newsroom_opinion_url_from_slug((string) ($story['slug'] ?? ''));
+    }
     return newsroom_story_url_from_slug((string) ($story['slug'] ?? ''));
+}
+
+function newsroom_opinion_url_from_slug(string $slug): string
+{
+    return '/opinion/' . rawurlencode($slug);
+}
+
+function newsroom_body_url(string $slug): string
+{
+    return '/bodies/' . rawurlencode($slug);
+}
+
+function newsroom_story_is_opinion(array $story): bool
+{
+    return in_array((string) ($story['story_type'] ?? ''), ['editorial', 'column', 'letter'], true);
 }
 
 function newsroom_community_event_url_from_parts(int $id, string $slug): string
@@ -523,6 +568,14 @@ function newsroom_story_label(array $story): string
     }
 
     switch ((string) ($story['story_type'] ?? '')) {
+        case 'editorial':
+            return 'Editorial';
+        case 'column':
+            return 'Column';
+        case 'letter':
+            return 'Letter';
+        case 'brief':
+            return 'Brief';
         case 'meeting_preview':
             return 'Preview';
         case 'minutes_recap':
@@ -539,7 +592,7 @@ function newsroom_story_byline(array $story): array
 
     return [
         'name' => $name !== '' ? $name : 'Wareham Times News Desk',
-        'title' => $title !== '' ? $title : 'Automated civic reporting',
+        'title' => $title !== '' ? $title : (newsroom_story_is_opinion($story) ? 'Opinion' : 'Automated civic reporting'),
     ];
 }
 
@@ -720,6 +773,23 @@ function newsroom_story_meta_presenter(array $row): array
     $bodyName = (string) ($row['body_name'] ?? $row['governing_body'] ?? '');
     $signal = newsroom_body_signal($bodyName);
     $storyType = (string) ($row['story_type'] ?? '');
+    if (in_array($storyType, ['editorial', 'column', 'letter'], true)) {
+        $opinionSignal = newsroom_body_signal('Opinion');
+        return [
+            'body_name' => 'Opinion',
+            'body_signal' => $opinionSignal,
+            'story_type_label' => newsroom_format_story_type($storyType),
+            'meeting_datetime' => newsroom_editorial_datetime((string) ($row['display_date'] ?? $row['published_at'] ?? '')),
+            'location_name' => null,
+            'location_map_url' => null,
+            'agenda_url' => null,
+            'minutes_url' => null,
+            'summary_text' => trim((string) ($row['summary'] ?? $row['dek'] ?? '')),
+            'dek_text' => trim((string) ($row['dek'] ?? '')),
+            'remote' => ['join_url' => null, 'webinar_id' => null, 'passcode' => null, 'phones' => []],
+        ];
+    }
+
     $meetingDate = isset($row['meeting_date']) ? (string) $row['meeting_date'] : null;
     $meetingTime = isset($row['meeting_time']) ? (string) $row['meeting_time'] : null;
     $locationName = newsroom_display_location(isset($row['location_name']) ? (string) $row['location_name'] : null);
@@ -1031,6 +1101,33 @@ function newsroom_event_related_bundle(array $event, int $storyLimit = 4, int $e
     ];
 }
 
+function newsroom_story_is_homepage_eligible(array $row): bool
+{
+    $storyType = (string) ($row['story_type'] ?? '');
+    if (in_array($storyType, ['editorial', 'column', 'letter'], true)) {
+        return false;
+    }
+
+    $score = (int) ($row['score_override'] ?? $row['editorial_score'] ?? 0);
+    $text = strtolower((string) ($row['headline'] ?? '') . ' ' . (string) ($row['summary'] ?? '') . ' ' . (string) ($row['dek'] ?? ''));
+    $lowSignal = [
+        'chair\'s report',
+        'directors report',
+        'director\'s report',
+        'call meeting to order',
+        'approval of minutes',
+        'approve minutes',
+        'any other business',
+    ];
+    foreach ($lowSignal as $needle) {
+        if (strpos($text, $needle) !== false && $score < 60) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function newsroom_latest_stories(int $limit = 8): array
 {
     if (!newsroom_db_available()) {
@@ -1043,10 +1140,14 @@ function newsroom_latest_stories(int $limit = 8): array
             s.id,
             s.slug,
             s.story_type,
+            s.public_label,
+            s.byline_name,
+            s.byline_title,
             s.headline,
             s.dek,
             s.summary,
             s.topic_tags_json,
+            s.editorial_score,
             s.published_at,
             s.display_date,
             s.sort_date,
@@ -1097,10 +1198,15 @@ function newsroom_latest_stories(int $limit = 8): array
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE publish_status = :status';
+         WHERE publish_status = :status
+           AND s.story_type NOT IN ("editorial", "column", "letter")';
 
     $orderedTail = '
          ORDER BY
+            CASE
+                WHEN COALESCE(s.score_override, s.editorial_score) >= 45 THEN 0
+                ELSE 1
+            END ASC,
             CASE
                 WHEN s.story_type = "meeting_preview" AND m.meeting_date IS NOT NULL AND TIMESTAMP(m.meeting_date, COALESCE(m.meeting_time, "00:00:00")) >= NOW() THEN 0
                 ELSE 1
@@ -1123,10 +1229,10 @@ function newsroom_latest_stories(int $limit = 8): array
             )' . $orderedTail
     );
     $statement->bindValue(':status', 'published');
-    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->bindValue(':limit', $limit * 3, PDO::PARAM_INT);
     $statement->execute();
 
-    $rows = $statement->fetchAll();
+    $rows = array_slice(array_values(array_filter($statement->fetchAll(), 'newsroom_story_is_homepage_eligible')), 0, $limit);
     if ($rows) {
         return array_map('newsroom_recent_story_presenter', $rows);
     }
@@ -1135,10 +1241,11 @@ function newsroom_latest_stories(int $limit = 8): array
         $baseSelect . $orderedTail
     );
     $fallbackStatement->bindValue(':status', 'published');
-    $fallbackStatement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $fallbackStatement->bindValue(':limit', $limit * 3, PDO::PARAM_INT);
     $fallbackStatement->execute();
 
-    return array_map('newsroom_recent_story_presenter', $fallbackStatement->fetchAll());
+    $fallbackRows = array_slice(array_values(array_filter($fallbackStatement->fetchAll(), 'newsroom_story_is_homepage_eligible')), 0, $limit);
+    return array_map('newsroom_recent_story_presenter', $fallbackRows);
 }
 
 function newsroom_story_by_slug(string $slug): ?array
@@ -2403,6 +2510,10 @@ function newsroom_archive_filter_options(): array
         'story_types' => [
             'meeting_preview' => 'Meeting preview',
             'minutes_recap' => 'Minutes recap',
+            'brief' => 'Brief',
+            'editorial' => 'Editorial',
+            'column' => 'Column',
+            'letter' => 'Letter',
             'community_event' => 'Community event',
         ],
     ];
@@ -3546,5 +3657,517 @@ function newsroom_save_live_prep_notes(string $entityType, int $id, string $note
     if ($entityType === 'community_event') {
         $statement = newsroom_db()->prepare('UPDATE community_events SET live_prep_notes = :notes WHERE id = :id');
         $statement->execute([':notes' => trim($notes) !== '' ? trim($notes) : null, ':id' => $id]);
+    }
+}
+
+function newsroom_latest_run_status(): ?array
+{
+    if (!newsroom_db_available()) {
+        return null;
+    }
+
+    $statement = newsroom_db()->query(
+        'SELECT id, started_at, finished_at, run_status, items_discovered, stories_published, stories_updated, events_created, events_updated
+         FROM generation_runs
+         ORDER BY id DESC
+         LIMIT 1'
+    );
+    $row = $statement ? $statement->fetch() : false;
+    if (!$row) {
+        return null;
+    }
+
+    $finishedAt = !empty($row['finished_at']) ? strtotime((string) $row['finished_at']) : false;
+    $ageHours = $finishedAt !== false ? round((time() - $finishedAt) / 3600, 1) : null;
+    $row['age_hours'] = $ageHours;
+    $row['is_stale'] = $ageHours === null || $ageHours > 24;
+    $row['health_label'] = !empty($row['is_stale']) ? 'Stale' : 'Fresh';
+    return $row;
+}
+
+function newsroom_unique_story_slug(string $headline, int $ignoreId = 0): string
+{
+    $base = newsroom_slugify($headline, 'story');
+    $slug = $base;
+    $suffix = 2;
+
+    while (newsroom_db_available()) {
+        $statement = newsroom_db()->prepare(
+            'SELECT id FROM stories WHERE slug = :slug AND id <> :ignore_id LIMIT 1'
+        );
+        $statement->execute([':slug' => $slug, ':ignore_id' => $ignoreId]);
+        if (!$statement->fetch()) {
+            return $slug;
+        }
+        $slug = $base . '-' . $suffix;
+        $suffix++;
+    }
+
+    return $slug;
+}
+
+function newsroom_body_html_from_text(string $body): string
+{
+    $body = trim($body);
+    if ($body === '') {
+        return '<p></p>';
+    }
+
+    if (stripos($body, '<p') !== false || stripos($body, '<ul') !== false || stripos($body, '<h3') !== false) {
+        return $body;
+    }
+
+    $blocks = preg_split('/\R{2,}/', $body) ?: [];
+    $html = [];
+    foreach ($blocks as $block) {
+        $block = trim($block);
+        if ($block === '') {
+            continue;
+        }
+        $html[] = '<p>' . nl2br(htmlspecialchars($block), false) . '</p>';
+    }
+
+    return implode("\n", $html);
+}
+
+function newsroom_opinion_items(int $limit = 60, bool $includeDrafts = false): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statusSql = $includeDrafts ? 's.publish_status IN ("draft", "published")' : 's.publish_status = "published"';
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            s.id,
+            s.slug,
+            s.story_type,
+            s.public_label,
+            s.byline_name,
+            s.byline_title,
+            s.headline,
+            s.dek,
+            s.summary,
+            s.topic_tags_json,
+            s.publish_status,
+            s.published_at,
+            s.display_date,
+            s.body_html
+         FROM stories s
+         WHERE s.story_type IN ("editorial", "column", "letter")
+           AND ' . $statusSql . '
+         ORDER BY COALESCE(s.display_date, s.published_at, s.updated_at) DESC, s.id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+    return array_map('newsroom_recent_story_presenter', $statement->fetchAll());
+}
+
+function newsroom_opinion_item(int $id): ?array
+{
+    if (!newsroom_db_available() || $id <= 0) {
+        return null;
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            s.id,
+            s.slug,
+            s.story_type,
+            s.public_label,
+            s.byline_name,
+            s.byline_title,
+            s.headline,
+            s.dek,
+            s.summary,
+            s.body_html,
+            s.body_text,
+            s.topic_tags_json,
+            s.publish_status,
+            s.published_at,
+            s.display_date
+         FROM stories s
+         WHERE s.id = :id AND s.story_type IN ("editorial", "column", "letter")
+         LIMIT 1'
+    );
+    $statement->execute([':id' => $id]);
+    $row = $statement->fetch();
+    if (!$row) {
+        return null;
+    }
+    return newsroom_recent_story_presenter($row);
+}
+
+function newsroom_create_opinion_item(): int
+{
+    if (!newsroom_db_available()) {
+        return 0;
+    }
+
+    $headline = 'Untitled Editorial';
+    $slug = newsroom_unique_story_slug($headline);
+    $statement = newsroom_db()->prepare(
+        'INSERT INTO stories (
+            story_type, public_label, slug, headline, dek, summary, body_html, body_text,
+            tone_profile, publish_status, byline_name, byline_title, display_date, sort_date
+        ) VALUES (
+            "editorial", "Opinion", :slug, :headline, "", "", "<p></p>", "",
+            "opinion", "draft", "Wareham Times Editorial Board", "Opinion", NOW(), NOW()
+        )'
+    );
+    $statement->execute([':slug' => $slug, ':headline' => $headline]);
+    return (int) newsroom_db()->lastInsertId();
+}
+
+function newsroom_save_opinion_item(int $id, array $payload): void
+{
+    if (!newsroom_db_available() || $id <= 0) {
+        return;
+    }
+
+    $storyType = trim((string) ($payload['story_type'] ?? 'editorial'));
+    if (!in_array($storyType, ['editorial', 'column', 'letter'], true)) {
+        $storyType = 'editorial';
+    }
+    $headline = trim((string) ($payload['headline'] ?? 'Untitled Editorial'));
+    $dek = trim((string) ($payload['dek'] ?? ''));
+    $summary = trim((string) ($payload['summary'] ?? $dek));
+    $bodyText = trim((string) ($payload['body_text'] ?? ''));
+    $bodyHtml = newsroom_body_html_from_text($bodyText);
+    $publishStatus = trim((string) ($payload['publish_status'] ?? 'draft'));
+    if (!in_array($publishStatus, ['draft', 'published'], true)) {
+        $publishStatus = 'draft';
+    }
+    $bylineName = trim((string) ($payload['byline_name'] ?? 'Wareham Times Editorial Board'));
+    $bylineTitle = trim((string) ($payload['byline_title'] ?? 'Opinion'));
+    $displayDate = trim((string) ($payload['display_date'] ?? ''));
+    $publishedAt = $publishStatus === 'published' ? ($displayDate !== '' ? $displayDate : date('Y-m-d H:i:s')) : null;
+    $slug = newsroom_unique_story_slug($headline !== '' ? $headline : 'Untitled Editorial', $id);
+
+    $statement = newsroom_db()->prepare(
+        'UPDATE stories
+         SET story_type = :story_type,
+             public_label = :public_label,
+             slug = :slug,
+             headline = :headline,
+             dek = :dek,
+             summary = :summary,
+             body_html = :body_html,
+             body_text = :body_text,
+             tone_profile = "opinion",
+             publish_status = :publish_status,
+             byline_name = :byline_name,
+             byline_title = :byline_title,
+             published_at = :published_at,
+             display_date = :display_date,
+             sort_date = :display_date
+         WHERE id = :id'
+    );
+    $statement->execute([
+        ':story_type' => $storyType,
+        ':public_label' => newsroom_story_label(['story_type' => $storyType]),
+        ':slug' => $slug,
+        ':headline' => $headline !== '' ? $headline : 'Untitled Editorial',
+        ':dek' => $dek !== '' ? $dek : null,
+        ':summary' => $summary !== '' ? $summary : null,
+        ':body_html' => $bodyHtml,
+        ':body_text' => $bodyText !== '' ? $bodyText : null,
+        ':publish_status' => $publishStatus,
+        ':byline_name' => $bylineName !== '' ? $bylineName : 'Wareham Times Editorial Board',
+        ':byline_title' => $bylineTitle !== '' ? $bylineTitle : 'Opinion',
+        ':published_at' => $publishedAt,
+        ':display_date' => $displayDate !== '' ? $displayDate : date('Y-m-d H:i:s'),
+        ':id' => $id,
+    ]);
+}
+
+function newsroom_ad_slots(): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    try {
+        $statement = newsroom_db()->query(
+            'SELECT * FROM ad_slots WHERE is_active = 1 ORDER BY placement ASC, label ASC'
+        );
+        return $statement ? $statement->fetchAll() : [];
+    } catch (Throwable $exception) {
+        return [];
+    }
+}
+
+function newsroom_active_ads(string $slotSlug, int $limit = 1): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    try {
+        $statement = newsroom_db()->prepare(
+            'SELECT ac.*, ads.slug AS slot_slug, ads.label AS slot_label
+             FROM ad_campaigns ac
+             INNER JOIN ad_slots ads ON ads.id = ac.slot_id
+             WHERE ads.slug = :slot
+               AND ads.is_active = 1
+               AND ac.status = "active"
+               AND (ac.starts_at IS NULL OR ac.starts_at <= NOW())
+               AND (ac.ends_at IS NULL OR ac.ends_at >= NOW())
+             ORDER BY ac.updated_at DESC, ac.id DESC
+             LIMIT :limit'
+        );
+        $statement->bindValue(':slot', $slotSlug);
+        $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $statement->execute();
+        return $statement->fetchAll();
+    } catch (Throwable $exception) {
+        return [];
+    }
+}
+
+function newsroom_ad_campaigns(int $limit = 80): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    try {
+        $statement = newsroom_db()->prepare(
+            'SELECT ac.*, ads.slug AS slot_slug, ads.label AS slot_label
+             FROM ad_campaigns ac
+             INNER JOIN ad_slots ads ON ads.id = ac.slot_id
+             ORDER BY
+                CASE ac.status WHEN "active" THEN 0 WHEN "draft" THEN 1 ELSE 2 END,
+                ac.updated_at DESC
+             LIMIT :limit'
+        );
+        $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $statement->execute();
+        return $statement->fetchAll();
+    } catch (Throwable $exception) {
+        return [];
+    }
+}
+
+function newsroom_ad_campaign(int $id): ?array
+{
+    if (!newsroom_db_available() || $id <= 0) {
+        return null;
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT ac.*, ads.slug AS slot_slug, ads.label AS slot_label
+         FROM ad_campaigns ac
+         INNER JOIN ad_slots ads ON ads.id = ac.slot_id
+         WHERE ac.id = :id
+         LIMIT 1'
+    );
+    $statement->execute([':id' => $id]);
+    $row = $statement->fetch();
+    return $row ?: null;
+}
+
+function newsroom_create_ad_campaign(): int
+{
+    if (!newsroom_db_available()) {
+        return 0;
+    }
+
+    $slot = newsroom_db()->query('SELECT id FROM ad_slots ORDER BY id ASC LIMIT 1')->fetch();
+    if (!$slot) {
+        return 0;
+    }
+
+    $statement = newsroom_db()->prepare(
+        'INSERT INTO ad_campaigns (slot_id, advertiser_name, headline, body_text, status)
+         VALUES (:slot_id, "Local Sponsor", "Your message here", "Local sponsor space is available.", "draft")'
+    );
+    $statement->execute([':slot_id' => (int) $slot['id']]);
+    return (int) newsroom_db()->lastInsertId();
+}
+
+function newsroom_save_ad_campaign(int $id, array $payload): void
+{
+    if (!newsroom_db_available() || $id <= 0) {
+        return;
+    }
+
+    $status = trim((string) ($payload['status'] ?? 'draft'));
+    if (!in_array($status, ['draft', 'active', 'paused', 'ended'], true)) {
+        $status = 'draft';
+    }
+
+    $statement = newsroom_db()->prepare(
+        'UPDATE ad_campaigns
+         SET slot_id = :slot_id,
+             advertiser_name = :advertiser_name,
+             headline = :headline,
+             body_text = :body_text,
+             destination_url = :destination_url,
+             label = :label,
+             starts_at = :starts_at,
+             ends_at = :ends_at,
+             status = :status,
+             notes = :notes
+         WHERE id = :id'
+    );
+    $statement->execute([
+        ':slot_id' => (int) ($payload['slot_id'] ?? 0),
+        ':advertiser_name' => trim((string) ($payload['advertiser_name'] ?? '')) ?: 'Local Sponsor',
+        ':headline' => trim((string) ($payload['headline'] ?? '')) ?: 'Sponsor message',
+        ':body_text' => trim((string) ($payload['body_text'] ?? '')) ?: null,
+        ':destination_url' => trim((string) ($payload['destination_url'] ?? '')) ?: null,
+        ':label' => trim((string) ($payload['label'] ?? 'Advertisement')) ?: 'Advertisement',
+        ':starts_at' => trim((string) ($payload['starts_at'] ?? '')) ?: null,
+        ':ends_at' => trim((string) ($payload['ends_at'] ?? '')) ?: null,
+        ':status' => $status,
+        ':notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
+        ':id' => $id,
+    ]);
+}
+
+function newsroom_governing_bodies_index(int $limit = 120): array
+{
+    if (!newsroom_db_available()) {
+        return [];
+    }
+
+    $statement = newsroom_db()->prepare(
+        'SELECT
+            gb.*,
+            (SELECT COUNT(*) FROM stories s WHERE s.governing_body_id = gb.id AND s.publish_status = "published") AS story_count,
+            (SELECT COUNT(*) FROM calendar_events ce WHERE ce.governing_body_id = gb.id AND ce.starts_at >= NOW()) AS upcoming_count
+         FROM governing_bodies gb
+         WHERE gb.is_active = 1
+         ORDER BY story_count DESC, gb.normalized_name ASC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+    return $statement->fetchAll();
+}
+
+function newsroom_governing_body_bundle(string $slug): ?array
+{
+    if (!newsroom_db_available()) {
+        return null;
+    }
+
+    $bodyStatement = newsroom_db()->prepare(
+        'SELECT * FROM governing_bodies WHERE slug = :slug LIMIT 1'
+    );
+    $bodyStatement->execute([':slug' => $slug]);
+    $body = $bodyStatement->fetch();
+    if (!$body) {
+        return null;
+    }
+
+    $storiesStatement = newsroom_db()->prepare(
+        'SELECT
+            s.id, s.slug, s.story_type, s.public_label, s.byline_name, s.byline_title,
+            s.headline, s.dek, s.summary, s.topic_tags_json, s.published_at, s.display_date,
+            m.meeting_date, TIME_FORMAT(m.meeting_time, "%H:%i:%s") AS meeting_time,
+            m.location_name, gb.normalized_name AS body_name
+         FROM stories s
+         LEFT JOIN meetings m ON m.id = s.meeting_id
+         LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
+         WHERE s.governing_body_id = :id AND s.publish_status = "published"
+         ORDER BY COALESCE(s.sort_date, s.display_date, s.published_at) DESC, s.id DESC
+         LIMIT 12'
+    );
+    $storiesStatement->execute([':id' => (int) $body['id']]);
+
+    $eventsStatement = newsroom_db()->prepare(
+        'SELECT id, title, starts_at, location_name, body_name, source_url, description
+         FROM calendar_events
+         WHERE governing_body_id = :id AND starts_at >= NOW() AND status = "scheduled"
+         ORDER BY starts_at ASC
+         LIMIT 8'
+    );
+    $eventsStatement->execute([':id' => (int) $body['id']]);
+
+    return [
+        'body' => $body,
+        'stories' => array_map('newsroom_recent_story_presenter', $storiesStatement->fetchAll()),
+        'events' => array_map('newsroom_event_presenter', $eventsStatement->fetchAll()),
+    ];
+}
+
+function newsroom_promote_source_lead_to_brief(int $sourceItemId): ?int
+{
+    if (!newsroom_db_available() || $sourceItemId <= 0) {
+        return null;
+    }
+
+    $item = newsroom_source_lead_item($sourceItemId);
+    if (!$item) {
+        return null;
+    }
+    if (!empty($item['promoted_story_id'])) {
+        return (int) $item['promoted_story_id'];
+    }
+
+    $headline = trim((string) ($item['draft_headline'] ?? ''));
+    if ($headline === '') {
+        $headline = trim((string) ($item['title'] ?? 'Source brief'));
+    }
+    $dek = trim((string) ($item['draft_dek'] ?? $item['reported_angle'] ?? ''));
+    $body = trim((string) ($item['draft_body'] ?? ''));
+    if ($body === '') {
+        $body = "Reporting brief\n\nSource: " . (string) ($item['canonical_url'] ?? '') . "\n\nQuestions to answer:\n" . trim((string) ($item['questions_to_answer'] ?? ''));
+    }
+
+    $slug = newsroom_unique_story_slug($headline);
+    newsroom_db()->beginTransaction();
+    try {
+        $insert = newsroom_db()->prepare(
+            'INSERT INTO stories (
+                story_type, public_label, slug, headline, dek, summary, body_html, body_text,
+                tone_profile, publish_status, published_at, display_date, sort_date,
+                byline_name, byline_title, source_basis_json
+            ) VALUES (
+                "brief", "Brief", :slug, :headline, :dek, :summary, :body_html, :body_text,
+                "straight_civic", "draft", NULL, NOW(), NOW(),
+                "Wareham Times News Desk", "Reporting brief", :source_basis_json
+            )'
+        );
+        $insert->execute([
+            ':slug' => $slug,
+            ':headline' => $headline,
+            ':dek' => $dek !== '' ? $dek : null,
+            ':summary' => $dek !== '' ? $dek : trim((string) ($item['reported_angle'] ?? '')),
+            ':body_html' => newsroom_body_html_from_text($body),
+            ':body_text' => $body,
+            ':source_basis_json' => json_encode([
+                'source_lead_id' => (int) ($item['id'] ?? 0),
+                'source_item_id' => $sourceItemId,
+                'source_url' => (string) ($item['canonical_url'] ?? ''),
+            ]),
+        ]);
+        $storyId = (int) newsroom_db()->lastInsertId();
+        newsroom_db()->prepare(
+            'UPDATE source_leads SET promoted_story_id = :story_id, workflow_status = "draft" WHERE source_item_id = :source_item_id'
+        )->execute([':story_id' => $storyId, ':source_item_id' => $sourceItemId]);
+
+        if (!empty($item['canonical_url'])) {
+            $citation = newsroom_db()->prepare(
+                'INSERT INTO story_citations (story_id, citation_number, label, source_url, note_text)
+                 VALUES (:story_id, 1, :label, :source_url, "Source lead")'
+            );
+            $citation->execute([
+                ':story_id' => $storyId,
+                ':label' => (string) ($item['source_name'] ?? 'Source'),
+                ':source_url' => (string) $item['canonical_url'],
+            ]);
+        }
+
+        newsroom_db()->commit();
+        return $storyId;
+    } catch (Throwable $exception) {
+        if (newsroom_db()->inTransaction()) {
+            newsroom_db()->rollBack();
+        }
+        throw $exception;
     }
 }

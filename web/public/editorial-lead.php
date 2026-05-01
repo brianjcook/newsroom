@@ -16,7 +16,13 @@ newsroom_require_editorial_login();
 
 $sourceItemId = (int) ($_GET['id'] ?? 0);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $sourceItemId > 0) {
+    $action = (string) ($_POST['action'] ?? 'save');
     newsroom_save_source_lead($sourceItemId, $_POST);
+    if ($action === 'promote_brief') {
+        $storyId = newsroom_promote_source_lead_to_brief($sourceItemId);
+        header('Location: /desk/leads/' . $sourceItemId . '?promoted=' . (int) $storyId);
+        exit;
+    }
     header('Location: /desk/leads/' . $sourceItemId . '?saved=1');
     exit;
 }
@@ -24,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $sourceItemId > 0) {
 $config = newsroom_config();
 $item = newsroom_source_lead_item($sourceItemId);
 $saved = isset($_GET['saved']) && $_GET['saved'] === '1';
+$promoted = isset($_GET['promoted']) ? (int) $_GET['promoted'] : 0;
 $workflowOptions = newsroom_source_lead_workflow_options();
 $priorityOptions = [
     'normal' => 'Normal',
@@ -64,6 +71,7 @@ $priorityOptions = [
 
     <?php if ($item): ?>
         <?php if ($saved): ?><p class="editorial-save-note">Source lead workspace saved.</p><?php endif; ?>
+        <?php if ($promoted > 0): ?><p class="editorial-save-note">Brief draft created as story #<?= (int) $promoted ?>.</p><?php endif; ?>
         <section class="story-layout">
             <article>
                 <div class="story-meta-row story-meta-row--compact">
@@ -144,7 +152,10 @@ $priorityOptions = [
                         </label>
                     </section>
 
-                    <button type="submit">Save Source Lead</button>
+                    <div class="editorial-quick-actions">
+                        <button type="submit" name="action" value="save">Save Source Lead</button>
+                        <button type="submit" name="action" value="promote_brief">Create Brief Draft</button>
+                    </div>
                 </form>
             </article>
 
@@ -166,6 +177,12 @@ $priorityOptions = [
                         <span class="story-information__label">Original</span>
                         <span class="story-information__value"><a href="<?= htmlspecialchars((string) $item['canonical_url']) ?>" target="_blank" rel="noopener noreferrer">Open source</a></span>
                     </div>
+                    <?php if (!empty($item['promoted_story_id'])): ?>
+                        <div class="story-information__row">
+                            <span class="story-information__label">Brief Draft</span>
+                            <span class="story-information__value">Story #<?= (int) $item['promoted_story_id'] ?></span>
+                        </div>
+                    <?php endif; ?>
                 </section>
 
                 <?php if (!empty($item['signals'])): ?>

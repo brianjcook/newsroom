@@ -520,6 +520,11 @@ a:hover {
     background: rgba(255, 255, 255, 0.34);
 }
 
+.editorial-active-queue--warning {
+    border-left-color: var(--accent);
+    background: rgba(143, 40, 23, 0.08);
+}
+
 .editorial-active-queue__label {
     color: var(--muted);
     font-family: var(--meta);
@@ -1344,6 +1349,60 @@ a:hover {
     letter-spacing: 0.06em;
     text-transform: uppercase;
     cursor: pointer;
+}
+
+.ad-unit {
+    margin: 16px 0;
+    padding: 13px 14px;
+    border-top: 3px solid var(--rule-strong);
+    border-bottom: 1px solid var(--rule);
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.ad-unit--strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    align-items: baseline;
+    margin: 14px 0 0;
+}
+
+.ad-unit--inline {
+    margin: 26px 0;
+}
+
+.ad-unit__label {
+    color: var(--muted);
+    font-family: var(--meta);
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.ad-unit strong {
+    font-family: var(--sans);
+    font-size: 1.04rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.ad-unit p {
+    margin: 8px 0 0;
+    line-height: 1.55;
+}
+
+.site-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 34px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-family: var(--meta);
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
 }
 
 @media (max-width: 1080px) {

@@ -16,6 +16,7 @@ $config = newsroom_config();
 $events = newsroom_upcoming_events(50);
 $communityEvents = newsroom_upcoming_community_events(30);
 $recentRecaps = newsroom_recent_meeting_recaps(18);
+$calendarAd = newsroom_active_ads('calendar-top', 1)[0] ?? null;
 
 function newsroom_pill_style(array $signal): string
 {
@@ -55,10 +56,20 @@ function newsroom_pill_style(array $signal): string
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
+        <a href="/opinion">Opinion</a>
+        <a href="/bodies">Bodies</a>
         <a href="/archive">Archive</a>
     </nav>
 
     <h2 class="section-heading">Upcoming Meetings</h2>
+    <?php if ($calendarAd): ?>
+        <section class="ad-unit ad-unit--strip">
+            <div class="ad-unit__label"><?= htmlspecialchars((string) $calendarAd['label']) ?></div>
+            <strong><?= htmlspecialchars((string) $calendarAd['headline']) ?></strong>
+            <?php if (!empty($calendarAd['body_text'])): ?><span><?= htmlspecialchars((string) $calendarAd['body_text']) ?></span><?php endif; ?>
+            <?php if (!empty($calendarAd['destination_url'])): ?><a href="<?= htmlspecialchars((string) $calendarAd['destination_url']) ?>">Learn more</a><?php endif; ?>
+        </section>
+    <?php endif; ?>
     <section class="calendar-ledger">
         <?php if ($events): ?>
             <?php foreach ($events as $event): ?>

@@ -171,6 +171,18 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `web/lib/content.php` now scores police-log and Buzzards Bay Coalition leads deterministically and lazily creates `source_leads` rows when an editor opens a lead
 - `.htaccess` and `web/public/editorial.php` now expose `/desk/leads` and `/desk/leads/{source_item_id}` as a distinct editorial board instead of mixing those inputs into the publishable story/event desk
 - Refined `/desk/leads` into a real triage board with filters for source, lead type, workflow status, priority, recency, and sort order instead of a flat ranked list
+- Added `012_opinion_ads_bodies.sql` for the next publishing layer:
+- `source_leads.promoted_story_id` now tracks source-lead promotion into a draft public brief
+- `ad_slots` and `ad_campaigns` now model local sponsorship inventory such as homepage strips, story rail ads, story inline units, calendar units, and topic sponsorship
+- Added public Opinion support through `/opinion` and `/opinion/{slug}`, using `stories` rows with `story_type` values `editorial`, `column`, and `letter`
+- Added protected Opinion Desk pages at `/desk/opinion` and `/desk/opinion/{id}` for manual editorial/column/letter drafting and publishing
+- Added protected ad-management pages at `/desk/ads` and `/desk/ads/{id}` for local sponsor campaigns
+- Added public governing-body pages at `/bodies` and `/bodies/{slug}` with recent coverage, upcoming meetings, and official source metadata by board/committee
+- Added sponsor-unit rendering on the homepage, story pages, and calendar page; these units are clearly labeled and separated from newsroom copy
+- Added source-lead promotion from `/desk/leads/{source_item_id}` into a draft brief story, keeping outside-source material desk-controlled rather than auto-published
+- Tightened homepage curation so lower-scoring stories built around obvious low-signal phrases like `chair's report`, `director's report`, and minutes approval are filtered out of the homepage list
+- Added worker-health visibility on the Editorial News Desk and homepage footer through `newsroom_latest_run_status()`
+- Hardened `worker/scripts/run_daily_host.sh` with a lock directory plus last-success/last-failure markers, and updated the PHP self-healing trigger to prefer that host runner when available
 - Added one more editorial-label alignment pass in `worker/newsroom/publish.py` with render versions `v15`-`v17` so older notice-like stories publish with cleaner matched labels in both headline and summary:
 - `Sewer Commissioners to Discuss WPCF Phase II Meeting Representation`
 - `Council on Aging to Discuss Open Meeting Law Compliance`
@@ -906,9 +918,13 @@ Build a local-news publishing system that ingests municipal and other local cont
 - `790100a` - `Improve complex agenda extraction and ranking`
 
 ## Next priority tasks
+- Apply production migration `012_opinion_ads_bodies.sql` and deploy the Opinion, Ads, Bodies, and sponsor-slot pages if the latest local commit has not already been deployed.
+- Verify the Freehostia cron configuration and point the primary scheduled job at `./worker/scripts/run_daily_host.sh`; the PHP self-healing trigger is now a fallback, not the preferred scheduler.
+- Add editing/publishing support for draft `brief` stories created from source leads, or decide that source-lead briefs should publish directly only after explicit review in the lead workspace.
+- Seed initial ad campaigns or local sponsor placeholders once the user decides how to sell or reserve ad space.
+- Decide whether public Opinion should be linked from the masthead/nav permanently or remain a quieter archive until there are published editorials.
+- Enrich governing-body pages with member/officer data from the Wareham Boards and Committees directory.
 - Consider adding saved/preset views on `/desk/leads` for `Police`, `Coalition`, `High score`, and `Assigned`, since the filtering structure now exists.
-- Decide whether source leads should be filterable by lead type, source, and status on `/desk/leads` instead of using the current simple ranked list.
-- Consider adding one-click promotion from a source lead into a follow-up/public story once a reported draft is ready, instead of keeping it only in the lead workspace.
 - Decide how much of the police-log workflow should remain desk-only versus eventually generating structured public-safety briefs from extracted incidents.
 - Decide how police logs and Buzzards Bay Coalition article leads should surface in the editorial desk, since they are now being discovered and stored but are not yet first-class public story/event objects.
 - Consider adding a desk view for non-meeting source leads so outside-source reporting candidates can be triaged without overloading the public site.

@@ -23,6 +23,9 @@ $citations = $story ? newsroom_story_citations((int) $story['id']) : [];
 $storyDate = $story ? (string) ($story['display_date'] ?? $story['published_at']) : null;
 $relatedBundle = $story ? newsroom_story_related_bundle($story) : ['topic' => null, 'stories' => [], 'events' => []];
 $nextSteps = $story ? newsroom_story_next_steps($story) : '';
+$isMeetingStory = $story && in_array((string) $story['story_type'], ['meeting_preview', 'minutes_recap'], true);
+$railAd = newsroom_active_ads('story-rail', 1)[0] ?? null;
+$inlineAd = newsroom_active_ads('story-inline', 1)[0] ?? null;
 
 function newsroom_pill_style(array $signal): string
 {
@@ -64,6 +67,8 @@ http_response_code($story ? 200 : 404);
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
+        <a href="/opinion">Opinion</a>
+        <a href="/bodies">Bodies</a>
         <a href="/archive">Archive</a>
     </nav>
 
@@ -86,6 +91,7 @@ http_response_code($story ? 200 : 404);
                     </div>
                 <?php endif; ?>
                 <div class="story-dek"><?= htmlspecialchars((string) ($story['dek'] ?? '')) ?></div>
+                <?php if ($isMeetingStory): ?>
                 <div class="story-information">
                     <div class="story-information__row">
                         <span class="story-information__label">Date &amp; Time</span>
@@ -141,7 +147,16 @@ http_response_code($story ? 200 : 404);
                         </div>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
                 <div><?= $story['body_html'] ?></div>
+                <?php if ($inlineAd): ?>
+                    <section class="ad-unit ad-unit--inline">
+                        <div class="ad-unit__label"><?= htmlspecialchars((string) $inlineAd['label']) ?></div>
+                        <strong><?= htmlspecialchars((string) $inlineAd['headline']) ?></strong>
+                        <?php if (!empty($inlineAd['body_text'])): ?><p><?= htmlspecialchars((string) $inlineAd['body_text']) ?></p><?php endif; ?>
+                        <?php if (!empty($inlineAd['destination_url'])): ?><a href="<?= htmlspecialchars((string) $inlineAd['destination_url']) ?>">Learn more</a><?php endif; ?>
+                    </section>
+                <?php endif; ?>
                 <?php if ($nextSteps !== ''): ?>
                     <h3>What Happens Next</h3>
                     <p><?= htmlspecialchars($nextSteps) ?></p>
@@ -185,6 +200,14 @@ http_response_code($story ? 200 : 404);
                 </ol>
             <?php else: ?>
                 <p class="empty-state">Source citations will appear here for published stories.</p>
+            <?php endif; ?>
+            <?php if ($railAd): ?>
+                <section class="ad-unit ad-unit--rail">
+                    <div class="ad-unit__label"><?= htmlspecialchars((string) $railAd['label']) ?></div>
+                    <strong><?= htmlspecialchars((string) $railAd['headline']) ?></strong>
+                    <?php if (!empty($railAd['body_text'])): ?><p><?= htmlspecialchars((string) $railAd['body_text']) ?></p><?php endif; ?>
+                    <?php if (!empty($railAd['destination_url'])): ?><a href="<?= htmlspecialchars((string) $railAd['destination_url']) ?>">Learn more</a><?php endif; ?>
+                </section>
             <?php endif; ?>
         </aside>
     </div>

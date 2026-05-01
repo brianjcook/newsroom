@@ -51,6 +51,8 @@ $options = newsroom_archive_filter_options();
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
+        <a href="/opinion">Opinion</a>
+        <a href="/bodies">Bodies</a>
         <a href="/archive">Archive</a>
     </nav>
 

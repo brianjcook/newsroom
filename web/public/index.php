@@ -19,6 +19,10 @@ $communityEvents = newsroom_storyworthy_community_events(4);
 $topics = newsroom_topic_spotlights(6);
 $priorityStories = newsroom_homepage_priority_stories(4);
 $recentRecaps = newsroom_recent_meeting_recaps(3);
+$opinionItems = newsroom_opinion_items(3);
+$sponsorStrip = newsroom_active_ads('homepage-sponsor-strip', 1)[0] ?? null;
+$railAd = newsroom_active_ads('homepage-rail', 1)[0] ?? null;
+$workerStatus = newsroom_latest_run_status();
 $lead = $stories[0] ?? null;
 $secondaryStories = array_slice($stories, 1);
 $spotlightEvent = $communityEvents[0] ?? null;
@@ -62,8 +66,19 @@ function newsroom_pill_style(array $signal): string
         <a href="/">Home</a>
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
+        <a href="/opinion">Opinion</a>
+        <a href="/bodies">Bodies</a>
         <a href="/archive">Archive</a>
     </nav>
+
+    <?php if ($sponsorStrip): ?>
+        <section class="ad-unit ad-unit--strip">
+            <div class="ad-unit__label"><?= htmlspecialchars((string) $sponsorStrip['label']) ?></div>
+            <strong><?= htmlspecialchars((string) $sponsorStrip['headline']) ?></strong>
+            <?php if (!empty($sponsorStrip['body_text'])): ?><span><?= htmlspecialchars((string) $sponsorStrip['body_text']) ?></span><?php endif; ?>
+            <?php if (!empty($sponsorStrip['destination_url'])): ?><a href="<?= htmlspecialchars((string) $sponsorStrip['destination_url']) ?>">Learn more</a><?php endif; ?>
+        </section>
+    <?php endif; ?>
 
     <section class="front-page">
         <article class="lead-story">
@@ -115,6 +130,14 @@ function newsroom_pill_style(array $signal): string
 
         <aside class="agenda-ledger">
             <h2 class="section-heading section-heading--tight">Upcoming Meetings</h2>
+            <?php if ($railAd): ?>
+                <section class="ad-unit ad-unit--rail">
+                    <div class="ad-unit__label"><?= htmlspecialchars((string) $railAd['label']) ?></div>
+                    <strong><?= htmlspecialchars((string) $railAd['headline']) ?></strong>
+                    <?php if (!empty($railAd['body_text'])): ?><p><?= htmlspecialchars((string) $railAd['body_text']) ?></p><?php endif; ?>
+                    <?php if (!empty($railAd['destination_url'])): ?><a href="<?= htmlspecialchars((string) $railAd['destination_url']) ?>">Learn more</a><?php endif; ?>
+                </section>
+            <?php endif; ?>
             <div class="event-list">
                 <?php if ($events): ?>
                     <?php foreach ($events as $event): ?>
@@ -242,6 +265,28 @@ function newsroom_pill_style(array $signal): string
         <?php endif; ?>
     </section>
 
+    <h2 class="section-heading">Opinion</h2>
+    <section class="story-masonry story-masonry--tight">
+        <?php if ($opinionItems): ?>
+            <?php foreach ($opinionItems as $item): ?>
+                <article class="story-tease">
+                    <div class="story-meta-row story-meta-row--compact">
+                        <span class="signal-pill"><?= htmlspecialchars((string) $item['label']) ?></span>
+                        <span class="story-card__meta"><?= htmlspecialchars(newsroom_editorial_datetime((string) ($item['display_date'] ?? $item['published_at'] ?? ''))) ?></span>
+                    </div>
+                    <h3><a href="<?= htmlspecialchars(newsroom_opinion_url_from_slug((string) $item['slug'])) ?>"><?= htmlspecialchars((string) $item['headline']) ?></a></h3>
+                    <p class="archive-result__byline">By <?= htmlspecialchars((string) $item['byline']['name']) ?></p>
+                    <?php if (!empty($item['summary'])): ?><p><?= htmlspecialchars(newsroom_truncate_text((string) $item['summary'], 180)) ?></p><?php endif; ?>
+                </article>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <article class="story-tease">
+                <h3>Opinion desk ready</h3>
+                <p class="empty-state">Editorials and columns will appear here once published.</p>
+            </article>
+        <?php endif; ?>
+    </section>
+
     <h2 class="section-heading">Topics</h2>
     <section class="story-masonry">
         <?php foreach ($topics as $topic): ?>
@@ -252,6 +297,13 @@ function newsroom_pill_style(array $signal): string
             </article>
         <?php endforeach; ?>
     </section>
+
+    <?php if ($workerStatus): ?>
+        <footer class="site-footer">
+            <span>Worker <?= htmlspecialchars((string) $workerStatus['health_label']) ?></span>
+            <span>Last run #<?= (int) $workerStatus['id'] ?> finished <?= htmlspecialchars(newsroom_editorial_datetime((string) ($workerStatus['finished_at'] ?? $workerStatus['started_at'] ?? ''))) ?></span>
+        </footer>
+    <?php endif; ?>
 </div>
 </body>
 </html>
