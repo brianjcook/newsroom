@@ -830,9 +830,13 @@ Build a local-news publishing system that ingests municipal and other local cont
 - Fixed topic-page and archive topic filtering against MySQL JSON text formatting by normalizing spaces before slug matching, so topics like `/topics/zoning` now show their tagged stories instead of falling through to empty results when JSON is stored as `"slug": "zoning"`
 
 ## Recent commits
+- `e18e971` - `Hide public scoring and improve copy`
+- `0b90336` - `Update context after opinion ads deployment`
+- `b74602f` - `Add opinion ads and body pages`
+- `d93069c` - `Add source lead desk filters`
+- `b8c8c01` - `Add source leads editorial board`
 - `4b34d6e` - `Add reporting workspace for follow-up writing`
 - `421e97c` - `Broaden newsroom source discovery`
-- `b8c8c01` - `Add source leads editorial board`
 - `fee7c32` - `Finish remaining story-specific cleanup`
 - `515dd2b` - `Repair OCR-heavy thin agenda extraction`
 - `ae4ed51` - `Tighten weak agenda story summaries`
