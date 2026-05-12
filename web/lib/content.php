@@ -592,7 +592,7 @@ function newsroom_story_byline(array $story): array
 
     return [
         'name' => $name !== '' ? $name : 'Wareham Times News Desk',
-        'title' => $title !== '' ? $title : (newsroom_story_is_opinion($story) ? 'Opinion' : 'Automated civic reporting'),
+        'title' => $title !== '' ? $title : (newsroom_story_is_opinion($story) ? 'Opinion' : 'Civic coverage'),
     ];
 }
 
@@ -616,10 +616,10 @@ function newsroom_event_tier_data(array $event): array
     }
 
     $map = [
-        'spotlight' => ['label' => 'Event Spotlight', 'summary' => 'A high-interest event that merits prominent advance coverage.'],
-        'feature_brief' => ['label' => 'Event Brief', 'summary' => 'A stronger community event that should read like a short local preview.'],
-        'community_brief' => ['label' => 'Community Brief', 'summary' => 'A worthwhile local event that merits a concise first-party page.'],
-        'listing' => ['label' => 'Calendar Listing', 'summary' => 'A useful public listing that is still being tracked on the desk.'],
+        'spotlight' => ['label' => 'Event Spotlight', 'summary' => 'A high-interest local event with broad community appeal.'],
+        'feature_brief' => ['label' => 'Event Brief', 'summary' => 'A community event with enough local interest for a short preview.'],
+        'community_brief' => ['label' => 'Community Brief', 'summary' => 'A useful local listing with timely community value.'],
+        'listing' => ['label' => 'Calendar Listing', 'summary' => 'A public listing included for readers tracking local dates.'],
     ];
 
     return array_merge(['key' => $tier], $map[$tier] ?? $map['listing']);
@@ -643,7 +643,7 @@ function newsroom_event_byline(array $event): array
 
     return [
         'name' => $name !== '' ? $name : 'Wareham Times News Desk',
-        'title' => $title !== '' ? $title : 'Community and civic listings desk',
+        'title' => $title !== '' ? $title : 'Community and civic listings',
     ];
 }
 
@@ -907,9 +907,6 @@ function newsroom_community_event_story_meta(array $event): array
     if (!empty($event['source_category'])) {
         $parts[] = (string) $event['source_category'];
     }
-    if (!empty($event['effective_coverage_mode'])) {
-        $parts[] = 'Coverage: ' . str_replace('_', ' ', (string) $event['effective_coverage_mode']);
-    }
     return $parts;
 }
 
@@ -1004,18 +1001,79 @@ function newsroom_community_event_brief_intro(array $event): string
     return $lead . '.';
 }
 
-function newsroom_community_event_editorial_note(array $event): string
+function newsroom_public_event_reason(string $reason, array $event): ?string
 {
-    $signals = newsroom_community_event_signal_items($event, 3);
-    if (!$signals) {
-        return 'The editorial desk flagged this listing as a potentially worthwhile local item to watch.';
+    $clean = strtolower(trim($reason));
+    $sourceType = strtolower((string) ($event['source_type'] ?? ''));
+    $text = strtolower(trim((string) ($event['title'] ?? '') . ' ' . (string) ($event['description'] ?? '')));
+    $map = [
+        'annual local event' => 'an annual local tradition',
+        'recurring local tradition' => 'a recurring local tradition',
+        'competitive community event' => 'a competitive community event',
+        'food-focused community draw' => 'a food-focused community draw',
+        'live performance' => 'a live performance',
+        'public performance' => 'a public performance',
+        'public outdoor event' => 'an outdoor public program',
+        'public educational event' => 'an educational public program',
+        'community fundraiser or library event' => 'a community fundraiser or library program',
+        'festival-style public event' => 'a festival-style public event',
+        'formal public hearing' => 'a formal public hearing',
+        'likely vote or formal action' => 'possible formal action',
+        'budget-related public matter' => 'a budget matter',
+        'land-use or zoning matter' => 'a land-use or zoning matter',
+        'development review' => 'development review',
+        'permit review' => 'permit review',
+        'housing-related public matter' => 'a housing matter',
+        'town meeting matter' => 'a Town Meeting connection',
+        'public-policy matter' => 'a public-policy angle',
+        'public-policy forum' => 'a public-policy forum',
+        'community event' => 'a community gathering',
+        'regional public meeting' => 'a regional public meeting',
+        'holiday listing' => 'a holiday listing',
+        'strong public or cultural appeal' => 'broad public or cultural appeal',
+        'upcoming soon' => 'a timely date',
+        'likely public attendance window' => 'an accessible public-attendance window',
+    ];
+
+    if ($clean === 'policy matter' && $sourceType === 'community_event' && strpos($text, 'policy') === false) {
+        return null;
     }
 
-    $reasons = array_map(static function (array $signal): string {
-        return strtolower((string) $signal['reason']);
-    }, $signals);
+    return $map[$clean] ?? ($clean !== '' ? $clean : null);
+}
 
-    return 'The editorial desk elevated this event because it suggests ' . newsroom_sentence_list($reasons) . '.';
+function newsroom_community_event_editorial_note(array $event): string
+{
+    $text = strtolower(trim((string) ($event['title'] ?? '') . ' ' . (string) ($event['description'] ?? '')));
+    if (preg_match('/\b(butterfly|trail|land trust|wildlife|conservation)\b/', $text)) {
+        return 'This event stands out as a seasonal outdoor program tied to local land, wildlife, and conservation.';
+    }
+
+    if (preg_match('/\b(chili|cook[- ]?off|contest)\b/', $text)) {
+        return 'This event stands out as a community gathering built around local food, competition, and public participation.';
+    }
+
+    if (preg_match('/\b(concert|orchestra|performance|festival)\b/', $text)) {
+        return 'This event stands out for its public arts, culture, or festival appeal.';
+    }
+
+    $signals = newsroom_community_event_signal_items($event, 8);
+    $reasons = [];
+    foreach ($signals as $signal) {
+        $publicReason = newsroom_public_event_reason((string) ($signal['reason'] ?? ''), $event);
+        if ($publicReason !== null && !in_array($publicReason, $reasons, true)) {
+            $reasons[] = $publicReason;
+        }
+        if (count($reasons) >= 3) {
+            break;
+        }
+    }
+
+    if (!$reasons) {
+        return 'This listing stands out as a local item worth watching.';
+    }
+
+    return 'This event stands out because it combines ' . newsroom_sentence_list($reasons) . '.';
 }
 
 function newsroom_topic_overview(array $topic, array $bundle): string

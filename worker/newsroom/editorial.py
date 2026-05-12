@@ -27,7 +27,8 @@ COMMUNITY_RULES = [
     ("special permit", 24, "civic_impact", "Permit review"),
     ("affordable housing", 24, "civic_impact", "Housing-related public matter"),
     ("town meeting", 28, "civic_impact", "Town Meeting matter"),
-    ("policy", 18, "civic_impact", "Policy matter"),
+    ("public policy", 18, "civic_impact", "Public-policy matter"),
+    ("policy forum", 18, "civic_impact", "Public-policy forum"),
 ]
 
 STORY_RULES = [

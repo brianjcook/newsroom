@@ -111,7 +111,7 @@ if ($slug !== '') {
             <?php else: ?>
                 <article class="archive-result">
                     <h3>No opinion pieces published yet</h3>
-                    <p class="empty-state">Editorials and columns will appear here once they are published from the desk.</p>
+                    <p class="empty-state">Editorials and columns will appear here once they are published.</p>
                 </article>
             <?php endif; ?>
         </section>

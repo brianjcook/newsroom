@@ -28,7 +28,6 @@ $metaBits = $event ? newsroom_community_event_story_meta($event) : [];
 $summary = $event ? newsroom_community_event_summary($event) : '';
 $focus = $event ? newsroom_community_event_focus($event) : '';
 $briefIntro = $event ? newsroom_community_event_brief_intro($event) : '';
-$signalItems = $event ? newsroom_community_event_signal_items($event) : [];
 $editorialNote = $event ? newsroom_community_event_editorial_note($event) : '';
 $relatedBundle = $event ? newsroom_event_related_bundle($event) : ['topic' => null, 'stories' => [], 'events' => []];
 
@@ -105,7 +104,7 @@ http_response_code($event ? 200 : 404);
                     <?php endif; ?>
                     <?php if ($metaBits): ?>
                         <div class="story-information__row">
-                            <span class="story-information__label">Editorial</span>
+                            <span class="story-information__label">Listing</span>
                             <span class="story-information__stack">
                                 <span><?= htmlspecialchars((string) ($event['event_tier']['label'] ?? 'Calendar Listing')) ?></span>
                                 <?php foreach ($metaBits as $bit): ?>
@@ -128,10 +127,6 @@ http_response_code($event ? 200 : 404);
                 <?php if ($editorialNote !== ''): ?>
                     <h3>Why It Stands Out</h3>
                     <p><?= htmlspecialchars($editorialNote) ?></p>
-                <?php endif; ?>
-                <?php if (!empty($event['event_tier']['summary'])): ?>
-                    <h3>Coverage Tier</h3>
-                    <p><?= htmlspecialchars((string) $event['event_tier']['summary']) ?></p>
                 <?php endif; ?>
                 <?php if (!empty($event['description'])): ?>
                     <h3>Event Details</h3>
@@ -163,20 +158,26 @@ http_response_code($event ? 200 : 404);
         </article>
 
         <aside class="footnotes">
-            <div class="eyebrow">Quick Facts</div>
+            <div class="eyebrow">You might also like</div>
             <?php if ($event): ?>
-                <ol>
-                    <li class="footnotes__item">Score <?= htmlspecialchars((string) $event['effective_score']) ?></li>
-                    <li class="footnotes__item"><?= htmlspecialchars(str_replace('_', ' ', (string) $event['effective_coverage_mode'])) ?></li>
-                    <?php if (!empty($event['source_category'])): ?>
-                        <li class="footnotes__item"><?= htmlspecialchars((string) $event['source_category']) ?></li>
-                    <?php endif; ?>
-                    <?php foreach ($signalItems as $signal): ?>
-                        <li class="footnotes__item"><?= htmlspecialchars((string) $signal['reason']) ?> (<?= htmlspecialchars(sprintf('%+d', (int) $signal['weight'])) ?>)</li>
-                    <?php endforeach; ?>
-                </ol>
+                <?php if (!empty($relatedBundle['stories']) || !empty($relatedBundle['events'])): ?>
+                    <ol>
+                        <?php foreach (array_slice($relatedBundle['stories'], 0, 3) as $relatedStory): ?>
+                            <li class="footnotes__item">
+                                <a href="<?= htmlspecialchars(newsroom_story_url($relatedStory)) ?>"><?= htmlspecialchars((string) $relatedStory['headline']) ?></a>
+                            </li>
+                        <?php endforeach; ?>
+                        <?php foreach (array_slice($relatedBundle['events'], 0, 3) as $relatedEvent): ?>
+                            <li class="footnotes__item">
+                                <a href="<?= htmlspecialchars((string) $relatedEvent['local_url']) ?>"><?= htmlspecialchars((string) $relatedEvent['title']) ?></a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ol>
+                <?php else: ?>
+                    <p class="empty-state">Browse more <a href="/calendar">upcoming events</a> or explore coverage by <a href="/topics">topic</a>.</p>
+                <?php endif; ?>
             <?php else: ?>
-                <p class="empty-state">Event facts will appear here when a listing is available.</p>
+                <p class="empty-state">Related events and stories will appear here when a listing is available.</p>
             <?php endif; ?>
         </aside>
     </div>

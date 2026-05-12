@@ -184,7 +184,7 @@ SHORT_MEANINGFUL_PHRASES = {
     "next steps",
 }
 
-PUBLISHER_RENDER_VERSION = "2026-04-02-render-v18-bylaw-fragment"
+PUBLISHER_RENDER_VERSION = "2026-05-12-render-v20-public-copy-lede"
 
 
 def _normalize_workflow_status(status: Optional[str], story_type: Optional[str] = None) -> str:
@@ -599,7 +599,7 @@ def _sync_story_citations(
 def _format_date(date_value: Optional[str]) -> str:
     if not date_value:
         return "an upcoming date"
-    return datetime.strptime(date_value, "%Y-%m-%d").strftime("%B %d, %Y")
+    return datetime.strptime(date_value, "%Y-%m-%d").strftime("%B %d, %Y").replace(" 0", " ")
 
 
 def _format_time(time_value: Optional[str]) -> str:
@@ -2041,6 +2041,41 @@ def _sentence_from_phrases(prefix: str, phrases: List[str]) -> str:
     return "{} {}.".format(prefix, joined) if joined else ""
 
 
+def _body_reference(body_name: str) -> str:
+    cleaned = " ".join(str(body_name or "").split())
+    if not cleaned:
+        return "the Wareham board"
+    lowered = cleaned.lower()
+    if lowered.startswith("the "):
+        return cleaned
+    if lowered.startswith("wareham "):
+        return "the {}".format(cleaned)
+    return "the Wareham {}".format(cleaned)
+
+
+def _schedule_phrase(meeting_date: str, meeting_time: str, location: str = "") -> str:
+    parts = ["on {}".format(meeting_date)]
+    if meeting_time and meeting_time != "at a time not listed in the source":
+        parts.append("at {}".format(meeting_time))
+    if location and location != "a location not listed in the source":
+        parts.append("at {}".format(location))
+    return " ".join(parts)
+
+
+def _meeting_dek_schedule(body_name: str, meeting_date: str, meeting_time: str) -> str:
+    if meeting_time and meeting_time != "at a time not listed in the source":
+        return "{} will meet {} at {}".format(body_name, meeting_date, meeting_time)
+    return "{} will meet {}".format(body_name, meeting_date)
+
+
+def _minutes_headline(body_name: str, meeting_date: str, focus_items: List[Dict[str, object]]) -> str:
+    if focus_items:
+        phrase = _headline_focus_phrase(focus_items)
+        if phrase:
+            return "{} Minutes Highlight {}".format(body_name, phrase)
+    return "{} minutes posted for {}".format(body_name, meeting_date)
+
+
 def _preview_summary(body_name: str, focus_items: List[Dict[str, object]], dek: str) -> str:
     phrases = _summary_phrase_list([str(item["text"]) for item in focus_items])
     if not phrases:
@@ -2205,9 +2240,11 @@ def _preview_headline(body_name: str, meeting_date: str, focus_items: List[Dict[
 
 
 def _preview_dek(body_name: str, meeting_date: str, meeting_time: str, location: str, focus_items: List[Dict[str, object]]) -> str:
-    if meeting_time and meeting_time != "at a time not listed in the source":
-        return f"{body_name} will meet {meeting_date} at {meeting_time}."
-    return f"{body_name} will meet {meeting_date}."
+    schedule = _meeting_dek_schedule(body_name, meeting_date, meeting_time)
+    phrases = _summary_phrase_list([str(item["text"]) for item in focus_items], limit=2)
+    if phrases:
+        return "{} with {} among the main items.".format(schedule, _oxford_join(phrases))
+    return "{}.".format(schedule)
 
 
 def _preview_intro(
@@ -2218,21 +2255,24 @@ def _preview_intro(
     focus_items: List[Dict[str, object]],
     summary_sentence: str = "",
 ) -> str:
+    schedule = _schedule_phrase(meeting_date, meeting_time, location)
     if not focus_items:
         return (
-            f"<p>The Wareham {html.escape(body_name)} is scheduled to meet on {html.escape(meeting_date)} "
-            f"{html.escape(meeting_time)} at {html.escape(location)}, according to the posted agenda.</p>"
+            f"<p>{html.escape(_sentence_case(_body_reference(body_name)))} is scheduled to meet "
+            f"{html.escape(schedule)}, according to the posted agenda.</p>"
         )
 
-    if summary_sentence:
+    lead_phrase = _focus_summary_phrase(str(focus_items[0].get("text") or ""))
+    if lead_phrase:
         return (
-            f"<p>The Wareham {html.escape(body_name)} will meet on {html.escape(meeting_date)} at "
-            f"{html.escape(meeting_time)} at {html.escape(location)}. {html.escape(summary_sentence)}</p>"
+            f"<p>The leading agenda item is {html.escape(lead_phrase)}. "
+            f"{html.escape(_sentence_case(_body_reference(body_name)))} meets {html.escape(schedule)}, according to the posted agenda.</p>"
             f"<p>{html.escape(_focus_sentence(focus_items[0]))}</p>"
         )
+
     return (
-        f"<p>The Wareham {html.escape(body_name)} is scheduled to meet on {html.escape(meeting_date)} "
-        f"{html.escape(meeting_time)} at {html.escape(location)}, according to the posted agenda.</p>"
+        f"<p>{html.escape(_sentence_case(_body_reference(body_name)))} is scheduled to meet "
+        f"{html.escape(schedule)}, according to the posted agenda.</p>"
     )
 
 
@@ -3068,9 +3108,9 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
 
     if story_type == "minutes_recap":
         focus_items = _minutes_focus_items(extraction)
-        headline = f"Wareham {body_name} minutes posted for {meeting_date}"
+        headline = _minutes_headline(body_name, meeting_date, focus_items)
         if focus_items:
-            dek = f"The minutes highlight action on {_focus_summary(focus_items)}."
+            dek = f"Posted minutes from {meeting_date} highlight action on {_focus_summary(focus_items)}."
             focus_block = _focus_list_block(focus_items, "What stands out in the minutes")
             summary = _sentence_from_phrases(
                 "The posted minutes highlight",
@@ -3080,7 +3120,7 @@ def _build_story_copy(meeting: Dict[str, object], source_item: Dict[str, object]
             dek = f"Posted minutes show what the {body_name} recorded for its {meeting_date} meeting."
             summary = dek
         intro = (
-            f"<p>Minutes for the Wareham {html.escape(body_name)} meeting dated {html.escape(meeting_date)} "
+            f"<p>Minutes from {html.escape(_body_reference(body_name))}'s {html.escape(meeting_date)} meeting "
             f"have been posted on the town website, according to the linked source document.</p>"
         )
         kicker = (

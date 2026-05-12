@@ -168,7 +168,7 @@ function newsroom_pill_style(array $signal): string
         </aside>
     </section>
 
-    <h2 class="section-heading">Desk Priorities</h2>
+    <h2 class="section-heading">Local Priorities</h2>
     <section class="story-masonry story-masonry--tight">
         <?php foreach ($priorityStories as $story): ?>
             <article class="story-tease">
@@ -222,7 +222,7 @@ function newsroom_pill_style(array $signal): string
     </section>
 
     <h2 class="section-heading">Around Town</h2>
-    <p class="section-intro">Events from the Wareham public calendar that the editorial desk currently ranks as especially newsworthy or broadly interesting.</p>
+    <p class="section-intro">Notable public-calendar events and community listings that may be useful, timely, or broadly interesting.</p>
     <section class="front-page front-page--community">
         <?php if ($spotlightEvent): ?>
             <article class="lead-story">
@@ -250,7 +250,7 @@ function newsroom_pill_style(array $signal): string
                 <?php endforeach; ?>
             </section>
             <aside class="agenda-ledger">
-                <h2 class="section-heading section-heading--tight">Event Tiers</h2>
+                <h2 class="section-heading section-heading--tight">Featured Listing</h2>
                 <article class="event-item">
                     <strong><?= htmlspecialchars((string) $spotlightEvent['event_tier']['label']) ?></strong>
                     <p><?= htmlspecialchars((string) $spotlightEvent['event_tier']['summary']) ?></p>
@@ -259,8 +259,8 @@ function newsroom_pill_style(array $signal): string
             </aside>
         <?php else: ?>
             <article class="story-tease">
-                <h3>No community events ranked yet</h3>
-                <p class="empty-state">Story-worthy public-calendar events will appear here once the editorial scoring sync has run.</p>
+                <h3>No community events listed yet</h3>
+                <p class="empty-state">Notable public-calendar events will appear here once the calendar sync runs.</p>
             </article>
         <?php endif; ?>
     </section>
@@ -281,7 +281,7 @@ function newsroom_pill_style(array $signal): string
             <?php endforeach; ?>
         <?php else: ?>
             <article class="story-tease">
-                <h3>Opinion desk ready</h3>
+                <h3>Opinion coming soon</h3>
                 <p class="empty-state">Editorials and columns will appear here once published.</p>
             </article>
         <?php endif; ?>
@@ -300,8 +300,7 @@ function newsroom_pill_style(array $signal): string
 
     <?php if ($workerStatus): ?>
         <footer class="site-footer">
-            <span>Worker <?= htmlspecialchars((string) $workerStatus['health_label']) ?></span>
-            <span>Last run #<?= (int) $workerStatus['id'] ?> finished <?= htmlspecialchars(newsroom_editorial_datetime((string) ($workerStatus['finished_at'] ?? $workerStatus['started_at'] ?? ''))) ?></span>
+            <span>Latest source refresh <?= htmlspecialchars(newsroom_editorial_datetime((string) ($workerStatus['finished_at'] ?? $workerStatus['started_at'] ?? ''))) ?></span>
         </footer>
     <?php endif; ?>
 </div>
