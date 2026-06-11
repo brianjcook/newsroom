@@ -1,0 +1,56 @@
+name: Deploy Public Fixes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload changed files via FTPS
+        env:
+          FTP_HOST: ${{ secrets.FREEHOSTIA_FTP_HOST }}
+          FTP_USER: ${{ secrets.FREEHOSTIA_FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FREEHOSTIA_FTP_PASSWORD }}
+          FTP_REMOTE_PATH: ${{ secrets.FREEHOSTIA_FTP_REMOTE_PATH }}
+        run: |
+          set -euo pipefail
+
+          : "${FTP_HOST:?Missing FREEHOSTIA_FTP_HOST}"
+          : "${FTP_USER:?Missing FREEHOSTIA_FTP_USER}"
+          : "${FTP_PASSWORD:?Missing FREEHOSTIA_FTP_PASSWORD}"
+
+          remote_path="${FTP_REMOTE_PATH:-/}"
+
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+          lftp -u "$FTP_USER","$FTP_PASSWORD" "$FTP_HOST" <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate no
+          cd $remote_path
+
+          set cmd:fail-exit no
+          mkdir lib
+          mkdir assets
+          mkdir web
+          mkdir web/lib
+          mkdir web/public
+          mkdir web/public/assets
+          mkdir worker
+          mkdir worker/newsroom
+          set cmd:fail-exit yes
+
+          put -O lib web/lib/content.php
+          put -O web/lib web/lib/content.php
+          put -O . web/public/calendar.php
+          put -O web/public web/public/calendar.php
+          put -O assets web/public/assets/styles.css
+          put -O web/public/assets web/public/assets/styles.css
+          put -O worker/newsroom worker/newsroom/publish.py
+          bye
+          EOF

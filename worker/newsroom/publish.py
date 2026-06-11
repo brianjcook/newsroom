@@ -634,6 +634,16 @@ def _clean_lines(text: str) -> List[str]:
 def _normalize_item_text(text: str) -> str:
     normalized = " ".join(str(text or "").replace("\xa0", " ").split())
     repairs = [
+        (r"\b(?:And)?lessthan100%ofworkordersunder\b", "less than 100% of work orders under"),
+        (r"\breviewarecorrectly\b", "review are correctly"),
+        (r"\bcreated,trackedandreported\b", "created, tracked and reported"),
+        (r"\btrackedandreported\b", "tracked and reported"),
+        (r"\bNotallrequested\b", "Not all requested"),
+        (r"\bthetotalamount\b", "the total amount"),
+        (r"\binthisaccountwillbebasedontheapproved\b", "in this account will be based on the approved"),
+        (r"\bsalariesrepresenting\b", "salaries representing"),
+        (r"\bthestate'sfair\b", "the state's fair"),
+        (r"\bworkorders\b", "work orders"),
         (r"\bClas s\b", "Class"),
         (r"\bSc hool\b", "School"),
         (r"\bDiscrimin atory\b", "Discriminatory"),
@@ -655,6 +665,8 @@ def _normalize_item_text(text: str) -> str:
         (r"\bSECRETARY\s[’']\sS\b", "Secretary's"),
         (r"\b202\s+5\b", "2025"),
         (r"\b202\s+6\b", "2026"),
+        (r"\bSchool Choice 2026\s*-?\s*27\s*-\s*VOTE\b", "School Choice 2026-2027 (vote)"),
+        (r"\bJoin the public meeting from PC\.?\b", ""),
         (r"\bLICENSES AND PERMITS\b", "Licenses and Permits"),
     ]
     for pattern, replacement in repairs:
@@ -927,6 +939,18 @@ def _headline_phrase(text: str) -> str:
         return str(appointment["headline"])
     if "capital planning member appointment" in lowered:
         return "Capital Planning Committee Appointment"
+    if (
+        "less than 100% of work orders" in lowered
+        or "work order tracking" in lowered
+        or ("work orders" in lowered and "correctly created" in lowered)
+    ):
+        return "Work Order Tracking"
+    if "employee benefits" in lowered and "fair share" in lowered:
+        return "Employee Benefits"
+    if "affordable housing trust funding" in lowered:
+        return "Affordable Housing Trust Funding"
+    if "route 25" in lowered and "site plan review" in lowered:
+        return "Route 25 Site Plan Review"
     if "public hearings" in lowered and len(cleaned) <= 40:
         return ""
     if re.match(r"^[ivxlcdm]+\.\s*public hearings?\.?$", lowered, flags=re.IGNORECASE):
@@ -1466,6 +1490,18 @@ def _normalize_focus_phrase(text: str) -> str:
         return str(appointment["summary"])
     if "capital planning member appointment" in lowered:
         return "capital planning committee appointment"
+    if (
+        "less than 100% of work orders" in lowered
+        or "work order tracking" in lowered
+        or ("work orders" in lowered and "correctly created" in lowered)
+    ):
+        return "work order tracking"
+    if "employee benefits" in lowered and "fair share" in lowered:
+        return "employee benefits"
+    if "affordable housing trust funding" in lowered:
+        return "affordable housing trust funding"
+    if "route 25" in lowered and "site plan review" in lowered:
+        return "Route 25 site plan review"
     if "public hearings" in lowered and len(cleaned) <= 40:
         return ""
     if re.match(r"^[ivxlcdm]+\.\s*public hearings?\.?$", lowered, flags=re.IGNORECASE):

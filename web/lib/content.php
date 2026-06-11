@@ -6,7 +6,7 @@ require_once __DIR__ . '/db.php';
 
 function newsroom_body_signal(?string $bodyName): array
 {
-    $name = trim((string) $bodyName);
+    $name = newsroom_public_body_name((string) $bodyName);
     $palette = [
         ['bg' => '#eadfd1', 'fg' => '#53341d', 'border' => '#b17e45'],
         ['bg' => '#dbe7dc', 'fg' => '#214433', 'border' => '#5b8f73'],
@@ -273,6 +273,192 @@ function newsroom_truncate_text(string $value, int $limit = 220): string
         $truncated = substr($truncated, 0, $lastSpace);
     }
     return rtrim($truncated, " ,.;:-") . '...';
+}
+
+function newsroom_public_text(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $value = str_replace(["\r", "\n", "\t", "\xc2\xa0"], ' ', $value);
+    $value = newsroom_fix_source_artifacts($value);
+    $value = preg_replace('/\s+/', ' ', $value);
+    $value = preg_replace('/\s+([,.;:!?])/', '$1', (string) $value);
+    $value = preg_replace('/,([^\s\d])/', ', $1', (string) $value);
+    $value = preg_replace('/\s+-\s+/', ' - ', (string) $value);
+    $value = preg_replace('/\s+%/', '%', (string) $value);
+
+    return trim((string) $value, " \t\n\r\0\x0B,.;:");
+}
+
+function newsroom_fix_source_artifacts(string $value): string
+{
+    $replacements = [
+        'Andlessthan100%ofworkordersunder' => 'less than 100% of work orders under',
+        'andlessthan100%ofworkordersunder' => 'less than 100% of work orders under',
+        'lessthan100%ofworkordersunder' => 'less than 100% of work orders under',
+        'reviewarecorrectly' => 'review are correctly',
+        'created,trackedandreported' => 'created, tracked and reported',
+        'trackedandreported' => 'tracked and reported',
+        'Notallrequested' => 'Not all requested',
+        'notallrequested' => 'not all requested',
+        'thetotalamount' => 'the total amount',
+        'inthisaccountwillbebasedontheapproved' => 'in this account will be based on the approved',
+        'salariesrepresenting' => 'salaries representing',
+        "thestate'sfair" => "the state's fair",
+        'workorders' => 'work orders',
+        'School Choice 2026 -27' => 'School Choice 2026-2027',
+        'School Choice 2026-27' => 'School Choice 2026-2027',
+        'School Choice 2026-2027-VOTE' => 'School Choice 2026-2027 vote',
+        'The ART of CANVA' => 'The Art of Canva',
+        'ART of CANVA' => 'Art of Canva',
+        'Cran Hwy' => 'Cranberry Highway',
+        'Cran Highway' => 'Cranberry Highway',
+        'Large Scale Ground Mounted' => 'Large-Scale Ground-Mounted',
+        'large scale ground mounted' => 'large-scale ground-mounted',
+        'Vs. Hyannis' => 'vs. Hyannis',
+    ];
+    $value = str_replace(array_keys($replacements), array_values($replacements), $value);
+
+    $patterns = [
+        '/\b(?:And)?less\s*than\s*100%\s*of\s*work\s*orders\s*under\b/i' => 'less than 100% of work orders under',
+        '/\bJoin the public meeting from PC\.?/i' => '',
+        '/\bJoin the public meeting from a PC\.?/i' => '',
+        '/\bJoin the public meeting from your computer, tablet or smartphone\.?/i' => '',
+        '/\bless than 100% of work orders under review are correctly created, tracked and reported\b/i' => 'work order tracking',
+        '/\bCorrective Action:Not all requested worko\b/i' => 'corrective action for requested work orders',
+        '/\btherefore, the total amount approved in this account will be based on the approved budgeted salaries representing the state\'s fair share\.?\s*4541:Employee Benefits\b/i' => 'employee benefits',
+        '/\bDiscussion with affordable housing trust funding\b/i' => 'affordable housing trust funding',
+        '/\bRatify vote taken on 5\/13 for purchase of 6 banners\b/i' => 'ratifying the May 13 vote to purchase six banners',
+        '/\bsite plan review involving 26\s*-\s*17\s*0\s*Route 25\s*-\s*Special Permit\b/i' => 'site plan review involving Route 25',
+        '/\b26\s*-\s*17\s*0\s*route 25\s*-\s*special permit Site Plan Review\b/i' => 'Route 25 Site Plan Review',
+        '/\b26\s*-\s*17\s*0\s*Route 25\s*-\s*Special Permit\b/i' => 'Route 25',
+        '/\b0\s+Route 25\b/i' => 'Route 25',
+        '/\bto Discuss Discussion with\b/i' => 'to Discuss',
+        '/\bBoard of sewer Commissioners\b/i' => 'Board of Sewer Commissioners',
+        '/\bBoard of Sewer Commissioners Strategy Session\b/i' => 'Sewer Commissioners Strategy Session',
+        '/\bBoard of Sewer Commissioners Workshop Agenda\s+\d{2}-\d{2}-\d{4}\b/i' => 'Sewer Commissioners Workshop',
+        '/\bRoom\s+(\d+)\b/i' => 'Room $1',
+        '/\s+([A-Z][a-z]+)\s+,(\s*[A-Z]{2}\b)/' => ' $1,$2',
+    ];
+    $value = (string) preg_replace(array_keys($patterns), array_values($patterns), $value);
+
+    return (string) preg_replace('/\s+/', ' ', $value);
+}
+
+function newsroom_public_headline(string $value): string
+{
+    $headline = newsroom_public_text($value);
+    if ($headline === '') {
+        return '';
+    }
+
+    $lowered = strtolower($headline);
+    if (
+        strpos($lowered, 'wareham housing authority') !== false
+        && (strpos($lowered, 'work orders') !== false || strpos($lowered, 'work order tracking') !== false)
+    ) {
+        return 'Wareham Housing Authority to Review Work Order Tracking';
+    }
+    if (preg_match('/^Sewer Commissioners to Discuss Board of Sewer Commissioners$/i', $headline)) {
+        return 'Sewer Commissioners to Meet';
+    }
+    if (preg_match('/^Zoning Board of Appeals to Hear Route 25 Site Plan Review$/i', $headline)) {
+        return 'Zoning Board of Appeals to Hear Route 25 Site Plan Review';
+    }
+    if (preg_match('/^Community Preservation Committee to Discuss affordable housing trust funding$/i', $headline)) {
+        return 'Community Preservation Committee to Discuss Affordable Housing Trust Funding';
+    }
+
+    $headline = preg_replace('/\bto Discuss affordable housing trust funding\b/i', 'to Discuss Affordable Housing Trust Funding', $headline);
+    $headline = preg_replace('/\broute 25\b/i', 'Route 25', (string) $headline);
+    $headline = preg_replace('/\bsite plan review\b/i', 'Site Plan Review', (string) $headline);
+    $headline = preg_replace('/\bspecial permit\b/i', 'Special Permit', (string) $headline);
+    $headline = preg_replace('/\bTrex Project Update\b/i', 'TREX Project Update', (string) $headline);
+
+    return trim((string) $headline);
+}
+
+function newsroom_public_summary(string $value): string
+{
+    $summary = newsroom_public_text($value);
+    if ($summary === '') {
+        return '';
+    }
+
+    $lowered = strtolower($summary);
+    if (
+        (strpos($lowered, 'work orders') !== false || strpos($lowered, 'work order tracking') !== false)
+        && strpos($lowered, 'employee benefits') !== false
+    ) {
+        return 'The agenda is expected to focus on work order tracking and employee benefits.';
+    }
+    if (preg_match('/^The agenda is expected to focus on Board of Sewer Commissioners\.?$/i', $summary)) {
+        return 'The Sewer Commissioners are scheduled to meet.';
+    }
+
+    $summary = preg_replace('/\s+(?:and\s+)?\.?$/', '.', (string) $summary);
+    $summary = preg_replace('/\s+and\s+\./', '.', (string) $summary);
+    $summary = preg_replace('/\bpolicy review and\s*$/i', 'policy review', (string) $summary);
+    $summary = preg_replace('/\baffordable housing trust funding and ratifying\b/i', 'affordable housing trust funding and ratifying', (string) $summary);
+    $summary = preg_replace('/\bRoute 25 - Special Permit\b/i', 'Route 25', (string) $summary);
+    $summary = preg_replace('/\bTrex project update\b/i', 'TREX project update', (string) $summary);
+
+    if (substr($summary, -1) !== '.') {
+        $summary .= '.';
+    }
+
+    return trim((string) preg_replace('/\s+/', ' ', $summary));
+}
+
+function newsroom_public_body_name(string $value): string
+{
+    $body = newsroom_public_text($value);
+    if ($body === '') {
+        return '';
+    }
+
+    $body = preg_replace('/^\*+\s*(AMENDED|POSTPONED|CANCEL(?:LED)?)(?:\s*-\s*NO QUORUM)?\s*\**/i', '', $body);
+    $body = preg_replace('/^(AMENDED|POSTPONED|CANCEL(?:LED)?)(?:\s*-\s*NO QUORUM)?\s+/i', '', (string) $body);
+    $body = preg_replace('/\s+(?:Meeting|Agenda)\s+\d{1,2}-\d{1,2}-\d{4}.*$/i', '', (string) $body);
+    $body = preg_replace('/\s+\d{1,2}-\d{1,2}-\d{4}$/', '', (string) $body);
+    $body = preg_replace('/\bALL BOARDS\b/', 'All Boards', (string) $body);
+    $body = preg_replace('/\bsewer Commissioners\b/', 'Sewer Commissioners', (string) $body);
+
+    return trim((string) preg_replace('/\s+/', ' ', $body), " *\t\n\r\0\x0B,.;:-");
+}
+
+function newsroom_public_location(string $value): string
+{
+    $location = newsroom_public_text($value);
+    if ($location === '') {
+        return '';
+    }
+    if (strtolower($location) === 'online') {
+        return 'Online';
+    }
+
+    $location = preg_replace('/\s+Searching\s+.+?\s+will take yo(?:u)?\s+/i', ', ', $location);
+    $location = preg_replace('/\b(Wareham)\s+,(\s*MA\b)/', '$1,$2', (string) $location);
+    $location = preg_replace('/\b(East Wareham|West Wareham)\s+,(\s*MA\b)/', '$1,$2', (string) $location);
+    $location = preg_replace('/\b(Spillane Field|Whitlock\'s Landing|Follo-Beecher Woods)\s+(\d)/i', '$1, $2', (string) $location);
+    $location = preg_replace('/\s+/', ' ', (string) $location);
+
+    return trim((string) $location, " ,.;:-");
+}
+
+function newsroom_public_html(string $html): string
+{
+    if (trim($html) === '') {
+        return '';
+    }
+
+    $html = newsroom_fix_source_artifacts($html);
+    $html = preg_replace('/\s+and\s+<\/p>/', '</p>', (string) $html);
+    return (string) $html;
 }
 
 function newsroom_sentence_list(array $items): string
@@ -674,7 +860,7 @@ function newsroom_topic_intro_text(string $slug, string $label, array $bundle = 
 
 function newsroom_display_location(?string $locationName): ?string
 {
-    $location = trim((string) $locationName);
+    $location = newsroom_public_location((string) $locationName);
     if ($location === '') {
         return null;
     }
@@ -784,8 +970,8 @@ function newsroom_story_meta_presenter(array $row): array
             'location_map_url' => null,
             'agenda_url' => null,
             'minutes_url' => null,
-            'summary_text' => trim((string) ($row['summary'] ?? $row['dek'] ?? '')),
-            'dek_text' => trim((string) ($row['dek'] ?? '')),
+            'summary_text' => newsroom_public_summary((string) ($row['summary'] ?? $row['dek'] ?? '')),
+            'dek_text' => newsroom_public_summary((string) ($row['dek'] ?? '')),
             'remote' => ['join_url' => null, 'webinar_id' => null, 'passcode' => null, 'phones' => []],
         ];
     }
@@ -812,8 +998,8 @@ function newsroom_story_meta_presenter(array $row): array
         'location_map_url' => $storyType === 'meeting_preview' ? newsroom_google_maps_url($locationName) : null,
         'agenda_url' => !empty($row['agenda_url']) ? (string) $row['agenda_url'] : null,
         'minutes_url' => !empty($row['minutes_url']) ? (string) $row['minutes_url'] : null,
-        'summary_text' => trim((string) ($row['summary'] ?? $row['dek'] ?? '')),
-        'dek_text' => trim((string) ($row['dek'] ?? '')),
+        'summary_text' => newsroom_public_summary((string) ($row['summary'] ?? $row['dek'] ?? '')),
+        'dek_text' => newsroom_public_summary((string) ($row['dek'] ?? '')),
         'remote' => $remote,
     ];
 }
@@ -834,7 +1020,7 @@ function newsroom_event_presenter(array $row): array
     $locationName = newsroom_display_location(isset($row['location_name']) ? (string) $row['location_name'] : null);
     return [
         'id' => $row['id'],
-        'title' => (string) $row['title'],
+        'title' => newsroom_public_headline((string) $row['title']),
         'starts_at' => (string) $row['starts_at'],
         'body_name' => $signal['name'],
         'body_signal' => $signal,
@@ -843,13 +1029,18 @@ function newsroom_event_presenter(array $row): array
         'agenda_url' => !empty($row['agenda_url']) ? (string) $row['agenda_url'] : (string) ($row['source_url'] ?? ''),
         'minutes_url' => !empty($row['minutes_url']) ? (string) $row['minutes_url'] : null,
         'remote' => $remote,
-        'summary_text' => trim((string) ($row['story_summary'] ?? $row['story_dek'] ?? $row['description'] ?? '')),
-        'dek_text' => trim((string) ($row['story_dek'] ?? '')),
+        'summary_text' => newsroom_public_summary((string) ($row['story_summary'] ?? $row['story_dek'] ?? $row['description'] ?? '')),
+        'dek_text' => newsroom_public_summary((string) ($row['story_dek'] ?? '')),
     ];
 }
 
 function newsroom_recent_story_presenter(array $row): array
 {
+    $row['headline'] = newsroom_public_headline((string) ($row['headline'] ?? ''));
+    $row['dek'] = newsroom_public_summary((string) ($row['dek'] ?? ''));
+    $row['summary'] = newsroom_public_summary((string) ($row['summary'] ?? ''));
+    $row['body_name'] = newsroom_public_body_name((string) ($row['body_name'] ?? ''));
+
     return array_merge($row, [
         'meta' => newsroom_story_meta_presenter($row),
         'topics' => newsroom_parse_topics($row['topic_tags_json'] ?? null),
@@ -867,7 +1058,7 @@ function newsroom_community_event_presenter(array $row): array
 
     return [
         'id' => (int) $row['id'],
-        'title' => (string) $row['title'],
+        'title' => newsroom_public_headline((string) $row['title']),
         'slug' => (string) ($row['slug'] ?? ''),
         'local_url' => newsroom_community_event_url($row),
         'starts_at' => (string) $row['starts_at'],
@@ -877,9 +1068,9 @@ function newsroom_community_event_presenter(array $row): array
         'source_url' => (string) $row['source_url'],
         'source_category' => (string) ($row['source_category'] ?? ''),
         'source_type' => $sourceType,
-        'body_name' => $bodyName,
+        'body_name' => newsroom_public_body_name($bodyName),
         'body_signal' => $signal,
-        'description' => trim((string) ($row['description'] ?? '')),
+        'description' => newsroom_public_summary((string) ($row['description'] ?? '')),
         'editorial_score' => (int) ($row['editorial_score'] ?? 0),
         'effective_score' => isset($row['effective_score']) ? (int) $row['effective_score'] : (int) ($row['score_override'] ?? $row['editorial_score'] ?? 0),
         'suggested_coverage_mode' => (string) ($row['suggested_coverage_mode'] ?? 'calendar_only'),
@@ -1389,6 +1580,11 @@ function newsroom_story_by_slug(string $slug): ?array
         return null;
     }
 
+    $story['headline'] = newsroom_public_headline((string) ($story['headline'] ?? ''));
+    $story['dek'] = newsroom_public_summary((string) ($story['dek'] ?? ''));
+    $story['summary'] = newsroom_public_summary((string) ($story['summary'] ?? ''));
+    $story['body_html'] = newsroom_public_html((string) ($story['body_html'] ?? ''));
+    $story['body_name'] = newsroom_public_body_name((string) ($story['body_name'] ?? ''));
     $story['meta'] = newsroom_story_meta_presenter($story);
     $story['topics'] = newsroom_parse_topics($story['topic_tags_json'] ?? null);
     $story['label'] = newsroom_story_label($story);
@@ -2557,8 +2753,20 @@ function newsroom_archive_filter_options(): array
             WHERE body_name <> ""
             ORDER BY body_name ASC'
         );
+        $bodyOptionsByLabel = [];
         foreach ($statement->fetchAll() as $row) {
-            $bodyOptions[(string) $row['body_name']] = (string) $row['body_name'];
+            $rawBody = (string) $row['body_name'];
+            $label = newsroom_public_body_name($rawBody);
+            if ($label === '') {
+                continue;
+            }
+            if (!isset($bodyOptionsByLabel[$label]) || $rawBody === $label) {
+                $bodyOptionsByLabel[$label] = $rawBody;
+            }
+        }
+        ksort($bodyOptionsByLabel);
+        foreach ($bodyOptionsByLabel as $label => $rawBody) {
+            $bodyOptions[$rawBody] = $label;
         }
     }
 
@@ -2669,6 +2877,9 @@ function newsroom_archive_results(array $filters = [], int $limit = 100): array
 
     $rows = $statement->fetchAll();
     foreach ($rows as &$row) {
+        $row['title'] = newsroom_public_headline((string) ($row['title'] ?? ''));
+        $row['summary_text'] = newsroom_public_summary((string) ($row['summary_text'] ?? ''));
+        $row['body_name'] = newsroom_public_body_name((string) ($row['body_name'] ?? ''));
         $row['effective_score'] = isset($row['score_override']) && $row['score_override'] !== null ? (int) $row['score_override'] : (int) $row['editorial_score'];
         $row['topics'] = newsroom_parse_topics($row['topic_tags_json'] ?? null);
         $rank = $row['effective_score'];
@@ -4103,7 +4314,16 @@ function newsroom_governing_bodies_index(int $limit = 120): array
     );
     $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
     $statement->execute();
-    return $statement->fetchAll();
+    $rows = $statement->fetchAll();
+    foreach ($rows as &$row) {
+        $row['normalized_name'] = newsroom_public_body_name((string) ($row['normalized_name'] ?? ''));
+        $row['meeting_schedule_text'] = newsroom_public_text((string) ($row['meeting_schedule_text'] ?? ''));
+        $row['meeting_location_text'] = newsroom_public_location((string) ($row['meeting_location_text'] ?? ''));
+        $row['description'] = newsroom_public_summary((string) ($row['description'] ?? ''));
+    }
+    unset($row);
+
+    return $rows;
 }
 
 function newsroom_governing_body_bundle(string $slug): ?array
@@ -4120,6 +4340,10 @@ function newsroom_governing_body_bundle(string $slug): ?array
     if (!$body) {
         return null;
     }
+    $body['normalized_name'] = newsroom_public_body_name((string) ($body['normalized_name'] ?? ''));
+    $body['meeting_schedule_text'] = newsroom_public_text((string) ($body['meeting_schedule_text'] ?? ''));
+    $body['meeting_location_text'] = newsroom_public_location((string) ($body['meeting_location_text'] ?? ''));
+    $body['description'] = newsroom_public_summary((string) ($body['description'] ?? ''));
 
     $storiesStatement = newsroom_db()->prepare(
         'SELECT

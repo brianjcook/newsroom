@@ -152,7 +152,7 @@ function newsroom_pill_style(array $signal): string
                             <p><?= htmlspecialchars((string) $event['location_name']) ?></p>
                         <?php endif; ?>
                         <?php if (!empty($event['description'])): ?>
-                            <p class="calendar-row__summary"><?= htmlspecialchars((string) $event['description']) ?></p>
+                            <p class="calendar-row__summary"><?= htmlspecialchars(newsroom_truncate_text((string) $event['description'], 280)) ?></p>
                         <?php endif; ?>
                     </div>
                     <div class="calendar-row__source">
