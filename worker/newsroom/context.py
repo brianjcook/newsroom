@@ -495,7 +495,41 @@ def _upsert_entity(connection: Connection, entity_type: str, display_name: str) 
             (entity_type, key),
         )
         row = cursor.fetchone()
-        return int(row["id"]) if row else None
+        entity_id = int(row["id"]) if row else None
+    if entity_id is not None and entity_type == "address":
+        _merge_address_alias_observations(connection, entity_id, display)
+    return entity_id
+
+
+def _merge_address_alias_observations(connection: Connection, canonical_entity_id: int, display_name: str) -> None:
+    canonical_key = _entity_key("address", display_name)
+    alias_keys = set()
+    if "cranberry-highway" in canonical_key:
+        alias_keys.add(canonical_key.replace("cranberry-highway", "cran-highway"))
+        alias_keys.add(canonical_key.replace("cranberry-highway", "cran-hwy"))
+    if not alias_keys:
+        return
+
+    with connection.cursor() as cursor:
+        for alias_key in alias_keys:
+            cursor.execute(
+                """
+                UPDATE source_observations so
+                INNER JOIN context_entities old_entity ON old_entity.id = so.entity_id
+                LEFT JOIN source_observations duplicate_observation
+                  ON duplicate_observation.source_item_id = so.source_item_id
+                 AND duplicate_observation.entity_id = %s
+                 AND duplicate_observation.observation_type = so.observation_type
+                 AND duplicate_observation.observation_label = so.observation_label
+                 AND duplicate_observation.source_url = so.source_url
+                SET so.entity_id = %s,
+                    so.updated_at = NOW()
+                WHERE old_entity.entity_type = 'address'
+                  AND old_entity.normalized_key = %s
+                  AND duplicate_observation.id IS NULL
+                """,
+                (canonical_entity_id, canonical_entity_id, alias_key),
+            )
 
 
 def _extract_entities(text: str) -> List[Tuple[str, str]]:

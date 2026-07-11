@@ -226,15 +226,28 @@ function newsroom_maybe_trigger_worker_refresh(): void
         }
         if (!$needsContextBootstrap && $contextTableCount > 0) {
             $leakStatement = newsroom_db()->query(
-                'SELECT COUNT(*) AS leaked_followthrough_count
-                 FROM source_observations so
-                 INNER JOIN context_entities ce ON ce.id = so.entity_id
-                 WHERE so.observation_type IN ("meeting_recording", "posted_minutes", "posted_agenda")
-                   AND ce.entity_type <> "meeting"
-                   AND so.is_public_context = 1'
+                'SELECT
+                    (SELECT COUNT(*)
+                     FROM source_observations so
+                     INNER JOIN context_entities ce ON ce.id = so.entity_id
+                     WHERE so.observation_type IN ("meeting_recording", "posted_minutes", "posted_agenda")
+                       AND ce.entity_type <> "meeting"
+                       AND so.is_public_context = 1) AS leaked_followthrough_count,
+                    (SELECT COUNT(*)
+                     FROM source_observations so
+                     INNER JOIN context_entities ce ON ce.id = so.entity_id
+                     WHERE ce.entity_type = "address"
+                       AND ce.normalized_key LIKE "%-cran-highway"
+                       AND so.is_public_context = 1) AS legacy_cran_highway_count'
             );
             $leakState = $leakStatement ? $leakStatement->fetch() : false;
-            if ($leakState && (int) ($leakState['leaked_followthrough_count'] ?? 0) > 0) {
+            if (
+                $leakState
+                && (
+                    (int) ($leakState['leaked_followthrough_count'] ?? 0) > 0
+                    || (int) ($leakState['legacy_cran_highway_count'] ?? 0) > 0
+                )
+            ) {
                 $needsContextBootstrap = true;
             }
         }
@@ -1807,15 +1820,15 @@ function newsroom_story_context_heading(array $story, array $bundle = []): strin
         }
     }
 
-    if (in_array('town-meeting', $topicSlugs, true) || in_array('town_meeting_record', $types, true)) {
-        return 'Town Meeting Record Context';
-    }
     if (
         array_intersect($topicSlugs, ['development', 'zoning', 'housing'])
         || preg_match('/\b(planning|zoning|conservation)\b/', $body)
         || in_array('permit_report', $types, true)
     ) {
         return 'Land-Use Record Context';
+    }
+    if (in_array('town-meeting', $topicSlugs, true) || in_array('town_meeting_record', $types, true)) {
+        return 'Town Meeting Record Context';
     }
     if (in_array('environment', $topicSlugs, true) || in_array('environment_context', $types, true)) {
         return 'Environmental Record Context';
