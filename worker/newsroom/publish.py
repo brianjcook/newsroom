@@ -3294,10 +3294,13 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 de.title AS extraction_title,
                 de.structured_json,
                 de.confidence_score,
-                de.warnings_json
+                de.warnings_json,
+                COALESCE(src.auto_publish_allowed, 1) AS auto_publish_allowed,
+                COALESCE(src.automation_mode, 'auto_publish') AS source_automation_mode
             FROM meetings m
             INNER JOIN meeting_artifacts ma ON ma.meeting_id = m.id
             INNER JOIN source_items si ON si.id = ma.source_item_id
+            INNER JOIN sources src ON src.id = si.source_id
             LEFT JOIN documents d ON d.id = ma.document_id
             LEFT JOIN (
                 SELECT de1.*
@@ -3315,6 +3318,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         rows = cursor.fetchall()
 
     for row in _select_best_meeting_artifacts(rows):
+        if int(row.get("auto_publish_allowed") or 0) != 1:
+            continue
+
         meeting_id = int(row["meeting_id"])
         artifact_type = row["artifact_type"] or ""
         story_type = "minutes_recap" if artifact_type == "minutes" else "meeting_preview"
@@ -3575,10 +3581,12 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 ma.artifact_type,
                 ma.format AS artifact_format,
                 ma.is_amended,
-                si.canonical_url
+                si.canonical_url,
+                COALESCE(src.auto_publish_allowed, 1) AS auto_publish_allowed
             FROM meetings m
             INNER JOIN meeting_artifacts ma ON ma.meeting_id = m.id
             INNER JOIN source_items si ON si.id = ma.source_item_id
+            INNER JOIN sources src ON src.id = si.source_id
             WHERE m.meeting_date IS NOT NULL
               AND ma.is_primary = 1
             ORDER BY m.meeting_date ASC, m.id ASC
@@ -3587,6 +3595,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         meeting_rows = cursor.fetchall()
 
     for row in meeting_rows:
+        if int(row.get("auto_publish_allowed") or 0) != 1:
+            continue
+
         body_name = row["governing_body"]
         if not body_name:
             continue

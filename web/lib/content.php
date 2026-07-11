@@ -1609,6 +1609,117 @@ function newsroom_story_citations(int $storyId): array
     return $statement->fetchAll();
 }
 
+function newsroom_public_observation_label(string $type): string
+{
+    $labels = [
+        'permit_report' => 'Permit report',
+        'town_meeting_record' => 'Town Meeting record',
+        'bid_or_rfp' => 'Bid or RFP',
+        'environment_context' => 'Environmental context',
+        'meeting_record' => 'Meeting record',
+        'public_record' => 'Public record',
+    ];
+    return $labels[$type] ?? ucwords(str_replace('_', ' ', $type));
+}
+
+function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $observationLimit = 4): array
+{
+    if (!newsroom_db_available() || $storyId <= 0) {
+        return [];
+    }
+
+    try {
+        $entityStatement = newsroom_db()->prepare(
+            'SELECT
+                ce.id,
+                ce.entity_type,
+                ce.display_name,
+                ce.meta_json,
+                scl.relevance_score,
+                scl.context_reason
+             FROM story_context_links scl
+             INNER JOIN context_entities ce ON ce.id = scl.entity_id
+             WHERE scl.story_id = :story_id
+             ORDER BY scl.relevance_score DESC, ce.entity_type ASC, ce.display_name ASC
+             LIMIT :limit'
+        );
+        $entityStatement->bindValue(':story_id', $storyId, PDO::PARAM_INT);
+        $entityStatement->bindValue(':limit', $entityLimit, PDO::PARAM_INT);
+        $entityStatement->execute();
+        $entities = $entityStatement->fetchAll();
+    } catch (Throwable $exception) {
+        return [];
+    }
+
+    if (!$entities) {
+        return [];
+    }
+
+    $bundle = [];
+    $observationStatement = newsroom_db()->prepare(
+        'SELECT
+            so.observation_type,
+            so.observation_label,
+            so.observation_value,
+            so.observed_at,
+            so.source_url,
+            s.name AS source_name,
+            s.authority_tier
+         FROM source_observations so
+         INNER JOIN source_items si ON si.id = so.source_item_id
+         INNER JOIN sources s ON s.id = si.source_id
+         WHERE so.entity_id = :entity_id
+           AND so.is_public_context = 1
+         ORDER BY
+            CASE so.observation_type
+                WHEN "permit_report" THEN 0
+                WHEN "town_meeting_record" THEN 1
+                WHEN "bid_or_rfp" THEN 2
+                WHEN "environment_context" THEN 3
+                ELSE 4
+            END,
+            COALESCE(so.observed_at, so.updated_at) DESC,
+            so.id DESC
+         LIMIT :limit'
+    );
+
+    foreach ($entities as $entity) {
+        $observationStatement->bindValue(':entity_id', (int) $entity['id'], PDO::PARAM_INT);
+        $observationStatement->bindValue(':limit', $observationLimit, PDO::PARAM_INT);
+        $observationStatement->execute();
+        $observations = $observationStatement->fetchAll();
+        if (!$observations && (string) ($entity['entity_type'] ?? '') !== 'address') {
+            continue;
+        }
+
+        $meta = newsroom_parse_json($entity['meta_json'] ?? null);
+        $cleanObservations = [];
+        foreach ($observations as $observation) {
+            $cleanObservations[] = [
+                'type' => (string) ($observation['observation_type'] ?? ''),
+                'type_label' => newsroom_public_observation_label((string) ($observation['observation_type'] ?? '')),
+                'label' => newsroom_public_text((string) ($observation['observation_label'] ?? '')),
+                'value' => newsroom_public_text((string) ($observation['observation_value'] ?? '')),
+                'observed_at' => (string) ($observation['observed_at'] ?? ''),
+                'source_url' => (string) ($observation['source_url'] ?? ''),
+                'source_name' => (string) ($observation['source_name'] ?? ''),
+                'authority_tier' => (string) ($observation['authority_tier'] ?? ''),
+            ];
+        }
+
+        $bundle[] = [
+            'id' => (int) $entity['id'],
+            'entity_type' => (string) ($entity['entity_type'] ?? ''),
+            'display_name' => newsroom_public_text((string) ($entity['display_name'] ?? '')),
+            'context_reason' => newsroom_public_text((string) ($entity['context_reason'] ?? '')),
+            'assessor_search_url' => (string) ($meta['assessor_search_url'] ?? ''),
+            'observations' => $cleanObservations,
+        ];
+    }
+
+    return $bundle;
+}
+
 function newsroom_upcoming_events(int $limit = 10): array
 {
     if (!newsroom_db_available()) {

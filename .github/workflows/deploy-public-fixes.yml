@@ -43,14 +43,22 @@ jobs:
           mkdir web/public/assets
           mkdir worker
           mkdir worker/newsroom
+          mkdir db
+          mkdir db/migrations
           set cmd:fail-exit yes
 
           put -O lib web/lib/content.php
           put -O web/lib web/lib/content.php
+          put -O . web/public/story.php
+          put -O web/public web/public/story.php
           put -O . web/public/calendar.php
           put -O web/public web/public/calendar.php
           put -O assets web/public/assets/styles.css
           put -O web/public/assets web/public/assets/styles.css
+          put -O worker/newsroom worker/newsroom/context.py
+          put -O worker/newsroom worker/newsroom/pipeline.py
           put -O worker/newsroom worker/newsroom/publish.py
+          put -O worker/newsroom worker/newsroom/sources.py
+          put -O db/migrations db/migrations/013_automated_context_layer.sql
           bye
           EOF

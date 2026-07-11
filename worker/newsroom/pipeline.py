@@ -4,6 +4,7 @@ from typing import Dict, List
 
 from .community_calendar import sync_community_calendar
 from .config import load_config
+from .context import sync_context_observations, sync_story_context_links
 from .artifacts import sync_meeting_artifacts
 from .db import connect
 from .documents import fetch_documents, pending_source_items
@@ -13,8 +14,12 @@ from .publish import publish_stories_and_events
 from .sources import (
     discover_buzzards_bay_coalition_news,
     discover_discover_wareham_events,
+    discover_wareham_assessor_reference,
     discover_wareham_agenda_center,
+    discover_wareham_bids_rfps,
     discover_wareham_police_logs,
+    discover_wareham_permit_report_archive,
+    discover_wareham_town_meeting_documents,
     upsert_source_items,
 )
 
@@ -24,6 +29,10 @@ SOURCE_DISCOVERERS = {
     "wareham_police_logs": discover_wareham_police_logs,
     "buzzards_bay_coalition_news": discover_buzzards_bay_coalition_news,
     "discover_wareham_events": discover_discover_wareham_events,
+    "wareham_permit_report_archive": discover_wareham_permit_report_archive,
+    "wareham_town_meeting_documents": discover_wareham_town_meeting_documents,
+    "wareham_bids_rfps": discover_wareham_bids_rfps,
+    "wareham_assessor_reference": discover_wareham_assessor_reference,
 }
 
 
@@ -111,6 +120,8 @@ def run_daily() -> Dict[str, object]:
         events_updated = 0
         artifacts_synced = 0
         community_events_synced = 0
+        context_observations_synced = 0
+        story_context_links_synced = 0
 
         try:
             if config.source_discovery_enabled:
@@ -147,6 +158,7 @@ def run_daily() -> Dict[str, object]:
                 extractions_created = len(extractions)
                 meetings_normalized = normalize_meetings(connection, extractions)
                 artifacts_synced = sync_meeting_artifacts(connection)
+                context_observations_synced = sync_context_observations(connection, extractions)
             else:
                 warnings.append("No pending source items were available for fetch/extract.")
 
@@ -155,6 +167,7 @@ def run_daily() -> Dict[str, object]:
             stories_updated = published.stories_updated
             events_created = published.events_created
             events_updated = published.events_updated
+            story_context_links_synced = sync_story_context_links(connection)
 
             _finish_run(
                 connection,
@@ -186,6 +199,8 @@ def run_daily() -> Dict[str, object]:
                 "errors": errors,
                 "artifacts_synced": artifacts_synced,
                 "community_events_synced": community_events_synced,
+                "context_observations_synced": context_observations_synced,
+                "story_context_links_synced": story_context_links_synced,
             }
         except Exception as exc:
             errors.append(str(exc))

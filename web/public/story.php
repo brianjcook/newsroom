@@ -23,6 +23,7 @@ $citations = $story ? newsroom_story_citations((int) $story['id']) : [];
 $storyDate = $story ? (string) ($story['display_date'] ?? $story['published_at']) : null;
 $relatedBundle = $story ? newsroom_story_related_bundle($story) : ['topic' => null, 'stories' => [], 'events' => []];
 $nextSteps = $story ? newsroom_story_next_steps($story) : '';
+$contextBundle = $story ? newsroom_story_context_bundle((int) $story['id']) : [];
 $isMeetingStory = $story && in_array((string) $story['story_type'], ['meeting_preview', 'minutes_recap'], true);
 $railAd = newsroom_active_ads('story-rail', 1)[0] ?? null;
 $inlineAd = newsroom_active_ads('story-inline', 1)[0] ?? null;
@@ -149,6 +150,36 @@ http_response_code($story ? 200 : 404);
                 </div>
                 <?php endif; ?>
                 <div><?= $story['body_html'] ?></div>
+                <?php if ($contextBundle): ?>
+                    <section class="story-context">
+                        <h3>Public Record Context</h3>
+                        <?php foreach ($contextBundle as $contextEntity): ?>
+                            <article class="story-context__entity">
+                                <div class="story-context__heading">
+                                    <strong><?= htmlspecialchars((string) $contextEntity['display_name']) ?></strong>
+                                    <?php if ((string) ($contextEntity['entity_type'] ?? '') === 'address' && !empty($contextEntity['assessor_search_url'])): ?>
+                                        <a href="<?= htmlspecialchars((string) $contextEntity['assessor_search_url']) ?>" target="_blank" rel="noopener noreferrer">Assessor search</a>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if (!empty($contextEntity['observations'])): ?>
+                                    <ul class="story-context__list">
+                                        <?php foreach ($contextEntity['observations'] as $observation): ?>
+                                            <li>
+                                                <span class="story-context__type"><?= htmlspecialchars((string) $observation['type_label']) ?></span>
+                                                <span><?= htmlspecialchars((string) $observation['value']) ?></span>
+                                                <?php if (!empty($observation['source_url'])): ?>
+                                                    <a href="<?= htmlspecialchars((string) $observation['source_url']) ?>" target="_blank" rel="noopener noreferrer"><?= htmlspecialchars((string) ($observation['source_name'] ?: 'Source')) ?></a>
+                                                <?php endif; ?>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php elseif ((string) ($contextEntity['entity_type'] ?? '') === 'address'): ?>
+                                    <p class="story-context__empty">This address was identified in the public record. Additional permit or meeting context will appear here as source documents are indexed.</p>
+                                <?php endif; ?>
+                            </article>
+                        <?php endforeach; ?>
+                    </section>
+                <?php endif; ?>
                 <?php if ($inlineAd): ?>
                     <section class="ad-unit ad-unit--inline">
                         <div class="ad-unit__label"><?= htmlspecialchars((string) $inlineAd['label']) ?></div>

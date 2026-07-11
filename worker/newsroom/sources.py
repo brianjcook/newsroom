@@ -28,6 +28,9 @@ WAREHAM_POLICE_LOGS_URL = "https://www.wareham.ma.us/DocumentCenter/Index/316"
 WAREHAM_POLICE_TREE_URL = "https://www.wareham.ma.us/admin/DocumentCenter/Home/_AjaxLoadingReact?type=0"
 WAREHAM_POLICE_DOCS_URL = "https://www.wareham.ma.us/Admin/DocumentCenter/Home/Document_AjaxBinding?renderMode=0&loadSource=7"
 BUZZARDS_BAY_COALITION_NEWS_URL = "https://www.savebuzzardsbay.org/news/"
+WAREHAM_PERMIT_REPORT_ARCHIVE_URL = "https://www.wareham.gov/Archive.aspx?AMID=63"
+WAREHAM_TOWN_MEETING_URL = "https://www.wareham.gov/351/Town-Meeting-Information"
+WAREHAM_BIDS_URL = "https://www.wareham.gov/bids.aspx"
 
 
 def _normalize_label(text: str) -> str:
@@ -394,6 +397,136 @@ def discover_discover_wareham_events(config: WorkerConfig) -> List[DiscoveredIte
     return []
 
 
+def _parse_month_year(value: str) -> Optional[str]:
+    cleaned = re.sub(r"\s*\(PDF\)\s*$", "", _normalize_label(value), flags=re.IGNORECASE)
+    for candidate in ("%B %Y", "%b %Y"):
+        try:
+            stamp = datetime.strptime(cleaned, candidate)
+            return stamp.strftime("%Y-%m-01 00:00:00")
+        except ValueError:
+            continue
+    return None
+
+
+def discover_wareham_permit_report_archive(config: WorkerConfig) -> List[DiscoveredItem]:
+    session = _session_with_headers(config)
+    response = session.get(WAREHAM_PERMIT_REPORT_ARCHIVE_URL, timeout=30)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    discovered = []
+    current_month = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    for anchor in soup.select('a[href*="Archive.aspx?ADID="]'):
+        href = (anchor.get("href") or "").strip()
+        title = _normalize_label(anchor.get_text(" ", strip=True))
+        if not href or not title:
+            continue
+        published_at = _parse_month_year(title)
+        if published_at:
+            try:
+                report_month = datetime.strptime(published_at, "%Y-%m-%d %H:%M:%S")
+                month_delta = (current_month.year - report_month.year) * 12 + (current_month.month - report_month.month)
+                if month_delta < 0 or month_delta > 18:
+                    continue
+            except ValueError:
+                pass
+        raw_meta = {
+            "discovered_from": "wareham_permit_report_archive",
+            "source_name": "Wareham Permit Report Archive",
+            "archive_label": re.sub(r"\s*\(PDF\)\s*$", "", title, flags=re.IGNORECASE),
+            "context_domain": "land_use",
+            "publication_guardrail": "context_only",
+        }
+        _register_item(
+            discovered,
+            urljoin(WAREHAM_PERMIT_REPORT_ARCHIVE_URL, href),
+            "Permit Report: {}".format(raw_meta["archive_label"]),
+            "permit_report",
+            raw_meta,
+            published_at,
+        )
+
+    unique_by_url = {item.canonical_url: item for item in discovered}
+    return list(unique_by_url.values())
+
+
+def discover_wareham_town_meeting_documents(config: WorkerConfig) -> List[DiscoveredItem]:
+    session = _session_with_headers(config)
+    response = session.get(WAREHAM_TOWN_MEETING_URL, timeout=30)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    discovered = []
+    needles = ("town meeting", "warrant", "finance committee report", "capital plan", "minutes")
+    for anchor in soup.select("a[href]"):
+        href = (anchor.get("href") or "").strip()
+        title = _normalize_label(anchor.get_text(" ", strip=True))
+        if not href or not title:
+            continue
+        lowered = "{} {}".format(title, href).lower()
+        if "documentcenter/view" not in lowered:
+            continue
+        if not any(needle in lowered for needle in needles):
+            continue
+        raw_meta = {
+            "discovered_from": "wareham_town_meeting_documents",
+            "source_name": "Wareham Town Meeting Documents",
+            "context_domain": "town_meeting",
+            "publication_guardrail": "context_only",
+        }
+        _register_item(
+            discovered,
+            urljoin(WAREHAM_TOWN_MEETING_URL, href),
+            title,
+            "town_meeting_record",
+            raw_meta,
+            _parse_human_datetime(title),
+        )
+
+    unique_by_url = {item.canonical_url: item for item in discovered}
+    return list(unique_by_url.values())
+
+
+def discover_wareham_bids_rfps(config: WorkerConfig) -> List[DiscoveredItem]:
+    session = _session_with_headers(config)
+    response = session.get(WAREHAM_BIDS_URL, timeout=30)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    discovered = []
+    for anchor in soup.select("a[href]"):
+        href = (anchor.get("href") or "").strip()
+        title = _normalize_label(anchor.get_text(" ", strip=True))
+        if not href or not title:
+            continue
+        lowered = "{} {}".format(title, href).lower()
+        if not any(token in lowered for token in ("bid", "rfp", "request for proposals", "proposal", "contract")):
+            continue
+        if "subscribe" in lowered or "list.aspx" in lowered:
+            continue
+        raw_meta = {
+            "discovered_from": "wareham_bids_rfps",
+            "source_name": "Wareham Bids and RFPs",
+            "context_domain": "procurement",
+            "publication_guardrail": "context_only",
+        }
+        _register_item(
+            discovered,
+            urljoin(WAREHAM_BIDS_URL, href),
+            title,
+            "bid_or_rfp",
+            raw_meta,
+            None,
+        )
+
+    unique_by_url = {item.canonical_url: item for item in discovered}
+    return list(unique_by_url.values())
+
+
+def discover_wareham_assessor_reference(config: WorkerConfig) -> List[DiscoveredItem]:
+    return []
+
+
 def upsert_source_items(connection: Connection, source_id: int, items: Iterable[DiscoveredItem]) -> int:
     discovered_count = 0
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
@@ -440,6 +573,11 @@ def upsert_source_items(connection: Connection, source_id: int, items: Iterable[
                     raw_meta_json
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'discovered', %s)
                 ON DUPLICATE KEY UPDATE
+                    status = IF(
+                        COALESCE(content_hash, '') <> COALESCE(VALUES(content_hash), ''),
+                        'updated',
+                        status
+                    ),
                     title = VALUES(title),
                     item_type = VALUES(item_type),
                     published_at = COALESCE(VALUES(published_at), published_at),
