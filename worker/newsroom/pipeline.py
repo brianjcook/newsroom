@@ -4,7 +4,7 @@ from typing import Dict, List
 
 from .community_calendar import sync_community_calendar
 from .config import load_config
-from .context import sync_context_observations, sync_story_context_links
+from .context import ensure_context_schema, sync_context_observations, sync_story_context_links
 from .artifacts import sync_meeting_artifacts
 from .db import connect
 from .documents import fetch_documents, pending_source_items
@@ -124,6 +124,8 @@ def run_daily() -> Dict[str, object]:
         story_context_links_synced = 0
 
         try:
+            ensure_context_schema(connection)
+
             if config.source_discovery_enabled:
                 with connection.cursor() as cursor:
                     cursor.execute(

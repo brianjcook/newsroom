@@ -37,6 +37,16 @@ PUBLIC_SAFETY_SOURCE_SLUGS = {"wareham-police-logs"}
 ASSESSOR_SEARCH_URL = "https://gis.vgsi.com/warehamma/Search.aspx"
 
 
+SOURCE_COLUMN_DEFINITIONS = {
+    "automation_mode": "ALTER TABLE sources ADD COLUMN automation_mode VARCHAR(32) NOT NULL DEFAULT 'auto_publish' AFTER parser_key",
+    "authority_tier": "ALTER TABLE sources ADD COLUMN authority_tier VARCHAR(32) NOT NULL DEFAULT 'official' AFTER automation_mode",
+    "privacy_risk": "ALTER TABLE sources ADD COLUMN privacy_risk VARCHAR(32) NOT NULL DEFAULT 'low' AFTER authority_tier",
+    "context_enabled": "ALTER TABLE sources ADD COLUMN context_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER privacy_risk",
+    "auto_publish_allowed": "ALTER TABLE sources ADD COLUMN auto_publish_allowed TINYINT(1) NOT NULL DEFAULT 1 AFTER context_enabled",
+    "attribution_note": "ALTER TABLE sources ADD COLUMN attribution_note VARCHAR(255) DEFAULT NULL AFTER auto_publish_allowed",
+}
+
+
 def _clean_text(value: object) -> str:
     return " ".join(str(value or "").replace("\xa0", " ").split())
 
@@ -59,8 +69,297 @@ def _table_exists(connection: Connection, table_name: str) -> bool:
         return cursor.fetchone() is not None
 
 
+def _column_exists(connection: Connection, table_name: str, column_name: str) -> bool:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT 1
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = %s
+              AND COLUMN_NAME = %s
+            LIMIT 1
+            """,
+            (table_name, column_name),
+        )
+        return cursor.fetchone() is not None
+
+
 def context_tables_available(connection: Connection) -> bool:
     return _table_exists(connection, "context_entities") and _table_exists(connection, "source_observations")
+
+
+def _ensure_source_governance_columns(connection: Connection) -> None:
+    if not _table_exists(connection, "sources"):
+        return
+    with connection.cursor() as cursor:
+        for column_name, statement in SOURCE_COLUMN_DEFINITIONS.items():
+            if not _column_exists(connection, "sources", column_name):
+                cursor.execute(statement)
+
+
+def _ensure_context_tables(connection: Connection) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS context_entities (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                municipality_id BIGINT UNSIGNED DEFAULT NULL,
+                entity_type VARCHAR(64) NOT NULL,
+                canonical_name VARCHAR(255) NOT NULL,
+                normalized_key VARCHAR(191) NOT NULL,
+                display_name VARCHAR(255) NOT NULL,
+                meta_json JSON DEFAULT NULL,
+                first_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uniq_context_entities_type_key (entity_type, normalized_key),
+                KEY idx_context_entities_municipality (municipality_id),
+                CONSTRAINT fk_context_entities_municipality
+                    FOREIGN KEY (municipality_id) REFERENCES municipalities (id)
+                    ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS source_observations (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                source_item_id BIGINT UNSIGNED NOT NULL,
+                document_id BIGINT UNSIGNED DEFAULT NULL,
+                entity_id BIGINT UNSIGNED DEFAULT NULL,
+                observation_type VARCHAR(80) NOT NULL,
+                observation_label VARCHAR(255) NOT NULL,
+                observation_value TEXT DEFAULT NULL,
+                observation_json JSON DEFAULT NULL,
+                observed_at DATETIME DEFAULT NULL,
+                source_url VARCHAR(512) NOT NULL,
+                confidence_score DECIMAL(5,2) DEFAULT NULL,
+                is_public_context TINYINT(1) NOT NULL DEFAULT 1,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uniq_source_observation (
+                    source_item_id,
+                    entity_id,
+                    observation_type(32),
+                    observation_label(48),
+                    source_url(64)
+                ),
+                KEY idx_source_observations_entity (entity_id),
+                KEY idx_source_observations_type (observation_type),
+                KEY idx_source_observations_public (is_public_context),
+                CONSTRAINT fk_source_observations_source_item
+                    FOREIGN KEY (source_item_id) REFERENCES source_items (id)
+                    ON DELETE CASCADE,
+                CONSTRAINT fk_source_observations_document
+                    FOREIGN KEY (document_id) REFERENCES documents (id)
+                    ON DELETE SET NULL,
+                CONSTRAINT fk_source_observations_entity
+                    FOREIGN KEY (entity_id) REFERENCES context_entities (id)
+                    ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS story_context_links (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                story_id BIGINT UNSIGNED NOT NULL,
+                entity_id BIGINT UNSIGNED NOT NULL,
+                relevance_score INT NOT NULL DEFAULT 0,
+                context_reason VARCHAR(255) DEFAULT NULL,
+                source_basis_json JSON DEFAULT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uniq_story_context_entity (story_id, entity_id),
+                KEY idx_story_context_entity (entity_id),
+                KEY idx_story_context_score (relevance_score),
+                CONSTRAINT fk_story_context_story
+                    FOREIGN KEY (story_id) REFERENCES stories (id)
+                    ON DELETE CASCADE,
+                CONSTRAINT fk_story_context_entity
+                    FOREIGN KEY (entity_id) REFERENCES context_entities (id)
+                    ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """
+        )
+
+
+def _seed_context_sources(connection: Connection) -> None:
+    source_rows = [
+        {
+            "name": "Wareham Permit Report Archive",
+            "slug": "wareham-permit-report-archive",
+            "source_type": "official_documents",
+            "base_url": "https://www.wareham.gov",
+            "list_url": "https://www.wareham.gov/Archive.aspx?AMID=63",
+            "parser_key": "wareham_permit_report_archive",
+            "automation_mode": "context_only",
+            "authority_tier": "official",
+            "privacy_risk": "low",
+            "context_enabled": 1,
+            "auto_publish_allowed": 0,
+            "attribution_note": "Official monthly permit reports; enrich land-use stories but do not auto-publish standalone stories.",
+            "poll_frequency": "daily",
+            "is_active": 1,
+        },
+        {
+            "name": "Wareham Town Meeting Documents",
+            "slug": "wareham-town-meeting-documents",
+            "source_type": "official_documents",
+            "base_url": "https://www.wareham.gov",
+            "list_url": "https://www.wareham.gov/351/Town-Meeting-Information",
+            "parser_key": "wareham_town_meeting_documents",
+            "automation_mode": "context_only",
+            "authority_tier": "official",
+            "privacy_risk": "low",
+            "context_enabled": 1,
+            "auto_publish_allowed": 0,
+            "attribution_note": "Official Town Meeting warrants, reports, capital plans, and minutes for context.",
+            "poll_frequency": "daily",
+            "is_active": 1,
+        },
+        {
+            "name": "Wareham Bids and RFPs",
+            "slug": "wareham-bids-rfps",
+            "source_type": "official_documents",
+            "base_url": "https://www.wareham.gov",
+            "list_url": "https://www.wareham.gov/bids.aspx",
+            "parser_key": "wareham_bids_rfps",
+            "automation_mode": "context_only",
+            "authority_tier": "official",
+            "privacy_risk": "low",
+            "context_enabled": 1,
+            "auto_publish_allowed": 0,
+            "attribution_note": "Official procurement postings; enrich budget, infrastructure, and contract stories.",
+            "poll_frequency": "daily",
+            "is_active": 1,
+        },
+        {
+            "name": "Wareham Assessor Reference",
+            "slug": "wareham-assessor-reference",
+            "source_type": "official_reference",
+            "base_url": "https://gis.vgsi.com/warehamma/",
+            "list_url": "https://gis.vgsi.com/warehamma/",
+            "parser_key": "wareham_assessor_reference",
+            "automation_mode": "context_reference",
+            "authority_tier": "official",
+            "privacy_risk": "low",
+            "context_enabled": 1,
+            "auto_publish_allowed": 0,
+            "attribution_note": "Official assessor reference used for generated parcel and property-record links.",
+            "poll_frequency": "weekly",
+            "is_active": 1,
+        },
+    ]
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE sources
+            SET automation_mode = 'auto_publish',
+                authority_tier = 'official',
+                privacy_risk = 'low',
+                context_enabled = 1,
+                auto_publish_allowed = 1,
+                attribution_note = 'Official Town of Wareham agenda and minutes records.'
+            WHERE slug = 'wareham-agenda-center'
+            """
+        )
+        cursor.execute(
+            """
+            UPDATE sources
+            SET automation_mode = 'guarded_context',
+                authority_tier = 'official',
+                privacy_risk = 'high',
+                context_enabled = 1,
+                auto_publish_allowed = 0,
+                attribution_note = 'Official public-safety logs; never auto-publish individual-log stories.'
+            WHERE slug = 'wareham-police-logs'
+            """
+        )
+        cursor.execute(
+            """
+            UPDATE sources
+            SET automation_mode = 'context_only',
+                authority_tier = 'specialized',
+                privacy_risk = 'low',
+                context_enabled = 1,
+                auto_publish_allowed = 0,
+                attribution_note = 'Outside environmental context source; use for attribution and context only.'
+            WHERE slug = 'buzzards-bay-coalition-news'
+            """
+        )
+        cursor.execute(
+            """
+            UPDATE sources
+            SET automation_mode = 'calendar_sync',
+                authority_tier = 'community',
+                privacy_risk = 'low',
+                context_enabled = 1,
+                auto_publish_allowed = 1,
+                attribution_note = 'Community event listings synced into the public calendar.'
+            WHERE slug = 'discover-wareham-events'
+            """
+        )
+        for row in source_rows:
+            cursor.execute(
+                """
+                INSERT INTO sources (
+                    name,
+                    slug,
+                    source_type,
+                    base_url,
+                    list_url,
+                    parser_key,
+                    automation_mode,
+                    authority_tier,
+                    privacy_risk,
+                    context_enabled,
+                    auto_publish_allowed,
+                    attribution_note,
+                    poll_frequency,
+                    is_active
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    name = VALUES(name),
+                    source_type = VALUES(source_type),
+                    base_url = VALUES(base_url),
+                    list_url = VALUES(list_url),
+                    parser_key = VALUES(parser_key),
+                    automation_mode = VALUES(automation_mode),
+                    authority_tier = VALUES(authority_tier),
+                    privacy_risk = VALUES(privacy_risk),
+                    context_enabled = VALUES(context_enabled),
+                    auto_publish_allowed = VALUES(auto_publish_allowed),
+                    attribution_note = VALUES(attribution_note),
+                    poll_frequency = VALUES(poll_frequency),
+                    is_active = VALUES(is_active)
+                """,
+                (
+                    row["name"],
+                    row["slug"],
+                    row["source_type"],
+                    row["base_url"],
+                    row["list_url"],
+                    row["parser_key"],
+                    row["automation_mode"],
+                    row["authority_tier"],
+                    row["privacy_risk"],
+                    row["context_enabled"],
+                    row["auto_publish_allowed"],
+                    row["attribution_note"],
+                    row["poll_frequency"],
+                    row["is_active"],
+                ),
+            )
+
+
+def ensure_context_schema(connection: Connection) -> None:
+    _ensure_source_governance_columns(connection)
+    _ensure_context_tables(connection)
+    _seed_context_sources(connection)
 
 
 def _wareham_municipality_id(connection: Connection) -> Optional[int]:
