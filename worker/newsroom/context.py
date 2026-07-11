@@ -34,6 +34,8 @@ PROJECT_PATTERNS = (
 )
 
 PUBLIC_SAFETY_SOURCE_SLUGS = {"wareham-police-logs"}
+MEETING_FOLLOWTHROUGH_OBSERVATION_TYPES = {"meeting_recording", "posted_minutes", "posted_agenda"}
+COMMON_MEETING_ADDRESS_KEYS = {"48-marion-road"}
 ASSESSOR_SEARCH_URL = "https://gis.vgsi.com/warehamma/Search.aspx"
 MEETING_DATE_PATTERNS = (
     "%Y-%m-%d",
@@ -383,6 +385,24 @@ def ensure_context_schema(connection: Connection) -> None:
     _ensure_source_governance_columns(connection)
     _ensure_context_tables(connection)
     _seed_context_sources(connection)
+    _enforce_context_guardrails(connection)
+
+
+def _enforce_context_guardrails(connection: Connection) -> None:
+    if not context_tables_available(connection):
+        return
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE source_observations so
+            INNER JOIN context_entities ce ON ce.id = so.entity_id
+            SET so.is_public_context = 0,
+                so.updated_at = NOW()
+            WHERE so.observation_type IN ('meeting_recording', 'posted_minutes', 'posted_agenda')
+              AND ce.entity_type <> 'meeting'
+              AND so.is_public_context = 1
+            """
+        )
 
 
 def _wareham_municipality_id(connection: Connection) -> Optional[int]:
@@ -789,6 +809,8 @@ def sync_context_observations(connection: Connection, extractions: Sequence[Extr
         label = title or str(row.get("source_name") or "Public record")
 
         for entity_type, display_name in entities:
+            if observation_type in MEETING_FOLLOWTHROUGH_OBSERVATION_TYPES and entity_type != "meeting":
+                continue
             entity_id = _upsert_entity(connection, entity_type, display_name)
             if entity_id is None:
                 continue
@@ -877,10 +899,16 @@ def sync_story_context_links(connection: Connection) -> int:
             cursor.execute("DELETE FROM story_context_links WHERE story_id = %s", (int(story["id"]),))
 
         for entity_type, display_name in entities:
+            headline_text = " ".join([_clean_text(story.get("headline")), _clean_text(story.get("dek"))]).lower()
+            if (
+                entity_type == "address"
+                and _entity_key("address", display_name) in COMMON_MEETING_ADDRESS_KEYS
+                and display_name.lower() not in headline_text
+            ):
+                continue
             entity_id = _upsert_entity(connection, entity_type, display_name)
             if entity_id is None:
                 continue
-            headline_text = " ".join([_clean_text(story.get("headline")), _clean_text(story.get("dek"))]).lower()
             relevance = 85 if display_name.lower() in headline_text else 60
             reason = "Mentioned in story headline or dek" if relevance >= 80 else "Mentioned in story text"
             with connection.cursor() as cursor:

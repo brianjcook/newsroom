@@ -217,10 +217,26 @@ function newsroom_maybe_trigger_worker_refresh(): void
                 (SELECT COUNT(*) FROM sources WHERE slug = "wareham-media-recordings") AS media_source_count'
         );
         $bootstrapState = $bootstrapStatement ? $bootstrapStatement->fetch() : false;
+        $contextTableCount = 0;
         if ($bootstrapState) {
-            $needsContextBootstrap = (int) ($bootstrapState['context_table_count'] ?? 0) === 0
+            $contextTableCount = (int) ($bootstrapState['context_table_count'] ?? 0);
+            $needsContextBootstrap = $contextTableCount === 0
                 || (int) ($bootstrapState['source_column_count'] ?? 0) === 0
                 || (int) ($bootstrapState['media_source_count'] ?? 0) === 0;
+        }
+        if (!$needsContextBootstrap && $contextTableCount > 0) {
+            $leakStatement = newsroom_db()->query(
+                'SELECT COUNT(*) AS leaked_followthrough_count
+                 FROM source_observations so
+                 INNER JOIN context_entities ce ON ce.id = so.entity_id
+                 WHERE so.observation_type IN ("meeting_recording", "posted_minutes", "posted_agenda")
+                   AND ce.entity_type <> "meeting"
+                   AND so.is_public_context = 1'
+            );
+            $leakState = $leakStatement ? $leakStatement->fetch() : false;
+            if ($leakState && (int) ($leakState['leaked_followthrough_count'] ?? 0) > 0) {
+                $needsContextBootstrap = true;
+            }
         }
     } catch (Throwable $exception) {
         $needsContextBootstrap = false;
@@ -1840,7 +1856,7 @@ function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $
              FROM story_context_links scl
              INNER JOIN context_entities ce ON ce.id = scl.entity_id
              WHERE scl.story_id = :story_id
-             ORDER BY public_observation_count DESC, scl.relevance_score DESC, ce.entity_type ASC, ce.display_name ASC
+             ORDER BY scl.relevance_score DESC, public_observation_count DESC, ce.entity_type ASC, ce.display_name ASC
              LIMIT :limit'
         );
         $entityStatement->bindValue(':story_id', $storyId, PDO::PARAM_INT);
