@@ -231,7 +231,7 @@ function newsroom_maybe_trigger_worker_refresh(): void
     }
 
     $kickFile = $logsDir . DIRECTORY_SEPARATOR . 'worker-kick.txt';
-    if (is_file($kickFile)) {
+    if (!$needsContextBootstrap && is_file($kickFile)) {
         $lastKick = @filemtime($kickFile);
         if (is_int($lastKick) && $lastKick > ($now - 1800)) {
             return;
