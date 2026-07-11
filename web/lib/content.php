@@ -331,6 +331,8 @@ function newsroom_fix_source_artifacts(string $value): string
         'School Choice 2026-2027-VOTE' => 'School Choice 2026-2027 vote',
         'The ART of CANVA' => 'The Art of Canva',
         'ART of CANVA' => 'Art of Canva',
+        'CRAN Highway' => 'Cranberry Highway',
+        'CRAN Hwy' => 'Cranberry Highway',
         'Cran Hwy' => 'Cranberry Highway',
         'Cran Highway' => 'Cranberry Highway',
         'Large Scale Ground Mounted' => 'Large-Scale Ground-Mounted',
@@ -1652,11 +1654,17 @@ function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $
                 ce.display_name,
                 ce.meta_json,
                 scl.relevance_score,
-                scl.context_reason
+                scl.context_reason,
+                (
+                    SELECT COUNT(*)
+                    FROM source_observations so_count
+                    WHERE so_count.entity_id = ce.id
+                      AND so_count.is_public_context = 1
+                ) AS public_observation_count
              FROM story_context_links scl
              INNER JOIN context_entities ce ON ce.id = scl.entity_id
              WHERE scl.story_id = :story_id
-             ORDER BY scl.relevance_score DESC, ce.entity_type ASC, ce.display_name ASC
+             ORDER BY public_observation_count DESC, scl.relevance_score DESC, ce.entity_type ASC, ce.display_name ASC
              LIMIT :limit'
         );
         $entityStatement->bindValue(':story_id', $storyId, PDO::PARAM_INT);
@@ -1699,7 +1707,17 @@ function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $
          LIMIT :limit'
     );
 
+    $seenContextDisplayKeys = [];
     foreach ($entities as $entity) {
+        $displayName = newsroom_public_text((string) ($entity['display_name'] ?? ''));
+        $displayKey = strtolower((string) preg_replace('/[^a-z0-9]+/i', '-', $displayName));
+        if ($displayKey !== '' && isset($seenContextDisplayKeys[$displayKey])) {
+            continue;
+        }
+        if ($displayKey !== '') {
+            $seenContextDisplayKeys[$displayKey] = true;
+        }
+
         $observationStatement->bindValue(':entity_id', (int) $entity['id'], PDO::PARAM_INT);
         $observationStatement->bindValue(':limit', $observationLimit, PDO::PARAM_INT);
         $observationStatement->execute();
@@ -1726,7 +1744,7 @@ function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $
         $bundle[] = [
             'id' => (int) $entity['id'],
             'entity_type' => (string) ($entity['entity_type'] ?? ''),
-            'display_name' => newsroom_public_text((string) ($entity['display_name'] ?? '')),
+            'display_name' => $displayName,
             'context_reason' => newsroom_public_text((string) ($entity['context_reason'] ?? '')),
             'assessor_search_url' => (string) ($meta['assessor_search_url'] ?? ''),
             'observations' => $cleanObservations,
