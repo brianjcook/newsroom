@@ -208,7 +208,23 @@ function newsroom_maybe_trigger_worker_refresh(): void
         return;
     }
 
-    if (is_int($finishedAt) && $finishedAt > ($now - 43200)) {
+    $needsContextBootstrap = false;
+    try {
+        $bootstrapStatement = newsroom_db()->query(
+            'SELECT
+                (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "context_entities") AS context_table_count,
+                (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "sources" AND COLUMN_NAME = "auto_publish_allowed") AS source_column_count'
+        );
+        $bootstrapState = $bootstrapStatement ? $bootstrapStatement->fetch() : false;
+        if ($bootstrapState) {
+            $needsContextBootstrap = (int) ($bootstrapState['context_table_count'] ?? 0) === 0
+                || (int) ($bootstrapState['source_column_count'] ?? 0) === 0;
+        }
+    } catch (Throwable $exception) {
+        $needsContextBootstrap = false;
+    }
+
+    if (!$needsContextBootstrap && is_int($finishedAt) && $finishedAt > ($now - 43200)) {
         return;
     }
 
