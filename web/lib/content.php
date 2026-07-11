@@ -213,12 +213,14 @@ function newsroom_maybe_trigger_worker_refresh(): void
         $bootstrapStatement = newsroom_db()->query(
             'SELECT
                 (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "context_entities") AS context_table_count,
-                (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "sources" AND COLUMN_NAME = "auto_publish_allowed") AS source_column_count'
+                (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "sources" AND COLUMN_NAME = "auto_publish_allowed") AS source_column_count,
+                (SELECT COUNT(*) FROM sources WHERE slug = "wareham-media-recordings") AS media_source_count'
         );
         $bootstrapState = $bootstrapStatement ? $bootstrapStatement->fetch() : false;
         if ($bootstrapState) {
             $needsContextBootstrap = (int) ($bootstrapState['context_table_count'] ?? 0) === 0
-                || (int) ($bootstrapState['source_column_count'] ?? 0) === 0;
+                || (int) ($bootstrapState['source_column_count'] ?? 0) === 0
+                || (int) ($bootstrapState['media_source_count'] ?? 0) === 0;
         }
     } catch (Throwable $exception) {
         $needsContextBootstrap = false;
@@ -1634,10 +1636,184 @@ function newsroom_public_observation_label(string $type): string
         'town_meeting_record' => 'Town Meeting record',
         'bid_or_rfp' => 'Bid or RFP',
         'environment_context' => 'Environmental context',
+        'posted_agenda' => 'Posted agenda',
+        'posted_minutes' => 'Posted minutes',
+        'meeting_recording' => 'Meeting recording',
         'meeting_record' => 'Meeting record',
         'public_record' => 'Public record',
     ];
     return $labels[$type] ?? ucwords(str_replace('_', ' ', $type));
+}
+
+function newsroom_context_observation_value(array $observation, array $details): string
+{
+    $type = (string) ($observation['observation_type'] ?? '');
+    $value = newsroom_public_text((string) ($observation['observation_value'] ?? ''));
+
+    if ($type === 'meeting_recording') {
+        return $value !== '' ? $value : 'Wareham Media posted a recording for this meeting.';
+    }
+    if ($type === 'posted_minutes') {
+        return $value !== '' ? $value : 'Posted minutes are available for this meeting.';
+    }
+    if ($type === 'posted_agenda') {
+        return $value !== '' ? $value : 'Posted agenda is available for this meeting.';
+    }
+    if ($type !== 'permit_report') {
+        return newsroom_truncate_text($value, 320);
+    }
+
+    $parts = [];
+    $permitType = newsroom_public_text((string) ($details['permit_type'] ?? ''));
+    if ($permitType !== '') {
+        $parts[] = $permitType . (stripos($permitType, 'permit') === false ? ' permit' : '');
+    }
+    $status = newsroom_public_text((string) ($details['status'] ?? ''));
+    if ($status !== '') {
+        $parts[] = ucfirst(strtolower($status));
+    }
+    $numbers = isset($details['permit_numbers']) && is_array($details['permit_numbers'])
+        ? array_values(array_filter(array_map('strval', $details['permit_numbers'])))
+        : [];
+    if ($numbers) {
+        $parts[] = 'Permit ' . $numbers[0];
+    }
+    $dates = isset($details['dates']) && is_array($details['dates'])
+        ? array_values(array_filter(array_map('strval', $details['dates'])))
+        : [];
+    if ($dates) {
+        $stamp = strtotime($dates[0]);
+        $parts[] = $stamp !== false ? date('F j, Y', $stamp) : $dates[0];
+    }
+
+    $description = newsroom_public_text((string) ($details['description'] ?? ''));
+    if ($description === '') {
+        $description = $value;
+    }
+    $description = newsroom_truncate_text($description, 320);
+
+    if ($parts && $description !== '') {
+        return implode(', ', $parts) . '. ' . $description;
+    }
+    if ($parts) {
+        return implode(', ', $parts) . '.';
+    }
+    return $description;
+}
+
+function newsroom_context_observation_key(array $observation, array $details, string $displayName): string
+{
+    $type = (string) ($observation['observation_type'] ?? '');
+    $value = newsroom_public_text((string) ($observation['observation_value'] ?? ''));
+
+    if ($type === 'permit_report') {
+        $numbers = isset($details['permit_numbers']) && is_array($details['permit_numbers'])
+            ? implode('|', array_map('strval', $details['permit_numbers']))
+            : '';
+        $descriptionFingerprint = (string) ($details['description'] ?? ($value !== '' ? $value : $displayName));
+        $fingerprint = implode('|', [
+            $type,
+            (string) ($details['permit_type'] ?? ''),
+            (string) ($details['status'] ?? ''),
+            $numbers,
+            newsroom_truncate_text($descriptionFingerprint, 160),
+        ]);
+    } else {
+        $fingerprint = implode('|', [
+            $type,
+            $value !== '' ? $value : (string) ($observation['observation_label'] ?? ''),
+        ]);
+    }
+
+    $key = strtolower((string) preg_replace('/[^a-z0-9]+/i', '-', $fingerprint));
+    return trim($key, '-') ?: strtolower($type ?: 'observation');
+}
+
+function newsroom_group_context_observations(array $observations, int $limit, string $displayName): array
+{
+    $groups = [];
+    foreach ($observations as $observation) {
+        $details = newsroom_parse_json($observation['observation_json'] ?? null);
+        $key = newsroom_context_observation_key($observation, $details, $displayName);
+        if (!isset($groups[$key])) {
+            $groups[$key] = [
+                'type' => (string) ($observation['observation_type'] ?? ''),
+                'type_label' => newsroom_public_observation_label((string) ($observation['observation_type'] ?? '')),
+                'label' => newsroom_public_text((string) ($observation['observation_label'] ?? '')),
+                'value' => newsroom_context_observation_value($observation, $details),
+                'observed_at' => (string) ($observation['observed_at'] ?? ''),
+                'source_url' => (string) ($observation['source_url'] ?? ''),
+                'source_name' => (string) ($observation['source_name'] ?? ''),
+                'authority_tier' => (string) ($observation['authority_tier'] ?? ''),
+                'source_count' => 0,
+                'sources' => [],
+                'details' => $details,
+                '_source_keys' => [],
+            ];
+        }
+
+        $sourceUrl = (string) ($observation['source_url'] ?? '');
+        $sourceName = (string) ($observation['source_name'] ?? '');
+        $sourceKey = $sourceUrl !== '' ? $sourceUrl : $sourceName;
+        if ($sourceKey !== '' && !isset($groups[$key]['_source_keys'][$sourceKey])) {
+            $groups[$key]['_source_keys'][$sourceKey] = true;
+            $groups[$key]['sources'][] = [
+                'url' => $sourceUrl,
+                'name' => $sourceName !== '' ? $sourceName : 'Source',
+            ];
+        }
+    }
+
+    $clean = [];
+    foreach ($groups as $group) {
+        $group['source_count'] = count($group['sources']);
+        unset($group['_source_keys']);
+        if ($group['source_count'] > 1 && (string) $group['type'] === 'permit_report') {
+            $group['value'] = 'Appears in ' . $group['source_count'] . ' Wareham permit reports. ' . $group['value'];
+        }
+        $clean[] = $group;
+    }
+
+    return array_slice($clean, 0, max(1, $limit));
+}
+
+function newsroom_story_context_heading(array $story, array $bundle = []): string
+{
+    $topics = newsroom_parse_topics($story['topic_tags_json'] ?? null);
+    $topicSlugs = array_map(static function (array $topic): string {
+        return strtolower((string) ($topic['slug'] ?? ''));
+    }, $topics);
+    $body = strtolower((string) ($story['meta']['body_name'] ?? $story['body_name'] ?? ''));
+    $types = [];
+    foreach ($bundle as $entity) {
+        foreach (($entity['observations'] ?? []) as $observation) {
+            $types[] = (string) ($observation['type'] ?? '');
+        }
+    }
+
+    if (in_array('town-meeting', $topicSlugs, true) || in_array('town_meeting_record', $types, true)) {
+        return 'Town Meeting Record Context';
+    }
+    if (
+        array_intersect($topicSlugs, ['development', 'zoning', 'housing'])
+        || preg_match('/\b(planning|zoning|conservation)\b/', $body)
+        || in_array('permit_report', $types, true)
+    ) {
+        return 'Land-Use Record Context';
+    }
+    if (in_array('environment', $topicSlugs, true) || in_array('environment_context', $types, true)) {
+        return 'Environmental Record Context';
+    }
+    if (
+        array_intersect($topicSlugs, ['budget', 'sewer', 'wastewater', 'infrastructure'])
+        || in_array('bid_or_rfp', $types, true)
+    ) {
+        return 'Budget and Procurement Context';
+    }
+    if (array_intersect($types, ['posted_agenda', 'posted_minutes', 'meeting_recording'])) {
+        return 'Meeting Follow-Through';
+    }
+    return 'Public Record Context';
 }
 
 function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $observationLimit = 4): array
@@ -1685,6 +1861,7 @@ function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $
             so.observation_type,
             so.observation_label,
             so.observation_value,
+            so.observation_json,
             so.observed_at,
             so.source_url,
             s.name AS source_name,
@@ -1719,7 +1896,7 @@ function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $
         }
 
         $observationStatement->bindValue(':entity_id', (int) $entity['id'], PDO::PARAM_INT);
-        $observationStatement->bindValue(':limit', $observationLimit, PDO::PARAM_INT);
+        $observationStatement->bindValue(':limit', max(12, $observationLimit * 5), PDO::PARAM_INT);
         $observationStatement->execute();
         $observations = $observationStatement->fetchAll();
         if (!$observations && (string) ($entity['entity_type'] ?? '') !== 'address') {
@@ -1727,19 +1904,7 @@ function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $
         }
 
         $meta = newsroom_parse_json($entity['meta_json'] ?? null);
-        $cleanObservations = [];
-        foreach ($observations as $observation) {
-            $cleanObservations[] = [
-                'type' => (string) ($observation['observation_type'] ?? ''),
-                'type_label' => newsroom_public_observation_label((string) ($observation['observation_type'] ?? '')),
-                'label' => newsroom_public_text((string) ($observation['observation_label'] ?? '')),
-                'value' => newsroom_public_text((string) ($observation['observation_value'] ?? '')),
-                'observed_at' => (string) ($observation['observed_at'] ?? ''),
-                'source_url' => (string) ($observation['source_url'] ?? ''),
-                'source_name' => (string) ($observation['source_name'] ?? ''),
-                'authority_tier' => (string) ($observation['authority_tier'] ?? ''),
-            ];
-        }
+        $cleanObservations = newsroom_group_context_observations($observations, $observationLimit, $displayName);
 
         $bundle[] = [
             'id' => (int) $entity['id'],
@@ -1980,6 +2145,77 @@ function newsroom_recent_runs(int $limit = 20): array
     $statement->execute();
 
     return $statement->fetchAll();
+}
+
+function newsroom_context_status(): array
+{
+    if (!newsroom_db_available()) {
+        return ['available' => false, 'summary' => [], 'types' => [], 'modes' => []];
+    }
+
+    try {
+        $tableStatement = newsroom_db()->query(
+            'SELECT
+                (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "context_entities") AS entity_table_count,
+                (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "source_observations") AS observation_table_count,
+                (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "story_context_links") AS link_table_count'
+        );
+        $tables = $tableStatement ? $tableStatement->fetch() : false;
+        if (
+            !$tables
+            || (int) ($tables['entity_table_count'] ?? 0) === 0
+            || (int) ($tables['observation_table_count'] ?? 0) === 0
+            || (int) ($tables['link_table_count'] ?? 0) === 0
+        ) {
+            return ['available' => false, 'summary' => [], 'types' => [], 'modes' => []];
+        }
+
+        $summaryStatement = newsroom_db()->query(
+            'SELECT
+                (SELECT COUNT(*) FROM context_entities) AS entity_count,
+                (SELECT COUNT(*) FROM source_observations) AS observation_count,
+                (SELECT COUNT(*) FROM source_observations WHERE is_public_context = 1) AS public_observation_count,
+                (SELECT COUNT(*) FROM source_observations WHERE is_public_context = 0) AS guarded_observation_count,
+                (SELECT COUNT(*) FROM story_context_links) AS story_link_count,
+                (SELECT COUNT(*) FROM sources WHERE context_enabled = 1) AS context_source_count,
+                (SELECT COUNT(*) FROM source_items si INNER JOIN sources s ON s.id = si.source_id WHERE s.slug = "wareham-media-recordings") AS recording_item_count'
+        );
+        $summary = $summaryStatement ? $summaryStatement->fetch() : [];
+
+        $typeStatement = newsroom_db()->query(
+            'SELECT observation_type, COUNT(*) AS count_all
+             FROM source_observations
+             WHERE is_public_context = 1
+             GROUP BY observation_type
+             ORDER BY count_all DESC, observation_type ASC
+             LIMIT 8'
+        );
+        $types = $typeStatement ? $typeStatement->fetchAll() : [];
+
+        $modeStatement = newsroom_db()->query(
+            'SELECT COALESCE(automation_mode, "auto_publish") AS automation_mode, COUNT(*) AS source_count
+             FROM sources
+             WHERE context_enabled = 1
+             GROUP BY COALESCE(automation_mode, "auto_publish")
+             ORDER BY source_count DESC, automation_mode ASC'
+        );
+        $modes = $modeStatement ? $modeStatement->fetchAll() : [];
+
+        return [
+            'available' => true,
+            'summary' => is_array($summary) ? $summary : [],
+            'types' => $types,
+            'modes' => $modes,
+        ];
+    } catch (Throwable $exception) {
+        return [
+            'available' => false,
+            'summary' => [],
+            'types' => [],
+            'modes' => [],
+            'error' => $exception->getMessage(),
+        ];
+    }
 }
 
 function newsroom_diagnostic_items(int $limit = 20): array

@@ -17,6 +17,7 @@ from .sources import (
     discover_wareham_assessor_reference,
     discover_wareham_agenda_center,
     discover_wareham_bids_rfps,
+    discover_wareham_media_recordings,
     discover_wareham_police_logs,
     discover_wareham_permit_report_archive,
     discover_wareham_town_meeting_documents,
@@ -33,6 +34,7 @@ SOURCE_DISCOVERERS = {
     "wareham_town_meeting_documents": discover_wareham_town_meeting_documents,
     "wareham_bids_rfps": discover_wareham_bids_rfps,
     "wareham_assessor_reference": discover_wareham_assessor_reference,
+    "wareham_media_recordings": discover_wareham_media_recordings,
 }
 
 

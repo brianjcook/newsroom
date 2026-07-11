@@ -24,6 +24,7 @@ $storyDate = $story ? (string) ($story['display_date'] ?? $story['published_at']
 $relatedBundle = $story ? newsroom_story_related_bundle($story) : ['topic' => null, 'stories' => [], 'events' => []];
 $nextSteps = $story ? newsroom_story_next_steps($story) : '';
 $contextBundle = $story ? newsroom_story_context_bundle((int) $story['id']) : [];
+$contextHeading = $story && $contextBundle ? newsroom_story_context_heading($story, $contextBundle) : 'Public Record Context';
 $isMeetingStory = $story && in_array((string) $story['story_type'], ['meeting_preview', 'minutes_recap'], true);
 $railAd = newsroom_active_ads('story-rail', 1)[0] ?? null;
 $inlineAd = newsroom_active_ads('story-inline', 1)[0] ?? null;
@@ -152,7 +153,7 @@ http_response_code($story ? 200 : 404);
                 <div><?= $story['body_html'] ?></div>
                 <?php if ($contextBundle): ?>
                     <section class="story-context">
-                        <h3>Public Record Context</h3>
+                        <h3><?= htmlspecialchars($contextHeading) ?></h3>
                         <?php foreach ($contextBundle as $contextEntity): ?>
                             <article class="story-context__entity">
                                 <div class="story-context__heading">
@@ -167,9 +168,16 @@ http_response_code($story ? 200 : 404);
                                             <li>
                                                 <span class="story-context__type"><?= htmlspecialchars((string) $observation['type_label']) ?></span>
                                                 <span><?= htmlspecialchars((string) $observation['value']) ?></span>
-                                                <?php if (!empty($observation['source_url'])): ?>
-                                                    <a href="<?= htmlspecialchars((string) $observation['source_url']) ?>" target="_blank" rel="noopener noreferrer"><?= htmlspecialchars((string) ($observation['source_name'] ?: 'Source')) ?></a>
-                                                <?php endif; ?>
+                                                <span class="story-context__sources">
+                                                    <?php if ((int) ($observation['source_count'] ?? 0) > 1): ?>
+                                                        <span class="story-context__source-count"><?= htmlspecialchars((string) $observation['source_count']) ?> records</span>
+                                                    <?php endif; ?>
+                                                    <?php foreach (array_slice($observation['sources'] ?? [], 0, 2) as $source): ?>
+                                                        <?php if (!empty($source['url'])): ?>
+                                                            <a href="<?= htmlspecialchars((string) $source['url']) ?>" target="_blank" rel="noopener noreferrer"><?= htmlspecialchars((string) ($source['name'] ?: 'Source')) ?></a>
+                                                        <?php endif; ?>
+                                                    <?php endforeach; ?>
+                                                </span>
                                             </li>
                                         <?php endforeach; ?>
                                     </ul>

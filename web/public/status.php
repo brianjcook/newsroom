@@ -15,6 +15,7 @@ require_once $contentPath;
 $config = newsroom_config();
 $runs = newsroom_recent_runs();
 $diagnostics = newsroom_diagnostic_items();
+$contextStatus = newsroom_context_status();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -45,6 +46,48 @@ $diagnostics = newsroom_diagnostic_items();
         <a href="/calendar">Calendar</a>
         <a href="/topics">Topics</a>
     </nav>
+
+    <h2 class="section-heading">Context Layer</h2>
+    <section class="data-ledger">
+        <?php if (!empty($contextStatus['available'])): ?>
+            <?php $summary = $contextStatus['summary'] ?? []; ?>
+            <article class="data-row">
+                <div class="story-card__meta">Active</div>
+                <h3>Automated public-record context</h3>
+                <p class="run-metric">Entities: <strong><?= htmlspecialchars((string) ($summary['entity_count'] ?? 0)) ?></strong></p>
+                <p class="run-metric">Observations: <strong><?= htmlspecialchars((string) ($summary['observation_count'] ?? 0)) ?></strong></p>
+                <p class="run-metric">Public observations: <strong><?= htmlspecialchars((string) ($summary['public_observation_count'] ?? 0)) ?></strong></p>
+                <p class="run-metric">Guarded observations: <strong><?= htmlspecialchars((string) ($summary['guarded_observation_count'] ?? 0)) ?></strong></p>
+                <p class="run-metric">Story links: <strong><?= htmlspecialchars((string) ($summary['story_link_count'] ?? 0)) ?></strong></p>
+                <p class="run-metric">Context sources: <strong><?= htmlspecialchars((string) ($summary['context_source_count'] ?? 0)) ?></strong></p>
+                <p class="run-metric">Wareham Media items: <strong><?= htmlspecialchars((string) ($summary['recording_item_count'] ?? 0)) ?></strong></p>
+            </article>
+            <article class="data-row">
+                <div class="story-card__meta">Observation Types</div>
+                <h3>Public context mix</h3>
+                <?php if (!empty($contextStatus['types'])): ?>
+                    <?php foreach ($contextStatus['types'] as $typeRow): ?>
+                        <p class="run-metric"><?= htmlspecialchars(newsroom_public_observation_label((string) $typeRow['observation_type'])) ?>: <strong><?= htmlspecialchars((string) $typeRow['count_all']) ?></strong></p>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <p class="empty-state">No public observations have been indexed yet.</p>
+                <?php endif; ?>
+            </article>
+            <article class="data-row">
+                <div class="story-card__meta">Source Modes</div>
+                <h3>Automation guardrails</h3>
+                <?php foreach (($contextStatus['modes'] ?? []) as $modeRow): ?>
+                    <p class="run-metric"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $modeRow['automation_mode']))) ?>: <strong><?= htmlspecialchars((string) $modeRow['source_count']) ?></strong></p>
+                <?php endforeach; ?>
+            </article>
+        <?php else: ?>
+            <article class="data-row">
+                <div class="story-card__meta">Pending</div>
+                <h3>Context layer not initialized</h3>
+                <p class="empty-state">The next worker run will create the context tables and source governance fields.</p>
+            </article>
+        <?php endif; ?>
+    </section>
 
     <h2 class="section-heading">Recent Runs</h2>
     <section class="data-ledger">

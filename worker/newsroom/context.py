@@ -6,7 +6,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 from pymysql.connections import Connection
 
 from .extract import ExtractionRecord
-from .modeling import slugify
+from .modeling import normalize_body_name, slugify
 
 
 ADDRESS_PATTERN = re.compile(
@@ -35,6 +35,13 @@ PROJECT_PATTERNS = (
 
 PUBLIC_SAFETY_SOURCE_SLUGS = {"wareham-police-logs"}
 ASSESSOR_SEARCH_URL = "https://gis.vgsi.com/warehamma/Search.aspx"
+MEETING_DATE_PATTERNS = (
+    "%Y-%m-%d",
+    "%m-%d-%y",
+    "%m/%d/%y",
+    "%m-%d-%Y",
+    "%m/%d/%Y",
+)
 
 
 SOURCE_COLUMN_DEFINITIONS = {
@@ -253,6 +260,22 @@ def _seed_context_sources(connection: Connection) -> None:
             "poll_frequency": "weekly",
             "is_active": 1,
         },
+        {
+            "name": "Wareham Media Meeting Recordings",
+            "slug": "wareham-media-recordings",
+            "source_type": "recordings",
+            "base_url": "https://www.warehammedia.org",
+            "list_url": "https://www.warehammedia.org/wp-json/wp/v2/posts",
+            "parser_key": "wareham_media_recordings",
+            "automation_mode": "context_only",
+            "authority_tier": "community_media",
+            "privacy_risk": "low",
+            "context_enabled": 1,
+            "auto_publish_allowed": 0,
+            "attribution_note": "Wareham Media meeting-recording posts used for automated follow-through context.",
+            "poll_frequency": "daily",
+            "is_active": 1,
+        },
     ]
     with connection.cursor() as cursor:
         cursor.execute(
@@ -371,6 +394,7 @@ def _wareham_municipality_id(connection: Connection) -> Optional[int]:
 
 def _normalize_address(value: str) -> str:
     cleaned = _clean_text(value)
+    cleaned = re.sub(r"\bCRAN\s+H(?:WY|ighway)\b", "Cranberry Highway", cleaned, flags=re.IGNORECASE)
     cleaned = cleaned.replace("Cran Hwy", "Cranberry Highway")
     cleaned = cleaned.replace("Cranberry Hwy", "Cranberry Highway")
     cleaned = cleaned.replace("Rte.", "Route")
@@ -478,6 +502,109 @@ def _extract_entities(text: str) -> List[Tuple[str, str]]:
     return entities
 
 
+def _parse_meeting_date(value: object) -> Optional[str]:
+    text = _clean_text(value)
+    if not text:
+        return None
+    candidates = [text]
+    candidates.extend(re.findall(r"\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b", text))
+    candidates.extend(re.findall(r"\b\d{4}-\d{2}-\d{2}\b", text))
+    for candidate in candidates:
+        for pattern in MEETING_DATE_PATTERNS:
+            try:
+                return datetime.strptime(candidate, pattern).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+    return None
+
+
+def _meeting_entity_label(body_name: str, meeting_date: str) -> str:
+    body = normalize_body_name(body_name) or _clean_text(body_name)
+    if not body or not meeting_date:
+        return ""
+    return "{} meeting {}".format(body, meeting_date)
+
+
+def _meeting_entity_from_source(row: Dict[str, object], raw_meta: Dict[str, object], title: str) -> Optional[Tuple[str, str]]:
+    body = _clean_text(raw_meta.get("governing_body") or raw_meta.get("body_name") or raw_meta.get("recording_body"))
+    if not body:
+        body = normalize_body_name(title) or ""
+    date = _parse_meeting_date(raw_meta.get("meeting_date") or raw_meta.get("recording_date") or title)
+    label = _meeting_entity_label(body, date or "")
+    return ("meeting", label) if label else None
+
+
+def _story_meeting_entity(story: Dict[str, object]) -> Optional[Tuple[str, str]]:
+    label = _meeting_entity_label(
+        _clean_text(story.get("governing_body") or story.get("body_name")),
+        _clean_text(story.get("meeting_date")),
+    )
+    return ("meeting", label) if label else None
+
+
+def _permit_lines_for_entity(text: str, entity_name: str, max_items: int = 4) -> List[str]:
+    lines = [_clean_text(line) for line in re.split(r"[\r\n]+", text or "")]
+    lines = [line for line in lines if line]
+    if len(lines) <= 3:
+        lines = [_clean_text(part) for part in re.split(r"\s{2,}|(?<=\d{4})\s+(?=\d{1,5}\s+[A-Z])", text or "") if _clean_text(part)]
+    needle = re.sub(r"\W+", "", entity_name.lower())
+    matches = []
+    for index, line in enumerate(lines):
+        compact = re.sub(r"\W+", "", line.lower())
+        if needle and needle not in compact:
+            continue
+        window = " ".join(lines[max(0, index - 1): min(len(lines), index + 2)])
+        cleaned = _clean_text(window)
+        if cleaned and cleaned not in matches:
+            matches.append(cleaned)
+        if len(matches) >= max_items:
+            break
+    return matches
+
+
+def _permit_details_from_text(text: str, entity_name: str) -> Dict[str, object]:
+    snippets = _permit_lines_for_entity(text, entity_name)
+    blob = " ".join(snippets)
+    details = {
+        "snippets": snippets,
+    }
+    permit_numbers = []
+    for match in re.findall(r"\b(?:permit|permit\s*#|no\.?|number)?\s*([A-Z]{1,5}[-\s]?\d{2,6}[-\s]?\d{0,6})\b", blob, flags=re.IGNORECASE):
+        value = _clean_text(match).upper().replace(" ", "-")
+        if value and value not in permit_numbers:
+            permit_numbers.append(value)
+    if permit_numbers:
+        details["permit_numbers"] = permit_numbers[:5]
+
+    date_matches = []
+    for match in re.findall(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b", blob):
+        parsed = _parse_meeting_date(match)
+        if parsed and parsed not in date_matches:
+            date_matches.append(parsed)
+    if date_matches:
+        details["dates"] = date_matches[:4]
+
+    status_match = re.search(r"\b(issued|approved|applied|pending|closed|expired|denied|final(?:ed)?)\b", blob, flags=re.IGNORECASE)
+    if status_match:
+        details["status"] = status_match.group(1).lower()
+
+    permit_type_match = re.search(
+        r"\b(building|electrical|plumbing|gas|mechanical|zoning|special permit|site plan|demolition|occupancy|sheet metal|sign|septic)\b",
+        blob,
+        flags=re.IGNORECASE,
+    )
+    if permit_type_match:
+        details["permit_type"] = permit_type_match.group(1).title()
+
+    description = ""
+    for snippet in snippets:
+        if len(snippet) > len(description):
+            description = snippet
+    if description:
+        details["description"] = description[:500]
+    return details
+
+
 def _sentences_for_entity(text: str, entity_name: str, max_items: int = 3) -> List[str]:
     normalized_text = re.sub(r"\s+", " ", text or "")
     parts = re.split(r"(?<=[.;:])\s+|\n+", normalized_text)
@@ -500,12 +627,16 @@ def _observation_type(item_type: str, source_slug: str, title: str) -> str:
     text = " ".join([item_type, source_slug, title]).lower()
     if "permit" in text:
         return "permit_report"
+    if "recording" in text or source_slug == "wareham-media-recordings":
+        return "meeting_recording"
+    if "minutes" in text:
+        return "posted_minutes"
+    if "agenda" in text or source_slug == "wareham-agenda-center":
+        return "posted_agenda"
     if "town-meeting" in source_slug or "town meeting" in text or "warrant" in text:
         return "town_meeting_record"
     if "bid" in text or "rfp" in text:
         return "bid_or_rfp"
-    if "agenda" in text or "minutes" in text or source_slug == "wareham-agenda-center":
-        return "meeting_record"
     if "buzzards" in source_slug:
         return "environment_context"
     if "police" in source_slug:
@@ -522,7 +653,7 @@ def _is_public_context(source_slug: str, observation_type: str, automation_mode:
 
 
 def _observed_at(raw_meta: Dict[str, object], published_at: object) -> Optional[str]:
-    for key in ("posted_at", "published_at", "meeting_date"):
+    for key in ("posted_at", "recording_posted_at", "published_at", "meeting_date"):
         value = raw_meta.get(key)
         if value:
             return str(value)
@@ -572,6 +703,7 @@ def _upsert_observation(
     observed_at: Optional[str],
     is_public_context: bool,
     confidence_score: Optional[float],
+    details: Optional[Dict[str, object]] = None,
 ) -> None:
     source_url = str(row.get("document_url") or row.get("canonical_url") or "")
     payload = {
@@ -579,6 +711,8 @@ def _upsert_observation(
         "source_name": row.get("source_name"),
         "automation_mode": row.get("automation_mode"),
     }
+    if details:
+        payload.update(details)
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -643,6 +777,9 @@ def sync_context_observations(connection: Connection, extractions: Sequence[Extr
             ]
         )
         entities = _extract_entities(text)
+        meeting_entity = _meeting_entity_from_source(row, raw_meta, title)
+        if meeting_entity and meeting_entity not in entities:
+            entities.append(meeting_entity)
         if not entities:
             continue
 
@@ -655,8 +792,20 @@ def sync_context_observations(connection: Connection, extractions: Sequence[Extr
             entity_id = _upsert_entity(connection, entity_type, display_name)
             if entity_id is None:
                 continue
-            snippets = _sentences_for_entity(text, display_name)
-            value = " ".join(snippets) if snippets else display_name
+            details = {}
+            if observation_type == "permit_report" and entity_type == "address":
+                details = _permit_details_from_text(text, display_name)
+                snippets = [str(item) for item in details.get("snippets") or []]
+            else:
+                snippets = _sentences_for_entity(text, display_name)
+            if observation_type == "meeting_recording" and entity_type == "meeting":
+                value = "Meeting recording posted by Wareham Media."
+            elif observation_type == "posted_minutes" and entity_type == "meeting":
+                value = "Posted minutes are available for this meeting."
+            elif observation_type == "posted_agenda" and entity_type == "meeting":
+                value = "Posted agenda is available for this meeting."
+            else:
+                value = " ".join(snippets) if snippets else display_name
             _upsert_observation(
                 connection,
                 row,
@@ -667,6 +816,7 @@ def sync_context_observations(connection: Connection, extractions: Sequence[Extr
                 observed,
                 public_context,
                 float(extraction.confidence_score or 0.0),
+                details,
             )
             synced += 1
 
@@ -685,15 +835,18 @@ def _story_rows(connection: Connection) -> Iterable[Dict[str, object]]:
         cursor.execute(
             """
             SELECT
-                id,
-                headline,
-                dek,
-                summary,
-                body_text,
-                published_at,
-                topic_tags_json
-            FROM stories
-            WHERE publish_status = 'published'
+                s.id,
+                s.headline,
+                s.dek,
+                s.summary,
+                s.body_text,
+                s.published_at,
+                s.topic_tags_json,
+                m.governing_body,
+                m.meeting_date
+            FROM stories s
+            LEFT JOIN meetings m ON m.id = s.meeting_id
+            WHERE s.publish_status = 'published'
             """
         )
         return cursor.fetchall()
@@ -714,6 +867,9 @@ def sync_story_context_links(connection: Connection) -> int:
             ]
         )
         entities = _extract_entities(text)
+        meeting_entity = _story_meeting_entity(story)
+        if meeting_entity and meeting_entity not in entities:
+            entities.append(meeting_entity)
         if not entities:
             continue
 

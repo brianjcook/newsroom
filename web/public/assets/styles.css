@@ -1443,6 +1443,21 @@ a:hover {
     text-transform: uppercase;
 }
 
+.story-context__sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    justify-content: flex-end;
+}
+
+.story-context__source-count {
+    color: var(--muted);
+    font-family: var(--meta);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
 .story-context__list {
     display: grid;
     gap: 10px;
@@ -1555,5 +1570,9 @@ a:hover {
     .story-context__list li {
         grid-template-columns: 1fr;
         gap: 4px;
+    }
+
+    .story-context__sources {
+        justify-content: flex-start;
     }
 }

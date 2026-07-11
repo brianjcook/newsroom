@@ -1,4 +1,5 @@
 import hashlib
+import html
 import json
 import re
 from dataclasses import dataclass
@@ -11,7 +12,7 @@ from bs4 import BeautifulSoup
 from pymysql.connections import Connection
 
 from .config import WorkerConfig
-from .modeling import parse_agenda_center_date, parse_agenda_center_datetime, slugify
+from .modeling import normalize_body_name, parse_agenda_center_date, parse_agenda_center_datetime, slugify
 
 
 @dataclass(frozen=True)
@@ -31,10 +32,31 @@ BUZZARDS_BAY_COALITION_NEWS_URL = "https://www.savebuzzardsbay.org/news/"
 WAREHAM_PERMIT_REPORT_ARCHIVE_URL = "https://www.wareham.gov/Archive.aspx?AMID=63"
 WAREHAM_TOWN_MEETING_URL = "https://www.wareham.gov/351/Town-Meeting-Information"
 WAREHAM_BIDS_URL = "https://www.wareham.gov/bids.aspx"
+WAREHAM_MEDIA_POSTS_URL = "https://www.warehammedia.org/wp-json/wp/v2/posts"
+WAREHAM_MEDIA_SEARCH_TERMS = (
+    "Select Board",
+    "Planning Board",
+    "Conservation Commission",
+    "Zoning Board of Appeals",
+    "School Committee",
+    "Sewer Commissioners",
+    "Finance Committee",
+    "Board of Health",
+    "Board of Library Trustees",
+    "Board of Assessors",
+    "Community Preservation Committee",
+)
 
 
 def _normalize_label(text: str) -> str:
     return " ".join((text or "").split())
+
+
+def _html_text(value: object) -> str:
+    if isinstance(value, dict):
+        value = value.get("rendered") or ""
+    text = BeautifulSoup(str(value or ""), "html.parser").get_text(" ", strip=True)
+    return _normalize_label(html.unescape(text))
 
 
 def _session_with_headers(config: WorkerConfig) -> requests.Session:
@@ -329,6 +351,22 @@ def _parse_human_datetime(value: str) -> Optional[str]:
     return None
 
 
+def _parse_short_meeting_date(value: str) -> Optional[str]:
+    text = _normalize_label(value)
+    if text == "":
+        return None
+    candidates = re.findall(r"\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b", text)
+    candidates.extend(re.findall(r"\b\d{4}-\d{2}-\d{2}\b", text))
+    for candidate in candidates:
+        for pattern in ("%m-%d-%y", "%m/%d/%y", "%m-%d-%Y", "%m/%d/%Y", "%Y-%m-%d"):
+            try:
+                stamp = datetime.strptime(candidate, pattern)
+                return stamp.strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+    return None
+
+
 def discover_buzzards_bay_coalition_news(config: WorkerConfig) -> List[DiscoveredItem]:
     session = _session_with_headers(config)
     response = session.get(BUZZARDS_BAY_COALITION_NEWS_URL, timeout=30)
@@ -388,6 +426,74 @@ def discover_buzzards_bay_coalition_news(config: WorkerConfig) -> List[Discovere
             raw_meta,
             published_at,
         )
+
+    unique_by_url = {item.canonical_url: item for item in discovered}
+    return list(unique_by_url.values())
+
+
+def discover_wareham_media_recordings(config: WorkerConfig) -> List[DiscoveredItem]:
+    session = _session_with_headers(config)
+    discovered = []
+
+    for search_term in WAREHAM_MEDIA_SEARCH_TERMS:
+        response = session.get(
+            WAREHAM_MEDIA_POSTS_URL,
+            params={
+                "search": search_term,
+                "per_page": 20,
+                "orderby": "date",
+                "order": "desc",
+                "_fields": "id,date,modified,link,title,excerpt",
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        posts = response.json()
+        if not isinstance(posts, list):
+            continue
+
+        for post in posts:
+            if not isinstance(post, dict):
+                continue
+            canonical_url = _normalize_label(str(post.get("link") or ""))
+            title = _html_text(post.get("title"))
+            if not canonical_url or not title:
+                continue
+
+            body_name = normalize_body_name(title) or normalize_body_name(search_term) or search_term
+            if not body_name:
+                continue
+            meeting_date = _parse_short_meeting_date(title)
+            lowered_title = title.lower()
+            if meeting_date is None and "meeting" not in lowered_title:
+                continue
+
+            recording_posted_at = _parse_iso_datetime(str(post.get("date") or ""))
+            excerpt = _html_text(post.get("excerpt"))
+            raw_meta = {
+                "discovered_from": "wareham_media_recordings",
+                "source_name": "Wareham Media",
+                "governing_body": body_name,
+                "recording_body": body_name,
+                "meeting_date": meeting_date,
+                "recording_date": meeting_date,
+                "recording_posted_at": recording_posted_at,
+                "excerpt": excerpt,
+                "wordpress_post_id": post.get("id"),
+                "context_domain": "meeting_followthrough",
+                "publication_guardrail": "context_only",
+            }
+            if body_name and meeting_date:
+                raw_meta["meeting_key"] = "{}-{}".format(slugify(body_name), meeting_date)
+
+            _register_item(
+                discovered,
+                canonical_url,
+                title,
+                "meeting_recording",
+                raw_meta,
+                recording_posted_at,
+            )
 
     unique_by_url = {item.canonical_url: item for item in discovered}
     return list(unique_by_url.values())
