@@ -1432,7 +1432,18 @@ function newsroom_latest_stories(int $limit = 8): array
         return [];
     }
 
-    newsroom_maybe_trigger_worker_refresh();
+    // Maintenance must not hold up page reads or leave their connection idle.
+    static $refreshScheduled = false;
+    if (!$refreshScheduled) {
+        $refreshScheduled = true;
+        register_shutdown_function(static function (): void {
+            try {
+                newsroom_maybe_trigger_worker_refresh();
+            } catch (Throwable $exception) {
+                error_log('Newsroom background refresh failed: ' . $exception->getMessage());
+            }
+        });
+    }
 
     $baseSelect = 'SELECT
             s.id,
@@ -1518,31 +1529,23 @@ function newsroom_latest_stories(int $limit = 8): array
             s.id DESC
          LIMIT :limit';
 
-    $statement = newsroom_db()->prepare(
+    $parameters = [':status' => 'published', ':limit' => $limit * 3];
+    $rows = newsroom_db_read(
         $baseSelect . '
            AND NOT (
                 s.story_type = "meeting_preview"
                 AND m.meeting_date IS NOT NULL
                 AND m.meeting_date < DATE_SUB(CURDATE(), INTERVAL 2 DAY)
-            )' . $orderedTail
+            )' . $orderedTail,
+        $parameters
     );
-    $statement->bindValue(':status', 'published');
-    $statement->bindValue(':limit', $limit * 3, PDO::PARAM_INT);
-    $statement->execute();
-
-    $rows = array_slice(array_values(array_filter($statement->fetchAll(), 'newsroom_story_is_homepage_eligible')), 0, $limit);
+    $rows = array_slice(array_values(array_filter($rows, 'newsroom_story_is_homepage_eligible')), 0, $limit);
     if ($rows) {
         return array_map('newsroom_recent_story_presenter', $rows);
     }
 
-    $fallbackStatement = newsroom_db()->prepare(
-        $baseSelect . $orderedTail
-    );
-    $fallbackStatement->bindValue(':status', 'published');
-    $fallbackStatement->bindValue(':limit', $limit * 3, PDO::PARAM_INT);
-    $fallbackStatement->execute();
-
-    $fallbackRows = array_slice(array_values(array_filter($fallbackStatement->fetchAll(), 'newsroom_story_is_homepage_eligible')), 0, $limit);
+    $fallbackRows = newsroom_db_read($baseSelect . $orderedTail, $parameters);
+    $fallbackRows = array_slice(array_values(array_filter($fallbackRows, 'newsroom_story_is_homepage_eligible')), 0, $limit);
     return array_map('newsroom_recent_story_presenter', $fallbackRows);
 }
 

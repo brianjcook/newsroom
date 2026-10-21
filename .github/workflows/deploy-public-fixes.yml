@@ -2,6 +2,11 @@ name: Deploy Public Fixes
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - web/lib/db.php
+      - tests/db-read-retry.php
 
 jobs:
   deploy:
@@ -9,6 +14,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Check PHP and connection recovery
+        run: |
+          php -l web/lib/db.php
+          php -l web/lib/content.php
+          php tests/db-read-retry.php
 
       - name: Upload changed files via FTPS
         env:
@@ -47,6 +58,8 @@ jobs:
           mkdir db/migrations
           set cmd:fail-exit yes
 
+          put -O lib web/lib/db.php
+          put -O web/lib web/lib/db.php
           put -O lib web/lib/content.php
           put -O web/lib web/lib/content.php
           put -O . web/public/story.php
