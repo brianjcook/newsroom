@@ -7,6 +7,7 @@ on:
     paths:
       - web/lib/db.php
       - tests/db-read-retry.php
+      - .github/workflows/deploy-public-fixes.yml
 
 jobs:
   deploy:
@@ -78,3 +79,16 @@ jobs:
           put -O db/migrations db/migrations/014_wareham_media_context_source.sql
           bye
           EOF
+
+      - name: Verify live homepage
+        run: |
+          curl --fail --silent --show-error --location --max-time 45 --retry 2 --retry-delay 2 https://www.warehamtimes.com/ -o /tmp/newsroom-home.html
+          python3 - <<'PYVERIFY'
+          from pathlib import Path
+          page = Path('/tmp/newsroom-home.html').read_text()
+          if 'Fatal error' in page or 'Uncaught PDOException' in page:
+              raise SystemExit('Homepage still contains a database fatal error')
+          if 'The Wareham Times' not in page or 'Lead Story' not in page:
+              raise SystemExit('Homepage did not render expected content')
+          print('Live homepage rendered successfully without a database fatal error.')
+          PYVERIFY
