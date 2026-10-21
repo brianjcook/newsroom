@@ -4747,7 +4747,7 @@ function newsroom_governing_bodies_index(int $limit = 120): array
         'SELECT
             gb.*,
             (SELECT COUNT(*) FROM stories s WHERE s.governing_body_id = gb.id AND s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . ') AS story_count,
-            (SELECT COUNT(*) FROM calendar_events ce WHERE ce.governing_body_id = gb.id AND ce.starts_at >= NOW()) AS upcoming_count
+            (SELECT COUNT(*) FROM calendar_events ce WHERE ce.governing_body_id = gb.id AND ce.starts_at >= NOW() AND ce.status = "scheduled" AND ' . newsroom_publication_meeting_visibility_sql('ce.meeting_id') . ') AS upcoming_count
          FROM governing_bodies gb
          WHERE gb.is_active = 1
          ORDER BY story_count DESC, gb.normalized_name ASC
@@ -4803,8 +4803,9 @@ function newsroom_governing_body_bundle(string $slug): ?array
 
     $eventsStatement = newsroom_db()->prepare(
         'SELECT id, title, starts_at, location_name, body_name, source_url, description
-         FROM calendar_events
-         WHERE governing_body_id = :id AND starts_at >= NOW() AND status = "scheduled"
+         FROM calendar_events ce
+         WHERE ce.governing_body_id = :id AND ce.starts_at >= NOW() AND ce.status = "scheduled"
+           AND ' . newsroom_publication_meeting_visibility_sql('ce.meeting_id') . '
          ORDER BY starts_at ASC
          LIMIT 8'
     );

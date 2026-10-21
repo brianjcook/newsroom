@@ -19,7 +19,7 @@ $db->exec('INSERT INTO meetings (source_item_id, governing_body_id, governing_bo
 $meeting = (int) $db->lastInsertId();
 $db->exec('INSERT INTO stories (meeting_id,governing_body_id,story_type,slug,headline,summary,body_html,body_text,publish_status,published_at,display_date,sort_date,editorial_score,topic_tags_json) VALUES (' . $meeting . ',' . $board . ',"meeting_preview","fixture-review","Fixture budget meeting","Source-backed budget details","<p>Budget details</p>","Budget details","published",NOW(),NOW(),NOW(),80,JSON_ARRAY(JSON_OBJECT("slug","budget","label","Budget")))');
 $id = (int) $db->lastInsertId();
-$db->exec('INSERT INTO calendar_events (meeting_id,title,starts_at,source_url,description) VALUES (' . $meeting . ',"Fixture meeting",DATE_ADD(NOW(),INTERVAL 1 DAY),"https://example.org/fixture","Fixture budget details")');
+$db->exec('INSERT INTO calendar_events (meeting_id,governing_body_id,title,starts_at,source_url,description) VALUES (' . $meeting . ',' . $board . ',"Fixture meeting",DATE_ADD(NOW(),INTERVAL 1 DAY),"https://example.org/fixture","Fixture budget details")');
 function require_true(bool $condition, string $message): void { if (!$condition) { throw new RuntimeException($message); } }
 function public_hash(int $id): string { return (string) newsroom_db()->query('SELECT ' . newsroom_publication_revision_sql('s') . ' FROM stories s WHERE s.id=' . $id)->fetchColumn(); }
 require_true(newsroom_story_by_slug('fixture-review') !== null, 'Legacy detail missing.');
@@ -35,6 +35,7 @@ require_true(newsroom_homepage_priority_stories() === [], 'Held priority story l
 require_true(newsroom_archive_results() === [], 'Held archive story leaked.');
 $bundle = newsroom_governing_body_bundle('fixture-board');
 require_true(($bundle['stories'] ?? []) === [], 'Held body coverage leaked.');
+require_true(($bundle['events'] ?? []) === [], 'Body calendar leaked held meeting copy.');
 newsroom_archive_filter_options(); // Execute all nested public filter/count SQL.
 newsroom_publication_decide($id, 'approve', public_hash($id), 'Exact approval');
 require_true(newsroom_story_by_slug('fixture-review') !== null, 'Approved detail did not return.');
