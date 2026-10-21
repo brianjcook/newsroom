@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from pymysql.connections import Connection
 
 from .editorial import score_story
+from .publication import hold_story, material_revision_changed, publication_decision, revision_hash_sql, sensitive_reasons
 from .modeling import artifact_priority, canonical_event_title, derive_story_dates, is_calendar_artifact, is_public_story_artifact
 
 
@@ -3380,10 +3381,15 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         topic_tags_json = json.dumps(editorial.get("topics") or [])
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT id, slug, published_at, publish_status, source_basis_json, editorial_score, suggested_coverage_mode, editorial_signals_json, topic_tags_json, workflow_status, watch_live, follow_up_needed FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1",
+                "SELECT id, slug, headline, dek, summary, body_html, body_text, published_at, publish_status, source_basis_json, editorial_score, suggested_coverage_mode, editorial_signals_json, topic_tags_json, workflow_status, watch_live, follow_up_needed, " + revision_hash_sql() + " AS revision_hash FROM stories WHERE meeting_id = %s AND story_type = %s LIMIT 1 FOR UPDATE",
                 (meeting["id"], story_type),
             )
             existing_story = cursor.fetchone()
+        review = None
+        if existing_story:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT state, revision_hash, approved_hash, reason FROM publication_reviews WHERE story_id = %s FOR UPDATE", (int(existing_story['id']),))
+                review = cursor.fetchone()
         desired_existing_slug = _story_slug(connection, meeting, story_type, headline, int(existing_story["id"])) if existing_story else None
         previous_basis = _parse_story_basis(existing_story["source_basis_json"]) if existing_story else {}
         basis_json = _story_basis_json(
@@ -3394,6 +3400,19 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             bool(row.get("is_amended")),
             content_signature,
         )
+
+        next_basis = _parse_story_basis(basis_json)
+        candidate = {'headline': headline, 'dek': dek, 'summary': summary, 'body_html': body_html}
+        material_change = bool(existing_story) and material_revision_changed(existing_story, candidate, previous_basis, next_basis)
+        risk_reasons = sensitive_reasons(headline, dek, summary, body_text, extraction.get('body_text'), source_item.get('source_title'))
+        decision, review_reason = publication_decision(existing_story, review, material_change, risk_reasons)
+        if decision == 'preserve':
+            continue
+        if existing_story and review and review.get('state') == 'approved' and review.get('approved_hash') != existing_story.get('revision_hash'):
+            # A manual edit must remain intact for publisher review.
+            hold_story(connection, int(existing_story['id']), review_reason)
+            continue
+        target_publish_status = 'draft' if decision == 'hold' else 'published'
 
         if not _should_publish_story(meeting, extraction, story_type):
             if existing_story:
@@ -3421,7 +3440,8 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                 and previous_basis.get("artifact_type") == artifact_type
             )
             if (
-                previous_signature == content_signature
+                decision == 'publish'
+                and previous_signature == content_signature
                 and basis_matches
                 and existing_story.get("publish_status") == "published"
                 and existing_story.get("slug") == desired_existing_slug
@@ -3473,7 +3493,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         topic_tags_json = %s,
                         body_html = %s,
                         body_text = %s,
-                        publish_status = 'published',
+                        publish_status = %s,
                         workflow_status = %s,
                         published_at = %s,
                         display_date = %s,
@@ -3493,6 +3513,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         topic_tags_json,
                         story_body_html,
                         story_body_text,
+                        target_publish_status,
                         workflow_status,
                         existing_published_at,
                         display_date,
@@ -3528,7 +3549,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         display_date,
                         sort_date,
                         source_basis_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', 'published', %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'straight_civic', %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         meeting["id"],
@@ -3544,6 +3565,7 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
                         topic_tags_json,
                         body_html,
                         body_text,
+                        target_publish_status,
                         workflow_status,
                         published_at,
                         display_date,
@@ -3557,6 +3579,9 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
             continue
 
         _sync_story_citations(connection, story_id, source_item, extraction, explainers)
+        if decision == 'hold':
+            hold_story(connection, story_id, review_reason)
+            continue
         with connection.cursor() as cursor:
             cursor.execute(
                 "UPDATE source_items SET status = 'published', updated_at = NOW() WHERE id = %s",
@@ -3618,6 +3643,20 @@ def publish_stories_and_events(connection: Connection) -> PublishedCounts:
         with connection.cursor() as cursor:
             cursor.execute("SELECT id FROM calendar_events WHERE meeting_id = %s LIMIT 1", (int(row["id"]),))
             existing_event = cursor.fetchone()
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT s.id FROM stories s LEFT JOIN publication_reviews pr ON pr.story_id=s.id "
+                "WHERE s.meeting_id=%s AND ((pr.state IS NOT NULL AND pr.state<>'approved') "
+                "OR (pr.state='approved' AND (pr.approved_hash IS NULL OR " + revision_hash_sql('s') + " IS NULL OR pr.approved_hash<>" + revision_hash_sql('s') + "))) LIMIT 1 FOR UPDATE",
+                (int(row['id']),),
+            )
+            blocked_story = cursor.fetchone()
+        if blocked_story or sensitive_reasons(body_name, title):
+            if existing_event:
+                with connection.cursor() as cursor:
+                    cursor.execute("UPDATE calendar_events SET status='suppressed' WHERE id=%s", (int(existing_event['id']),))
+            continue
 
         if not valid_calendar_item:
             if existing_event:

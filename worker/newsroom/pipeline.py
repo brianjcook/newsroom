@@ -11,6 +11,7 @@ from .documents import fetch_documents, pending_source_items
 from .extract import extract_documents
 from .meetings import normalize_meetings
 from .publish import publish_stories_and_events
+from .publication import ensure_publication_schema
 from .sources import (
     discover_buzzards_bay_coalition_news,
     discover_discover_wareham_events,
@@ -111,6 +112,7 @@ def run_daily() -> Dict[str, object]:
     errors = []  # type: List[str]
 
     with connect(config.database) as connection:
+        ensure_publication_schema(connection)
         run_id = _begin_run(connection)
         discovered_count = 0
         documents_fetched = 0

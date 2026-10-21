@@ -12,6 +12,8 @@ $contentPath = file_exists(__DIR__ . '/../lib/content.php')
 require_once $bootstrapPath;
 require_once $contentPath;
 
+newsroom_publication_require_publisher();
+
 $config = newsroom_config();
 $runs = newsroom_recent_runs();
 $diagnostics = newsroom_diagnostic_items();

@@ -5,22 +5,47 @@ on:
   push:
     branches: [main]
     paths:
-      - web/lib/db.php
+      - web/lib/**
+      - web/public/**
+      - worker/newsroom/**
+      - tests/**
       - tests/db-read-retry.php
       - .github/workflows/deploy-public-fixes.yml
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: newsroom_test_password
+          MYSQL_DATABASE: newsroom_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pnewsroom_test_password"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      NEWSROOM_DB_HOST: 127.0.0.1
+      NEWSROOM_DB_PORT: 3306
+      NEWSROOM_DB_NAME: newsroom_test
+      NEWSROOM_DB_USER: root
+      NEWSROOM_DB_PASSWORD: newsroom_test_password
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check PHP and connection recovery
+      - name: Check publication protections
         run: |
-          php -l web/lib/db.php
-          php -l web/lib/content.php
+          find web -name '*.php' -print0 | xargs -0 -n1 php -l
           php tests/db-read-retry.php
+          python3 -m pip install PyMySQL==1.0.2
+          python3 -m unittest discover -s tests -p 'test_publication.py'
+          php tests/publication-review.php
+          python3 tests/publication-http.py
+          python3 tests/publication-sql.py
+          php tests/publication-public.php
 
       - name: Upload changed files via FTPS
         env:
@@ -59,10 +84,20 @@ jobs:
           mkdir db/migrations
           set cmd:fail-exit yes
 
+          put -O lib web/lib/publication.php
+          put -O web/lib web/lib/publication.php
           put -O lib web/lib/db.php
           put -O web/lib web/lib/db.php
           put -O lib web/lib/content.php
           put -O web/lib web/lib/content.php
+          put -O . web/public/editorial-reviews.php
+          put -O web/public web/public/editorial-reviews.php
+          put -O . web/public/editorial.php
+          put -O web/public web/public/editorial.php
+          put -O . web/public/editorial-opinion-edit.php
+          put -O web/public web/public/editorial-opinion-edit.php
+          put -O . web/public/.htaccess
+          put -O web/public web/public/.htaccess
           put -O . web/public/story.php
           put -O web/public web/public/story.php
           put -O . web/public/status.php
@@ -71,17 +106,24 @@ jobs:
           put -O web/public web/public/calendar.php
           put -O assets web/public/assets/styles.css
           put -O web/public/assets web/public/assets/styles.css
+          put -O worker/newsroom worker/newsroom/publication.py
+          put -O worker/newsroom worker/newsroom/db.py
           put -O worker/newsroom worker/newsroom/context.py
           put -O worker/newsroom worker/newsroom/pipeline.py
           put -O worker/newsroom worker/newsroom/publish.py
           put -O worker/newsroom worker/newsroom/sources.py
           put -O db/migrations db/migrations/013_automated_context_layer.sql
           put -O db/migrations db/migrations/014_wareham_media_context_source.sql
+          put -O db/migrations db/migrations/015_publication_reviews.sql
+          get lib/publication.php -o /tmp/newsroom-deployed-publication.php
+          get editorial-reviews.php -o /tmp/newsroom-deployed-reviews.php
           get lib/db.php -o /tmp/newsroom-deployed-db.php
           get lib/content.php -o /tmp/newsroom-deployed-content.php
           get index.php -o /tmp/newsroom-deployed-index.php
           bye
           EOF
+          cmp web/lib/publication.php /tmp/newsroom-deployed-publication.php
+          cmp web/public/editorial-reviews.php /tmp/newsroom-deployed-reviews.php
           cmp web/lib/db.php /tmp/newsroom-deployed-db.php
           cmp web/lib/content.php /tmp/newsroom-deployed-content.php
           echo "Production PHP files match the repair exactly."
@@ -103,3 +145,9 @@ jobs:
                       raise SystemExit('Homepage did not render expected content')
           print('Six uncached homepage checks passed across both domains.')
           PYVERIFY
+
+      - name: Verify publisher access protection
+        run: |
+          code=$(curl --silent --show-error --max-time 45 -o /tmp/newsroom-review-login.html -w '%{http_code}' https://www.warehamtimes.com/editorial-reviews.php)
+          test "$code" = 401
+          grep -q 'Editorial Login' /tmp/newsroom-review-login.html

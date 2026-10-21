@@ -15,6 +15,7 @@ def connect(config: DatabaseConfig) -> Iterator[pymysql.connections.Connection]:
         "charset": "utf8mb4",
         "cursorclass": pymysql.cursors.DictCursor,
         "autocommit": False,
+        "init_command": "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED",
     }
 
     if config.unix_socket:

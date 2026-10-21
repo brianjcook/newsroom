@@ -234,6 +234,7 @@ if (!function_exists('newsroom_editorial_datetime')) {
         <a href="/opinion">Opinion</a>
         <a href="/bodies">Bodies</a>
         <a href="/archive">Archive</a>
+        <a href="/editorial-reviews.php">Publisher review</a>
     </nav>
 
     <h2 class="section-heading">Newsworthiness Queue</h2>

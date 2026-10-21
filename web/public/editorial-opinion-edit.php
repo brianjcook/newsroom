@@ -12,7 +12,7 @@ $contentPath = file_exists(__DIR__ . '/../lib/content.php')
 require_once $bootstrapPath;
 require_once $contentPath;
 
-newsroom_require_editorial_login();
+newsroom_publication_require_publisher();
 
 $id = (int) ($_GET['id'] ?? 0);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $id > 0) {
@@ -56,7 +56,7 @@ $saved = isset($_GET['saved']) && $_GET['saved'] === '1';
     </nav>
 
     <?php if ($item): ?>
-        <?php if ($saved): ?><p class="editorial-save-note">Opinion piece saved.</p><?php endif; ?>
+        <?php if ($saved): ?><p class="editorial-save-note">Opinion draft saved. Review this version before publishing.</p><?php endif; ?>
         <section class="story-layout">
             <article>
                 <h2 class="story-headline"><?= htmlspecialchars((string) $item['headline']) ?></h2>
@@ -74,11 +74,8 @@ $saved = isset($_GET['saved']) && $_GET['saved'] === '1';
                             </label>
                             <label class="editorial-inline-control">
                                 <span>Status</span>
-                                <select name="publish_status">
-                                    <?php foreach (['draft' => 'Draft', 'published' => 'Published'] as $value => $label): ?>
-                                        <option value="<?= htmlspecialchars($value) ?>"<?= (string) $item['publish_status'] === $value ? ' selected' : '' ?>><?= htmlspecialchars($label) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <input type="hidden" name="publish_status" value="draft">
+                                <span>Edits are saved as drafts. <a href="/editorial-reviews.php?id=<?= (int) $id ?>">Review and publish</a></span>
                             </label>
                             <label class="editorial-inline-control">
                                 <span>Display Date</span>

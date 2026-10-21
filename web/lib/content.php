@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/publication.php';
+
+// Held or withdrawn copy must not remain in newly cached public responses.
+if (!headers_sent()) { header('Cache-Control: no-store, max-age=0'); }
 
 function newsroom_body_signal(?string $bodyName): array
 {
@@ -1005,6 +1009,7 @@ function newsroom_remote_details(array $structured): array
 
 function newsroom_story_meta_presenter(array $row): array
 {
+    $row = newsroom_publication_reviewed_story($row);
     $bodyName = (string) ($row['body_name'] ?? $row['governing_body'] ?? '');
     $signal = newsroom_body_signal($bodyName);
     $storyType = (string) ($row['story_type'] ?? '');
@@ -1507,7 +1512,7 @@ function newsroom_latest_stories(int $limit = 8): array
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE publish_status = :status
+         WHERE s.publish_status = :status AND ' . newsroom_publication_visibility_sql('s') . '
            AND s.story_type NOT IN ("editorial", "column", "letter")';
 
     $orderedTail = '
@@ -1619,7 +1624,7 @@ function newsroom_story_by_slug(string $slug): ?array
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE s.slug = :slug AND s.publish_status = :status
+         WHERE s.slug = :slug AND s.publish_status = :status AND ' . newsroom_publication_visibility_sql('s') . '
          LIMIT 1'
     );
     $statement->execute([
@@ -1653,7 +1658,7 @@ function newsroom_story_citations(int $storyId): array
     $statement = newsroom_db()->prepare(
         'SELECT citation_number, label, source_url, quote_text, note_text
          FROM story_citations
-         WHERE story_id = :story_id
+         WHERE story_id = :story_id AND EXISTS (SELECT 1 FROM stories s WHERE s.id = story_citations.story_id AND s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . ')
          ORDER BY citation_number ASC'
     );
     $statement->execute([':story_id' => $storyId]);
@@ -1855,6 +1860,12 @@ function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $
     }
 
     try {
+        newsroom_publication_schema();
+        $review = newsroom_db()->prepare('SELECT story_id FROM publication_reviews WHERE story_id = :id');
+        $review->execute([':id' => $storyId]);
+        if ($review->fetch()) {
+            return [];
+        }
         $entityStatement = newsroom_db()->prepare(
             'SELECT
                 ce.id,
@@ -1903,6 +1914,8 @@ function newsroom_story_context_bundle(int $storyId, int $entityLimit = 4, int $
          INNER JOIN sources s ON s.id = si.source_id
          WHERE so.entity_id = :entity_id
            AND so.is_public_context = 1
+           AND NOT EXISTS (SELECT 1 FROM meeting_artifacts pma INNER JOIN stories pms ON pms.meeting_id = pma.meeting_id
+               WHERE pma.source_item_id = so.source_item_id AND NOT (' . newsroom_publication_visibility_sql('pms') . '))
          ORDER BY
             CASE so.observation_type
                 WHEN "permit_report" THEN 0
@@ -1987,13 +2000,13 @@ function newsroom_upcoming_events(int $limit = 10): array
             (
                 SELECT s.dek
                 FROM stories s
-                WHERE s.meeting_id = ce.meeting_id AND s.story_type = "meeting_preview" AND s.publish_status = "published"
+                WHERE s.meeting_id = ce.meeting_id AND s.story_type = "meeting_preview" AND s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
                 LIMIT 1
             ) AS story_dek,
             (
                 SELECT s.summary
                 FROM stories s
-                WHERE s.meeting_id = ce.meeting_id AND s.story_type = "meeting_preview" AND s.publish_status = "published"
+                WHERE s.meeting_id = ce.meeting_id AND s.story_type = "meeting_preview" AND s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
                 LIMIT 1
             ) AS story_summary,
             (
@@ -2023,6 +2036,7 @@ function newsroom_upcoming_events(int $limit = 10): array
             ) AS agenda_source_meta_json
          FROM calendar_events ce
          WHERE ce.starts_at >= NOW() AND ce.status = :status
+           AND ' . newsroom_publication_meeting_visibility_sql('ce.meeting_id') . '
          ORDER BY ce.starts_at ASC
          LIMIT :limit'
     );
@@ -2151,7 +2165,7 @@ function newsroom_recent_meeting_recaps(int $limit = 12): array
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE s.publish_status = "published" AND s.story_type = "minutes_recap"
+         WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . ' AND s.story_type = "minutes_recap"
          ORDER BY COALESCE(s.sort_date, s.display_date, s.published_at) DESC, s.id DESC
          LIMIT :limit'
     );
@@ -2453,7 +2467,7 @@ function newsroom_recap_queue_items(int $limit = 60): array
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE s.publish_status = "published"
+         WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
            AND s.workflow_status IN ("recap_needed", "minutes_reconcile")
          ORDER BY
             CASE s.workflow_status
@@ -2563,7 +2577,7 @@ function newsroom_recap_queue_item(int $id): ?array
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE s.id = :id AND s.publish_status = "published"
+         WHERE s.id = :id AND s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
          LIMIT 1'
     );
     $statement->bindValue(':id', $id, PDO::PARAM_INT);
@@ -2885,7 +2899,7 @@ function newsroom_topics_index(int $limit = 40): array
     }
 
     $statement = newsroom_db()->prepare(
-        'SELECT "story" AS entity_type, topic_tags_json FROM stories WHERE publish_status = "published"
+        'SELECT "story" AS entity_type, topic_tags_json FROM stories s WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
          UNION ALL
          SELECT "community_event" AS entity_type, topic_tags_json FROM community_events WHERE is_hidden = 0'
     );
@@ -2943,7 +2957,7 @@ function newsroom_topic_bundle(string $slug, int $storyLimit = 20, int $eventLim
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE s.publish_status = "published"
+         WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
            AND REPLACE(CAST(s.topic_tags_json AS CHAR(4000)), " ", "") LIKE :needle
          ORDER BY COALESCE(s.sort_date, s.display_date, s.published_at) DESC
          LIMIT :limit'
@@ -3109,7 +3123,7 @@ function newsroom_homepage_priority_stories(int $limit = 4): array
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE s.publish_status = "published"
+         WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
            AND (
                 s.watch_live = 1
                 OR s.follow_up_needed = 1
@@ -3157,7 +3171,7 @@ function newsroom_archive_filter_options(): array
                 FROM stories s
                 LEFT JOIN meetings m ON m.id = s.meeting_id
                 LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-                WHERE s.publish_status = "published"
+                WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
                 UNION
                 SELECT COALESCE(body_name, source_category, "") AS body_name
                 FROM community_events
@@ -3231,7 +3245,7 @@ function newsroom_archive_results(array $filters = [], int $limit = 100): array
             FROM stories s
             LEFT JOIN meetings m ON m.id = s.meeting_id
             LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-            WHERE s.publish_status = "published"
+            WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
             UNION ALL
             SELECT
                 "community_event" AS entity_type,
@@ -4280,7 +4294,7 @@ function newsroom_live_watch_queue(int $limit = 40): array
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE s.publish_status = "published"
+         WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
            AND s.watch_live = 1
          ORDER BY m.meeting_date ASC, m.meeting_time ASC, s.id DESC
          LIMIT :limit'
@@ -4418,7 +4432,7 @@ function newsroom_opinion_items(int $limit = 60, bool $includeDrafts = false): a
         return [];
     }
 
-    $statusSql = $includeDrafts ? 's.publish_status IN ("draft", "published")' : 's.publish_status = "published"';
+    $statusSql = $includeDrafts ? 's.publish_status IN ("draft", "published")' : 's.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '';
     $statement = newsroom_db()->prepare(
         'SELECT
             s.id,
@@ -4527,6 +4541,12 @@ function newsroom_save_opinion_item(int $id, array $payload): void
     $publishedAt = $publishStatus === 'published' ? ($displayDate !== '' ? $displayDate : date('Y-m-d H:i:s')) : null;
     $slug = newsroom_unique_story_slug($headline !== '' ? $headline : 'Untitled Editorial', $id);
 
+    newsroom_publication_schema();
+    newsroom_db()->beginTransaction();
+    try {
+    $lock = newsroom_db()->prepare('SELECT id FROM stories WHERE id = :id FOR UPDATE');
+    $lock->execute([':id' => $id]);
+    $publishStatus = 'draft'; // Publishing is exclusively a revision-bound queue decision.
     $statement = newsroom_db()->prepare(
         'UPDATE stories
          SET story_type = :story_type,
@@ -4562,6 +4582,14 @@ function newsroom_save_opinion_item(int $id, array $payload): void
         ':display_date' => $displayDate !== '' ? $displayDate : date('Y-m-d H:i:s'),
         ':id' => $id,
     ]);
+    // A manual edit invalidates approval; never clear a hold or withdrawal.
+    newsroom_db()->prepare('UPDATE publication_reviews SET state = CASE WHEN state = "withdrawn" THEN "withdrawn" ELSE "hold" END,
+        approved_hash = NULL, reason = "Story edited; publisher review is required.", updated_at = CURRENT_TIMESTAMP WHERE story_id = :id')->execute([':id' => $id]);
+    newsroom_db()->commit();
+    } catch (Throwable $exception) {
+        if (newsroom_db()->inTransaction()) { newsroom_db()->rollBack(); }
+        throw $exception;
+    }
 }
 
 function newsroom_ad_slots(): array
@@ -4718,7 +4746,7 @@ function newsroom_governing_bodies_index(int $limit = 120): array
     $statement = newsroom_db()->prepare(
         'SELECT
             gb.*,
-            (SELECT COUNT(*) FROM stories s WHERE s.governing_body_id = gb.id AND s.publish_status = "published") AS story_count,
+            (SELECT COUNT(*) FROM stories s WHERE s.governing_body_id = gb.id AND s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . ') AS story_count,
             (SELECT COUNT(*) FROM calendar_events ce WHERE ce.governing_body_id = gb.id AND ce.starts_at >= NOW()) AS upcoming_count
          FROM governing_bodies gb
          WHERE gb.is_active = 1
@@ -4767,7 +4795,7 @@ function newsroom_governing_body_bundle(string $slug): ?array
          FROM stories s
          LEFT JOIN meetings m ON m.id = s.meeting_id
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
-         WHERE s.governing_body_id = :id AND s.publish_status = "published"
+         WHERE s.governing_body_id = :id AND s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
          ORDER BY COALESCE(s.sort_date, s.display_date, s.published_at) DESC, s.id DESC
          LIMIT 12'
     );
