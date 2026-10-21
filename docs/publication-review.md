@@ -5,16 +5,22 @@ The publisher queue is available at `/desk/reviews` or `/editorial-reviews.php`,
 ## Make a decision
 
 1. Open a queued story or enter its story number.
-2. Read the headline, deck, summary, byline, rendered story preview and source citations. The stored text and HTML are also available for inspection.
-3. Choose Keep on hold, Withdraw story, or Approve and publish this version. A reason is required for a hold or withdrawal.
+2. Read the headline, deck, summary, byline, rendered story preview and source citations. Sources and additional details expand when needed.
+3. Choose Publish, Keep on hold, or Do not publish. Notes are optional; a short default reason is recorded when no note is entered. After a decision, the page returns to the queue.
 
-Approval applies only to the fingerprinted story revision and citation set. A newer publisher decision invalidates older browser forms even when the text is unchanged. The decision history records the actor, UTC timestamp, reason and revision hash.
+Approval applies only to the fingerprinted story revision and citation set. A newer publisher decision invalidates older browser forms even when the text is unchanged. The decision history records the actor, UTC timestamp, reason and revision hash internally; the interface keeps this technical identifier out of the main view.
 
 Held and withdrawn stories remain protected during automatic regeneration. Existing manually unpublished stories are not automatically revived. Material changes to approved generated stories are saved as a new held draft. Manual opinion edits are saved as drafts and require a fresh queue decision. Reviewed story pages omit independently regenerated meeting metadata and contextual panels; the reviewed article body and verified citations remain the publication record.
 
 The first sensitivity screen is conservative pattern-based triage of generated copy and source text. It routes suspected allegations, crime, litigation, personnel/privacy issues and other configured indicators to review. It is not a comprehensive legal assessment. Expansion to a judgment-based newsroom editor remains separate work.
 
 Held drafts are preserved while awaiting a decision. If their underlying source changes again, they are not silently replaced; approving the displayed version can therefore be followed by a new held revision on the next worker run. Check the cited source before approval.
+
+## Queue and reminders
+
+The default list contains outstanding review decisions. Other drafts and declined stories have separate views, so resolved withdrawals do not clutter the daily queue. Sources, optional notes and prior decisions are expandable.
+
+A daily morning reminder in ChatGPT links to the queue. It does not inspect the private queue or assert that stories are waiting. Authenticated, event-based digest delivery remains separate work.
 
 ## Technical contract
 

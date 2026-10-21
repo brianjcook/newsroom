@@ -42,7 +42,7 @@ for configured, port in [(False, 8090), (True, 8091)]:
         assert {'csrf', 'story_id', 'revision_hash', 'review_version'} <= set(fields), page[:2000]
         status, _ = request(opener, url, dict(fields, csrf='', decision='approve', reason='invalid CSRF'))
         assert status == 403, status
-        status, page = request(opener, url, dict(fields, decision='hold', reason='HTTP integration hold'))
+        status, page = request(opener, url, dict(fields, decision='hold', reason=''))
         assert status == 200 and 'decision has been saved' in page, (status, page[:1200])
         # The content is unchanged, but another decision has advanced the version.
         status, page = request(opener, url, dict(fields, decision='approve', reason='stale old browser tab'))
