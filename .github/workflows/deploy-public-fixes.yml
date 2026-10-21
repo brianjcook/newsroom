@@ -77,18 +77,31 @@ jobs:
           put -O worker/newsroom worker/newsroom/sources.py
           put -O db/migrations db/migrations/013_automated_context_layer.sql
           put -O db/migrations db/migrations/014_wareham_media_context_source.sql
+          get lib/db.php -o /tmp/newsroom-deployed-db.php
+          get lib/content.php -o /tmp/newsroom-deployed-content.php
+          get index.php -o /tmp/newsroom-deployed-index.php
           bye
           EOF
+          cmp web/lib/db.php /tmp/newsroom-deployed-db.php
+          cmp web/lib/content.php /tmp/newsroom-deployed-content.php
+          echo "Production PHP files match the repair exactly."
+          grep -n 'newsroom_latest_stories' /tmp/newsroom-deployed-index.php
 
       - name: Verify live homepage
         run: |
-          curl --fail --silent --show-error --location --max-time 45 --retry 2 --retry-delay 2 https://www.warehamtimes.com/ -o /tmp/newsroom-home.html
           python3 - <<'PYVERIFY'
-          from pathlib import Path
-          page = Path('/tmp/newsroom-home.html').read_text()
-          if 'Fatal error' in page or 'Uncaught PDOException' in page:
-              raise SystemExit('Homepage still contains a database fatal error')
-          if 'The Wareham Times' not in page or 'Lead Story' not in page:
-              raise SystemExit('Homepage did not render expected content')
-          print('Live homepage rendered successfully without a database fatal error.')
+          import time
+          import urllib.request
+          for host in ['warehamtimes.com', 'www.warehamtimes.com']:
+              for attempt in range(3):
+                  url = 'https://' + host + '/?healthcheck=' + str(time.time_ns())
+                  request = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
+                  with urllib.request.urlopen(request, timeout=45) as response:
+                      page = response.read().decode('utf-8')
+                      print(host, attempt + 1, response.status, response.geturl())
+                  if 'Fatal error' in page or 'Uncaught PDOException' in page:
+                      raise SystemExit('Homepage still contains a database fatal error: ' + page[:2000])
+                  if 'The Wareham Times' not in page or 'Lead Story' not in page:
+                      raise SystemExit('Homepage did not render expected content')
+          print('Six uncached homepage checks passed across both domains.')
           PYVERIFY
