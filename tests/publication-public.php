@@ -41,4 +41,37 @@ newsroom_publication_decide($id, 'approve', public_hash($id), 'Exact approval');
 require_true(newsroom_story_by_slug('fixture-review') !== null, 'Approved detail did not return.');
 $db->exec('UPDATE stories SET byline_name="Unreviewed author" WHERE id=' . $id);
 require_true(newsroom_story_by_slug('fixture-review') === null, 'Unapproved byline changed the public revision.');
+
+// Reproduce a server-closed connection between homepage sections, using the
+// actual MySQL driver and full application queries rather than a retry mock.
+newsroom_publication_decide($id, 'approve', public_hash($id), 'Recovery fixture approval');
+require_true(count(newsroom_upcoming_events()) === 1, 'Recovery fixture must be visible.');
+$readers = [
+    'stories' => static fn() => newsroom_latest_stories(),
+    'meetings' => static fn() => newsroom_upcoming_events(),
+    'community briefs' => static fn() => newsroom_storyworthy_community_events(),
+    'community calendar' => static fn() => newsroom_upcoming_community_events(),
+    'recaps' => static fn() => newsroom_recent_meeting_recaps(),
+    'priorities' => static fn() => newsroom_homepage_priority_stories(),
+    'topics' => static fn() => newsroom_topics_index(),
+    'topic bundles' => static fn() => newsroom_topic_bundle('budget'),
+    'topic spotlights' => static fn() => newsroom_topic_spotlights(),
+    'opinion' => static fn() => newsroom_opinion_items(),
+    'advertisements' => static fn() => newsroom_active_ads('homepage-rail'),
+    'refresh status' => static fn() => newsroom_latest_run_status(),
+];
+foreach ($readers as $label => $read) {
+    $expected = $read();
+    $oldConnection = (int) newsroom_db()->query('SELECT CONNECTION_ID()')->fetchColumn();
+    $setup->exec('KILL CONNECTION ' . $oldConnection);
+    require_true($read() === $expected, 'Recovery changed ' . $label . ' output.');
+    $newConnection = (int) newsroom_db()->query('SELECT CONNECTION_ID()')->fetchColumn();
+    require_true($newConnection !== $oldConnection, 'No fresh connection for ' . $label . '.');
+}
+// Reconnection must not bypass publisher holds or fall back to old public copy.
+newsroom_publication_decide($id, 'hold', public_hash($id), 'Held during reconnection');
+$oldConnection = (int) newsroom_db()->query('SELECT CONNECTION_ID()')->fetchColumn();
+$setup->exec('KILL CONNECTION ' . $oldConnection);
+require_true(newsroom_upcoming_events() === [], 'Reconnected calendar leaked held copy.');
+echo "Twelve homepage readers recovered from real MySQL disconnects; held copy stayed private.\n";
 echo "Full-schema public route checks passed: detail, homepage, calendar, topics, priorities, archive, bodies and revised authorship.\n";

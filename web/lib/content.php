@@ -165,6 +165,23 @@ function newsroom_project_root(): ?string
     return null;
 }
 
+/** Schedule maintenance once, after every public read has finished. */
+function newsroom_schedule_worker_refresh(): void
+{
+    static $scheduled = false;
+    if ($scheduled) {
+        return;
+    }
+    $scheduled = true;
+    register_shutdown_function(static function (): void {
+        try {
+            newsroom_maybe_trigger_worker_refresh();
+        } catch (Throwable $exception) {
+            error_log('Newsroom background refresh failed: ' . $exception->getMessage());
+        }
+    });
+}
+
 function newsroom_maybe_trigger_worker_refresh(): void
 {
     static $attempted = false;
@@ -1437,18 +1454,7 @@ function newsroom_latest_stories(int $limit = 8): array
         return [];
     }
 
-    // Maintenance must not hold up page reads or leave their connection idle.
-    static $refreshScheduled = false;
-    if (!$refreshScheduled) {
-        $refreshScheduled = true;
-        register_shutdown_function(static function (): void {
-            try {
-                newsroom_maybe_trigger_worker_refresh();
-            } catch (Throwable $exception) {
-                error_log('Newsroom background refresh failed: ' . $exception->getMessage());
-            }
-        });
-    }
+    newsroom_schedule_worker_refresh();
 
     $baseSelect = 'SELECT
             s.id,
@@ -1970,9 +1976,9 @@ function newsroom_upcoming_events(int $limit = 10): array
         return [];
     }
 
-    newsroom_maybe_trigger_worker_refresh();
+    newsroom_schedule_worker_refresh();
 
-    $statement = newsroom_db()->prepare(
+    $rows = newsroom_db_read(
         'SELECT
             ce.id,
             ce.title,
@@ -2038,13 +2044,11 @@ function newsroom_upcoming_events(int $limit = 10): array
          WHERE ce.starts_at >= NOW() AND ce.status = :status
            AND ' . newsroom_publication_meeting_visibility_sql('ce.meeting_id') . '
          ORDER BY ce.starts_at ASC
-         LIMIT :limit'
+         LIMIT :limit',
+        [':status' => 'scheduled', ':limit' => $limit]
     );
-    $statement->bindValue(':status', 'scheduled');
-    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $statement->execute();
 
-    return array_map('newsroom_event_presenter', $statement->fetchAll());
+    return array_map('newsroom_event_presenter', $rows);
 }
 
 function newsroom_storyworthy_community_events(int $limit = 6): array
@@ -2053,7 +2057,7 @@ function newsroom_storyworthy_community_events(int $limit = 6): array
         return [];
     }
 
-    $statement = newsroom_db()->prepare(
+    $rows = newsroom_db_read(
         'SELECT
             ce.*,
             COALESCE(ce.score_override, ce.editorial_score) AS effective_score,
@@ -2063,12 +2067,11 @@ function newsroom_storyworthy_community_events(int $limit = 6): array
            AND ce.starts_at >= NOW()
            AND COALESCE(NULLIF(ce.coverage_override, ""), ce.suggested_coverage_mode) IN ("brief", "full_story")
          ORDER BY COALESCE(ce.score_override, ce.editorial_score) DESC, ce.starts_at ASC
-         LIMIT :limit'
+         LIMIT :limit',
+        [':limit' => $limit]
     );
-    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $statement->execute();
 
-    return array_map('newsroom_community_event_presenter', $statement->fetchAll());
+    return array_map('newsroom_community_event_presenter', $rows);
 }
 
 function newsroom_upcoming_community_events(int $limit = 20): array
@@ -2077,7 +2080,7 @@ function newsroom_upcoming_community_events(int $limit = 20): array
         return [];
     }
 
-    $statement = newsroom_db()->prepare(
+    $rows = newsroom_db_read(
         'SELECT
             ce.*,
             COALESCE(ce.score_override, ce.editorial_score) AS effective_score,
@@ -2086,12 +2089,11 @@ function newsroom_upcoming_community_events(int $limit = 20): array
          WHERE ce.is_hidden = 0
            AND ce.starts_at >= NOW()
          ORDER BY ce.starts_at ASC, COALESCE(ce.score_override, ce.editorial_score) DESC
-         LIMIT :limit'
+         LIMIT :limit',
+        [':limit' => $limit]
     );
-    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $statement->execute();
 
-    return array_map('newsroom_community_event_presenter', $statement->fetchAll());
+    return array_map('newsroom_community_event_presenter', $rows);
 }
 
 function newsroom_community_event_by_id(int $id): ?array
@@ -2124,7 +2126,7 @@ function newsroom_recent_meeting_recaps(int $limit = 12): array
         return [];
     }
 
-    $statement = newsroom_db()->prepare(
+    $rows = newsroom_db_read(
         'SELECT
             s.id,
             s.slug,
@@ -2167,12 +2169,11 @@ function newsroom_recent_meeting_recaps(int $limit = 12): array
          LEFT JOIN governing_bodies gb ON gb.id = s.governing_body_id
          WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . ' AND s.story_type = "minutes_recap"
          ORDER BY COALESCE(s.sort_date, s.display_date, s.published_at) DESC, s.id DESC
-         LIMIT :limit'
+         LIMIT :limit',
+        [':limit' => $limit]
     );
-    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $statement->execute();
 
-    return array_map('newsroom_recent_story_presenter', $statement->fetchAll());
+    return array_map('newsroom_recent_story_presenter', $rows);
 }
 
 function newsroom_recent_runs(int $limit = 20): array
@@ -2898,15 +2899,14 @@ function newsroom_topics_index(int $limit = 40): array
         return [];
     }
 
-    $statement = newsroom_db()->prepare(
+    $rows = newsroom_db_read(
         'SELECT "story" AS entity_type, topic_tags_json FROM stories s WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
          UNION ALL
-         SELECT "community_event" AS entity_type, topic_tags_json FROM community_events WHERE is_hidden = 0'
-    );
-    $statement->execute();
+         SELECT "community_event" AS entity_type, topic_tags_json FROM community_events WHERE is_hidden = 0',
+        []);
 
     $counts = [];
-    foreach ($statement->fetchAll() as $row) {
+    foreach ($rows as $row) {
         foreach (newsroom_parse_topics($row['topic_tags_json'] ?? null) as $topic) {
             $slug = $topic['slug'];
             if (!isset($counts[$slug])) {
@@ -2939,7 +2939,7 @@ function newsroom_topic_bundle(string $slug, int $storyLimit = 20, int $eventLim
 
     $normalizedNeedle = '%"slug":"' . str_replace(['%', '_'], ['\\%', '\\_'], $slug) . '"%';
 
-    $storyStatement = newsroom_db()->prepare(
+    $storyRows = newsroom_db_read(
         'SELECT
             s.id,
             s.slug,
@@ -2960,14 +2960,12 @@ function newsroom_topic_bundle(string $slug, int $storyLimit = 20, int $eventLim
          WHERE s.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '
            AND REPLACE(CAST(s.topic_tags_json AS CHAR(4000)), " ", "") LIKE :needle
          ORDER BY COALESCE(s.sort_date, s.display_date, s.published_at) DESC
-         LIMIT :limit'
+         LIMIT :limit',
+        [':needle' => $normalizedNeedle, ':limit' => $storyLimit]
     );
-    $storyStatement->bindValue(':needle', $normalizedNeedle, PDO::PARAM_STR);
-    $storyStatement->bindValue(':limit', $storyLimit, PDO::PARAM_INT);
-    $storyStatement->execute();
-    $stories = array_map('newsroom_recent_story_presenter', $storyStatement->fetchAll());
+    $stories = array_map('newsroom_recent_story_presenter', $storyRows);
 
-    $eventStatement = newsroom_db()->prepare(
+    $eventRows = newsroom_db_read(
         'SELECT
             ce.*,
             COALESCE(ce.score_override, ce.editorial_score) AS effective_score,
@@ -2976,12 +2974,10 @@ function newsroom_topic_bundle(string $slug, int $storyLimit = 20, int $eventLim
          WHERE ce.is_hidden = 0
            AND REPLACE(CAST(ce.topic_tags_json AS CHAR(4000)), " ", "") LIKE :needle
          ORDER BY ce.starts_at ASC, COALESCE(ce.score_override, ce.editorial_score) DESC
-         LIMIT :limit'
+         LIMIT :limit',
+        [':needle' => $normalizedNeedle, ':limit' => $eventLimit]
     );
-    $eventStatement->bindValue(':needle', $normalizedNeedle, PDO::PARAM_STR);
-    $eventStatement->bindValue(':limit', $eventLimit, PDO::PARAM_INT);
-    $eventStatement->execute();
-    $events = array_map('newsroom_community_event_presenter', $eventStatement->fetchAll());
+    $events = array_map('newsroom_community_event_presenter', $eventRows);
 
     $topic = null;
     if ($stories) {
@@ -3094,7 +3090,7 @@ function newsroom_homepage_priority_stories(int $limit = 4): array
         return [];
     }
 
-    $statement = newsroom_db()->prepare(
+    $rows = newsroom_db_read(
         'SELECT
             s.id,
             s.slug,
@@ -3134,12 +3130,11 @@ function newsroom_homepage_priority_stories(int $limit = 4): array
             CASE WHEN s.follow_up_needed = 1 THEN 0 ELSE 1 END,
             COALESCE(s.score_override, s.editorial_score) DESC,
             COALESCE(s.sort_date, s.display_date, s.published_at) DESC
-         LIMIT :limit'
+         LIMIT :limit',
+        [':limit' => $limit]
     );
-    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $statement->execute();
 
-    return array_map('newsroom_recent_story_presenter', $statement->fetchAll());
+    return array_map('newsroom_recent_story_presenter', $rows);
 }
 
 function newsroom_topic_spotlights(int $limit = 6): array
@@ -4362,13 +4357,13 @@ function newsroom_latest_run_status(): ?array
         return null;
     }
 
-    $statement = newsroom_db()->query(
+    $rows = newsroom_db_read(
         'SELECT id, started_at, finished_at, run_status, items_discovered, stories_published, stories_updated, events_created, events_updated
          FROM generation_runs
          ORDER BY id DESC
-         LIMIT 1'
-    );
-    $row = $statement ? $statement->fetch() : false;
+         LIMIT 1',
+        []);
+    $row = $rows[0] ?? null;
     if (!$row) {
         return null;
     }
@@ -4433,7 +4428,7 @@ function newsroom_opinion_items(int $limit = 60, bool $includeDrafts = false): a
     }
 
     $statusSql = $includeDrafts ? 's.publish_status IN ("draft", "published")' : 's.publish_status = "published" AND ' . newsroom_publication_visibility_sql('s') . '';
-    $statement = newsroom_db()->prepare(
+    $rows = newsroom_db_read(
         'SELECT
             s.id,
             s.slug,
@@ -4453,11 +4448,10 @@ function newsroom_opinion_items(int $limit = 60, bool $includeDrafts = false): a
          WHERE s.story_type IN ("editorial", "column", "letter")
            AND ' . $statusSql . '
          ORDER BY COALESCE(s.display_date, s.published_at, s.updated_at) DESC, s.id DESC
-         LIMIT :limit'
+         LIMIT :limit',
+        [':limit' => $limit]
     );
-    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $statement->execute();
-    return array_map('newsroom_recent_story_presenter', $statement->fetchAll());
+    return array_map('newsroom_recent_story_presenter', $rows);
 }
 
 function newsroom_opinion_item(int $id): ?array
@@ -4615,7 +4609,7 @@ function newsroom_active_ads(string $slotSlug, int $limit = 1): array
     }
 
     try {
-        $statement = newsroom_db()->prepare(
+        $rows = newsroom_db_read(
             'SELECT ac.*, ads.slug AS slot_slug, ads.label AS slot_label
              FROM ad_campaigns ac
              INNER JOIN ad_slots ads ON ads.id = ac.slot_id
@@ -4625,12 +4619,10 @@ function newsroom_active_ads(string $slotSlug, int $limit = 1): array
                AND (ac.starts_at IS NULL OR ac.starts_at <= NOW())
                AND (ac.ends_at IS NULL OR ac.ends_at >= NOW())
              ORDER BY ac.updated_at DESC, ac.id DESC
-             LIMIT :limit'
+             LIMIT :limit',
+            [':slot' => $slotSlug, ':limit' => $limit]
         );
-        $statement->bindValue(':slot', $slotSlug);
-        $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
-        $statement->execute();
-        return $statement->fetchAll();
+        return $rows;
     } catch (Throwable $exception) {
         return [];
     }

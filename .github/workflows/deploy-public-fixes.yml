@@ -40,6 +40,7 @@ jobs:
         run: |
           find web -name '*.php' -print0 | xargs -0 -n1 php -l
           php tests/db-read-retry.php
+          php tests/homepage-refresh.php
           python3 -m pip install PyMySQL==1.0.2
           python3 -m unittest discover -s tests -p 'test_publication.py'
           php tests/publication-review.php
